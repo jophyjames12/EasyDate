@@ -49,3 +49,10 @@ def signup_view(request):
         else:
             messages.error(request, "Passwords do not match")
     return render(request, 'MainApp/signup.html')
+def area_view(request):
+    return render(request, 'MainApp/area.html')
+
+
+def logout_view(request):
+    logout(request)
+    return redirect('login')  # Redirect to login page after logout
