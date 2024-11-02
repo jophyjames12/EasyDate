@@ -4,4 +4,6 @@ document.addEventListener('DOMContentLoaded', function() {
     setTimeout(() => {
         authContainer.classList.add('show');
     }, 100);
+
 });
+

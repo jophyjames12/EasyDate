@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'djongo',
     'MainApp',
 ]
 
@@ -78,10 +79,15 @@ WSGI_APPLICATION = 'EasyDate.wsgi.application'
 
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'ENGINE': 'djongo',  # The engine name for Djongo
+        'NAME': 'UserDetails',  # Replace with your MongoDB database name
+        'ENFORCE_SCHEMA': False,  # Set to False if you want to skip schema validation
+        'CLIENT': {
+            'host': 'mongodb://localhost:27017',  # Change this if your MongoDB is hosted differently
+        }
     }
 }
+
 
 
 # Password validation

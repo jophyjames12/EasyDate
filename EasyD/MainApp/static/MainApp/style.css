@@ -83,6 +83,7 @@ body {
     background-color: rgba(255, 0, 0, 0.1); /* Light red background for messages */
     padding: 0.5rem;
     border-radius: 4px;
+
 }
 
 /* Animation for entry */
@@ -96,3 +97,4 @@ body {
         transform: translateY(0); /* Ends at original position */
     }
 }
+
