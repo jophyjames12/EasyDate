@@ -4,7 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    <link rel="stylesheet" href="MainApp/style.css">
+    {% load static %}  <!-- Load the static template tag library -->
+    <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
 </head>
 <body>
     <div class="auth-container">
@@ -24,9 +25,12 @@
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required>
 
-            <button type="submit">Login</button>
+            <button onclick="location.href='/area/'" type="submit">Login</button>
         </form>
         <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
     </div>
+
+    <!-- Include the JavaScript file just before the closing </body> tag -->
+    <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>
