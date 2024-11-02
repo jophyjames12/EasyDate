@@ -1,35 +1,43 @@
-
 /* Center the auth container */
 body {
-
     display: flex;
     justify-content: center;
     align-items: center;
     height: 100vh;
     margin: 0;
-    font-family: Arial, sans-serif;
-    background-color: #f0f2f5;
+    font-family: 'Helvetica Neue', Arial, sans-serif; /* Slightly different font for a modern look */
+    background-color: #f0f2f5; /* Light gray background */
+    background-image: linear-gradient(to right, #ff7e5f, #feb47b); /* Gradient background */
 }
 
 .auth-container {
     width: 300px;
     padding: 2rem;
-    background: #7a1f1f;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    background: rgba(122, 31, 31, 0.9); /* Semi-transparent background */
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     border-radius: 8px;
     text-align: center;
+    transition: all 0.3s ease; /* Smooth transition for all properties */
+    transform: translateY(20px); /* Start slightly lower for effect */
+    opacity: 0; /* Start as invisible */
+}
+
+.auth-container.show {
+    transform: translateY(0); /* Move into place */
+    opacity: 1; /* Fade in */
 }
 
 .auth-container h2 {
     margin-bottom: 1.5rem;
-    color: #333;
+    color: #fff; /* White text for contrast */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Text shadow for better readability */
 }
 
 .auth-container label {
     display: block;
     margin: 0.5rem 0 0.25rem;
     text-align: left;
-    color: #333;
+    color: #fff; /* Change label color to white */
 }
 
 .auth-container input {
@@ -38,6 +46,13 @@ body {
     margin-bottom: 1rem;
     border: 1px solid #ddd;
     border-radius: 4px;
+    transition: border-color 0.3s, box-shadow 0.3s; /* Smooth transitions */
+}
+
+.auth-container input:focus {
+    border-color: #007bff; /* Change border color on focus */
+    outline: none; /* Remove default outline */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Add subtle glow effect */
 }
 
 .auth-container button {
@@ -49,20 +64,36 @@ body {
     border-radius: 4px;
     cursor: pointer;
     font-weight: bold;
+    transition: background-color 0.3s ease, transform 0.2s ease; /* Smooth transitions */
 }
 
 .auth-container button:hover {
     background-color: #0056b3;
+    transform: translateY(-2px); /* Slightly lift button on hover */
 }
 
 .auth-container p {
     margin-top: 1rem;
-    color: #333;
+    color: #fff; /* Change text color to white for contrast */
 }
 
 .auth-container .messages {
     color: red;
     margin-bottom: 1rem;
+    background-color: rgba(255, 0, 0, 0.1); /* Light red background for messages */
+    padding: 0.5rem;
+    border-radius: 4px;
 }
 
+/* Animation for entry */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px); /* Starts lower */
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0); /* Ends at original position */
+    }
+}
 

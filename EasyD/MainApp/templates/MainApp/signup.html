@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sign Up</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/signup.css' %}">
 </head>
 <body>
     <div class="signup-container">
@@ -46,5 +46,8 @@
         
         <p>Already have an account? <a href="{% url 'home' %}">Log in</a></p>
     </div>
+
+    <!-- Include the JavaScript file just before the closing </body> tag -->
+    <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>
