@@ -9,6 +9,9 @@ client = MongoClient('mongodb://localhost:27017/')
 db = client['UserDetails']  # Use your actual database name
 users_collection = db['AccountHashing']  # Use your actual collection name
 
+
+def home(request):
+    return render(request,'MainApp/area.html')
 def login_view(request):
     if request.method == 'POST':
         username = request.POST['username']
