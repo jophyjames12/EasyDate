@@ -1,5 +1,7 @@
+
 /* Center the auth container */
 body {
+
     display: flex;
     justify-content: center;
     align-items: center;
@@ -62,3 +64,5 @@ body {
     color: red;
     margin-bottom: 1rem;
 }
+
+

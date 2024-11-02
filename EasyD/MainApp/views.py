@@ -8,7 +8,6 @@ from django.contrib import messages
 # Create your views here.
 def home(request):
     return render(request, 'MainApp/home.html')
-
 def login_view(request):
     if request.method == 'POST':
         username = request.POST['username']
@@ -17,6 +16,7 @@ def login_view(request):
         if user is not None:
             login(request, user)
             return redirect('home')  # Update this to the URL you want to redirect to after login
+
         else:
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
@@ -27,7 +27,7 @@ def signup_view(request):
         email = request.POST['email']
         password = request.POST['password']
         confirm_password = request.POST['confirm_password']
-        
+
         if password == confirm_password:
             if User.objects.filter(username=username).exists():
                 messages.error(request, "Username already exists")
@@ -36,6 +36,7 @@ def signup_view(request):
             else:
                 user = User.objects.create_user(username=username, email=email, password=password)
                 user.save()
+
                 login(request, user)
                 return redirect('home')  # Update this to the URL you want to redirect to after signup
         else:
@@ -45,3 +46,4 @@ def signup_view(request):
 def logout_view(request):
     logout(request)
     return redirect('login')  # Redirect to login page after logout
+
