@@ -9,10 +9,16 @@ client = MongoClient('mongodb://localhost:27017/')
 db = client['UserDetails']  # Use your actual database name
 users_collection = db['AccountHashing']  # Use your actual collection name
 
-
 def home(request):
-    return render(request,'MainApp/area.html')
+    # Redirect to area_view if user is logged in
+    if request.session.get('user_id'):
+        return redirect('area_view')
+    return render(request, 'MainApp/area.html')
+
 def login_view(request):
+    if request.session.get('user_id'):  # If already logged in, redirect to area_view
+        return render(request,'MainApp/area.html')
+
     if request.method == 'POST':
         username = request.POST['username']
         password = request.POST['password']
@@ -22,12 +28,15 @@ def login_view(request):
         if user and pbkdf2_sha256.verify(password, user['password']):
             # Store the user ID in the session
             request.session['user_id'] = str(user['_id'])
-            return redirect('home')
+            return redirect('area_view')
         else:
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
 
 def signup_view(request):
+    if request.session.get('user_id'):  # If already logged in, redirect to area_view
+        return redirect('area_view')
+
     if request.method == 'POST':
         username = request.POST['username']
         email = request.POST['email']
@@ -52,10 +61,13 @@ def signup_view(request):
         else:
             messages.error(request, "Passwords do not match")
     return render(request, 'MainApp/signup.html')
+
 def area_view(request):
+    if not request.session.get('user_id'):  # Ensure user is logged in
+        return redirect('login')
     return render(request, 'MainApp/area.html')
 
-
 def logout_view(request):
-    logout(request)
+    if 'user_id' in request.session:
+        del request.session['user_id']  # Remove user ID from session
     return redirect('login')  # Redirect to login page after logout
