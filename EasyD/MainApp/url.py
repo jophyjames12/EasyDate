@@ -8,7 +8,8 @@ urlpatterns=[
     path("area/",views.area_view, name='area' ),
     path('signup/', views.signup_view, name='signup'),
     path('logout/', views.logout_view, name='logout'),
+    path('area/logout/', views.logout_view, name='logout'),
     path("home/",views.home,name="home"),
-    
+    #checking
 ]
 
