@@ -1,44 +1,44 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Welcome</title>
-    <style>
-        /* Style for centering the text */
-        body, html {
-            height: 100%;
-            margin: 0;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-direction: column; /* Stack elements vertically */
-            font-family: Arial, sans-serif;
-        }
-        .center-text {
-            font-size: 24px;
-            margin-bottom: 20px; /* Space between text and button */
-        }
-        .logout-button {
-            padding: 10px 20px;
-            font-size: 16px;
-            cursor: pointer;
-            background-color: #f44336; /* Red background */
-            color: white; /* White text */
-            border: none; /* Remove borders */
-            border-radius: 5px; /* Rounded corners */
-            transition: background-color 0.3s; /* Smooth transition */
-        }
-        .logout-button:hover {
-            background-color: #c62828; /* Darker red on hover */
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Schedule</title>
+  {% load static %}  
+  <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
+  <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
 </head>
 <body>
-    <div class="center-text">My friend, finally you are here</div>
-    <form method="POST" action="{% url 'logout' %}"> <!-- Replace with your logout URL -->
-        {% csrf_token %} <!-- CSRF token for security -->
-        <button type="submit" class="logout-button">Logout</button>
-    </form>
+  <!-- Top Menu Section -->
+  <header>
+    <h1>Event Schedule</h1>
+    <div class="menu">
+      <button onclick="toggleMenu()">☰ Menu</button>
+      <div id="dropdown" class="dropdown-content">
+        <a href="#">Profile</a>
+        <a href="logout/">Logout</a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Horizontal Sliding Schedule Section -->
+  <section class="schedule">
+    <div class="schedule-slider">
+      <div class="schedule-item">01/01/2024 - Location 1<br>10:00 AM - User A</div>
+      <div class="schedule-item">02/01/2024 - Location 2<br>11:00 AM - User B</div>
+      <div class="schedule-item">03/01/2024 - Location 3<br>12:00 PM - User C</div>
+    </div>
+  </section>
+
+  <!-- Auto-sliding Event Design Section -->
+  <section class="event">
+    <div class="event-slider">
+      <div class="event-item">Event Design 1</div>
+      <div class="event-item">Event Design 2</div>
+      <div class="event-item">Event Design 3</div>
+    </div>
+  </section>
+
+  <script src="file.js"></script>
 </body>
 </html>

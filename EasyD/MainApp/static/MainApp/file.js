@@ -6,4 +6,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }, 100);
 
 });
-
+function toggleMenu() {
+    const dropdown = document.getElementById("dropdown");
+    dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
+  }
+  
