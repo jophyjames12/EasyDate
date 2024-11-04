@@ -29,7 +29,7 @@ def login_view(request):
         if user and pbkdf2_sha256.verify(password, user['password']):
             # Store the user ID in the session
             request.session['user_id'] = str(user['_id'])
-            return render(request, 'MainApp/area.html')
+            return redirect('area')
         else:
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
