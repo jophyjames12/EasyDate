@@ -6,14 +6,15 @@ from passlib.hash import pbkdf2_sha256  # For password hashing
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
-db = client['UserDetails']  # Use your actual database name
-users_collection = db['AccountHashing']  # Use your actual collection name
+db = client['UserDetails'] 
+users_collection = db['AccountHashing']  
 
 def home(request):
     # Redirect to area_view if user is logged in
-    if request.session.get('user_id'):
-        return redirect('area_view')
+    if not request.session.get('user_id'):
+        return render(request,'MainApp/login.html')
     return render(request, 'MainApp/area.html')
+
 
 def login_view(request):
     if request.session.get('user_id'):  # If already logged in, redirect to area_view
@@ -28,7 +29,7 @@ def login_view(request):
         if user and pbkdf2_sha256.verify(password, user['password']):
             # Store the user ID in the session
             request.session['user_id'] = str(user['_id'])
-            return redirect('area_view')
+            return render(request, 'MainApp/area.html')
         else:
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')

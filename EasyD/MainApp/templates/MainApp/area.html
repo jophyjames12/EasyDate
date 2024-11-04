@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>text</title>
+    <title>Welcome</title>
     <style>
         /* Style for centering the text */
         body, html {
@@ -12,14 +12,33 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            flex-direction: column; /* Stack elements vertically */
             font-family: Arial, sans-serif;
         }
         .center-text {
             font-size: 24px;
+            margin-bottom: 20px; /* Space between text and button */
+        }
+        .logout-button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #f44336; /* Red background */
+            color: white; /* White text */
+            border: none; /* Remove borders */
+            border-radius: 5px; /* Rounded corners */
+            transition: background-color 0.3s; /* Smooth transition */
+        }
+        .logout-button:hover {
+            background-color: #c62828; /* Darker red on hover */
         }
     </style>
 </head>
 <body>
-    <div class="center-text">My nigga finally u are here</div>
+    <div class="center-text">My friend, finally you are here</div>
+    <form method="POST" action="{% url 'logout' %}"> <!-- Replace with your logout URL -->
+        {% csrf_token %} <!-- CSRF token for security -->
+        <button type="submit" class="logout-button">Logout</button>
+    </form>
 </body>
 </html>
