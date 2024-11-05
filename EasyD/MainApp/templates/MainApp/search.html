@@ -1,0 +1,6 @@
+<form method="post" action="{% url 'search_user' %}">
+    {% csrf_token %}
+    <label for="username">Search for User:</label>
+    <input type="text" id="username" name="username" required>
+    <button type="submit">Search</button>
+</form>
