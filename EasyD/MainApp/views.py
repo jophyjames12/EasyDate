@@ -11,7 +11,6 @@ from django.contrib.auth.models import User
 client = MongoClient('mongodb://localhost:27017/')
 db = client['UserDetails'] 
 users_collection = db['AccountHashing']  
-
     
 
 def home(request):
@@ -83,13 +82,20 @@ def search_user(request):
     if request.method == "POST":
         username = request.POST.get('username')
         
+        if not username:
+            messages.error(request, "No username provided.")
+            return render(request, 'MainApp/search.html')
+        
         try:
-            user = User.objects.get(username=username)
-            return render(request, 'user_found.html', {'user': user})
+            all_users = users_collection.find()  # Fetches all documents in the collection
+            for user in all_users:
+                if user['username']==username:
+                    return render(request, 'MainApp/user_found.html', {'user': user})
         except User.DoesNotExist:
             messages.error(request, "Invalid username.")
-            return render(request, 'search.html')
+            return render(request, 'MainApp/search.html')
     return render(request, 'MainApp/search.html')
+
 
 def send_friend_request(request, to_user_id):
     to_user = get_object_or_404(User, id=to_user_id)
