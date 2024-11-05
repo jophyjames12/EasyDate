@@ -12,6 +12,7 @@ client = MongoClient('mongodb://localhost:27017/')
 db = client['UserDetails'] 
 users_collection = db['AccountHashing']  
     
+#commenting delete if found laterrr
 
 def home(request):
     # Redirect to area_view if user is logged in

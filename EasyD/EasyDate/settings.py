@@ -85,6 +85,7 @@ DATABASES = {
         'CLIENT': {
             'host': 'mongodb://localhost:27017',  # Change this if your MongoDB is hosted differently
         }
+
     }
 }
 
