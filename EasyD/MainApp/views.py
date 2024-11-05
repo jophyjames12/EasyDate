@@ -89,7 +89,7 @@ def search_user(request):
         except User.DoesNotExist:
             messages.error(request, "Invalid username.")
             return render(request, 'search.html')
-    return render(request, 'search.html')
+    return render(request, 'MainApp/search.html')
 
 def send_friend_request(request, to_user_id):
     to_user = get_object_or_404(User, id=to_user_id)
