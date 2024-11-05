@@ -6,8 +6,8 @@ body {
     height: 100vh;
     margin: 0;
     font-family: 'Helvetica Neue', Arial, sans-serif; /* Slightly different font for a modern look */
-    background-color: #f0f2f5; /* Light gray background */
-    background-image: linear-gradient(to right, #ff7e5f, #feb47b); /* Gradient background */
+    background-color: #fff308; /* Light gray background */
+    background-image: linear-gradient(to right, #d80a7f, #ffffff); /* Gradient background */
 }
 
 .auth-container {
