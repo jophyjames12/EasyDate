@@ -6,14 +6,21 @@ body {
     height: 100vh;
     margin: 0;
     font-family: 'Helvetica Neue', Arial, sans-serif; /* Slightly different font for a modern look */
-    background-color: #f0f2f5; /* Light gray background */
-    background-image: linear-gradient(to right, #ff7e5f, #feb47b); /* Gradient background */
+    background-color: #ffffff; /* Light gray background */
+    background: radial-gradient(ellipse 100% 150% at center, rgb(9, 1, 68), rgb(244, 16, 137));
+
+
+@keyframes slide {
+  0% { background-position: 0% 50%; }
+  100% { background-position: 100% 50%; }
+}
+
 }
 
 .auth-container {
     width: 300px;
     padding: 2rem;
-    background: rgba(122, 31, 31, 0.9); /* Semi-transparent background */
+    background: rgba(9, 1, 68, 0.9); /* Semi-transparent background */
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
     border-radius: 8px;
     text-align: center;
