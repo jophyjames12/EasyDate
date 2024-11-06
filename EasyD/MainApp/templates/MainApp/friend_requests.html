@@ -1,0 +1,9 @@
+<!-- Assuming you want to display the friend IDs -->
+<h1>Friend Requests</h1>
+<ul>
+    {% for friend in friends %}
+        <li>{{ friend }}</li> <!-- This will display each friend's ID -->
+    {% empty %}
+        <li>No friend requests.</li>
+    {% endfor %}
+</ul>
