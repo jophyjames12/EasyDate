@@ -1,6 +1,7 @@
 from django.http import HttpResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
 from .models import FriendRequest, FriendList
@@ -11,6 +12,7 @@ from django.contrib.auth.models import User
 client = MongoClient('mongodb://localhost:27017/')
 db = client['UserDetails'] 
 users_collection = db['AccountHashing']  
+FriendReq=db['Friendrequest']
     
 #commenting delete if found laterrr
 
@@ -80,9 +82,10 @@ def logout_view(request):
 
 # Search user and send a friend request if the user exists
 def search_user(request):
+    fromuser=request.session.get('user_id') #getting The userid of the account first
+    fromname=users_collection.find_one({"_id":ObjectId(fromuser)}).get('username') #extracts username
     if request.method == "POST":
         username = request.POST.get('username')
-        
         if not username:
             messages.error(request, "No username provided.")
             return render(request, 'MainApp/search.html')
@@ -91,8 +94,14 @@ def search_user(request):
             all_users = users_collection.find()  # Fetches all documents in the collection
             for user in all_users:
                 if user['username']==username:
+                    friend={
+                        "From":fromname,
+                        "To":username
+                    }
+                    FriendReq.insert_one(friend)
+                    
                     return render(request, 'MainApp/user_found.html', {'user': user})
-        except User.DoesNotExist:
+        except username.DoesNotExist:
             messages.error(request, "Invalid username.")
             return render(request, 'MainApp/search.html')
     return render(request, 'MainApp/search.html')
