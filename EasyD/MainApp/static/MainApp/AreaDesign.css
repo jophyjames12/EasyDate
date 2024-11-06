@@ -2,13 +2,20 @@
     margin: 0;
     padding: 0;
     box-sizing: border-box;
+    
   }
   
-  body {
+  html, body {
+    height: 100%;
+    width: 100%;
     font-family: Arial, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
+    background-image: url('./bg_images/bg2.jpg');
+    background-size: cover;
+    background-position: center;
+  
   }
   
   header {
@@ -16,8 +23,8 @@
     display: flex;
     justify-content: space-between;
     padding: 10px;
-    background-color: #333;
-    color: white;
+    background-color: rgb(9, 1, 68);
+    color: rgb(255, 255, 255);
     position: relative;
   }
   
@@ -68,6 +75,7 @@
     padding: 20px;
     text-align: center;
     border-right: 1px solid #ddd;
+    background-color: #f3f3f3;
   }
   
   .event {
@@ -90,7 +98,8 @@
     background-color: #f3f3f3;
     border-right: 1px solid #ddd;
   }
-  
+
+
   @keyframes slide {
     0% { transform: translateX(0); }
     33% { transform: translateX(-100%); }
