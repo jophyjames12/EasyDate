@@ -183,3 +183,7 @@ def reject_request(request):
 
         FriendReq.delete_one({'_id': ObjectId(friendrequest_id)}) 
     return redirect("search_user")
+
+
+def profile(request):
+    return render(request, 'MainApp/profile.html')
