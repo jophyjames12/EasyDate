@@ -4,7 +4,7 @@ from django.contrib import messages
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
-#from .models import FriendRequest, FriendList
+
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.models import User
 
@@ -118,8 +118,8 @@ def check_request(request):
     friend_list=FriendReq.find()
     for friend in friend_list:
         if friend["To"]==name:
-            friend_id = friend["_id"]
-            friends.append(friend_id)
+            friendname = friend["From"]
+            friends.append(friendname)
     return render(request, "MainApp/friend_requests.html", {"friends": friends})
 
 def accept_request(request):
@@ -127,13 +127,11 @@ def accept_request(request):
     userinfo(request)  # Assuming this function retrieves and sets `name` (current user's name)
 
     if request.method == "POST":
-        friendrequest_id = request.POST.get('friend_id')  # Get the friend request ID from the form
-        friend_request = FriendReq.find_one({"_id": ObjectId(friendrequest_id)})
-
+        friendname = request.POST.get('friend_id')  # Get the friend Name from the form
+        friend_request = FriendReq.find_one({"From": friendname,"TO":name})
         if friend_request:
             sender = friend_request["From"]  # The user who sent the friend request
             receiver = name  # The current user accepting the request
-
             # Update the sender's friend list
             Friendlist.update_one(
                 {"username": sender},
@@ -147,42 +145,14 @@ def accept_request(request):
                 {"$addToSet": {"friends": sender}},
                 upsert=True  # Create document if it doesn't exist
             )
-    userinfo(request)  # this function retrieves and sets `name` (current user's name)
-    
-    if request.method == "POST":
-        friendrequest_id = request.POST.get('friend_id')  # Get the friend request ID from the form
-        friend_request = FriendReq.find_one({"_id": ObjectId(friendrequest_id)})
-        
-        if friend_request:
-            sender = friend_request["From"]  # The user who sent the friend request
-            receiver = name  # The current user accepting the request
-
-            # Find or initialize the friends list of each user
-            # Ensure both users have a "friends" field as a list in their documents
-            
-            # Update sender's friend list
-            FriendReq.update_one(
-                {"From": sender},
-                {"$addToSet": {"friends": receiver}}
-            )
-            
-            # Update receiver's friend list
-            FriendReq.update_one(
-                {"From": receiver},
-                {"$addToSet": {"friends": sender}}
-            )
-
-            # Optionally, remove the friend request after acceptance
-            FriendReq.delete_one({"_id": ObjectId(friendrequest_id)})
-
+    FriendReq.delete_one({"From": friendname,"To":name}) 
     return redirect("search_user")
 
 def reject_request(request):
     if request.method == "POST":
-        friendrequest_id = request.POST.get('friend_id')  # Get the friend request ID from the form
-
-        FriendReq.delete_one({'_id': ObjectId(friendrequest_id)}) 
-    return redirect("search_user")
+        friendname = request.POST.get('friend_id')  # Get the friend request ID from the form
+        FriendReq.delete_one({"From": friendname,"To":name}) 
+    return redirect("friendreq")
 
 
 def profile(request):
