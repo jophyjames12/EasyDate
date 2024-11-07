@@ -7,7 +7,7 @@ body {
     margin: 0;
     font-family: 'Helvetica Neue', Arial, sans-serif; /* Slightly different font for a modern look */
     background-color: #ffffff; /* Light gray background */
-    background-image: url('./bg_images/bg2.jpg');
+    background-image: url('./bg_images/background2.gif');
     background-size: cover;
     background-position: center;
 
@@ -21,9 +21,10 @@ body {
 .auth-container {
     width: 300px;
     padding: 2rem;
-    background: rgba(9, 1, 68, 0.9); /* Semi-transparent background */
+    background-color: rgb(33, 5, 62); /* Semi-transparent background */
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    border-radius: 8px;
+    border-radius: 15px;
+    border: 2px solid honeydew;
     text-align: center;
     transition: all 0.3s ease; /* Smooth transition for all properties */
     transform: translateY(20px); /* Start slightly lower for effect */
