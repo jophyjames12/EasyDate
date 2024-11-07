@@ -16,8 +16,8 @@ def userinfo(request):
     global user
     user = request.session.get('user_id')  # getting The userid of the account first
     global name
-    name = users_collection.find_one({"_id": ObjectId(user)}).get('username')  # extracts username
-
+    name=users_collection.find_one({"_id":ObjectId(user)}).get('username') #extracts username
+    
 def home(request):
     # Redirect to area_view if user is logged in
     if not request.session.get('user_id'):
@@ -65,8 +65,10 @@ def signup_view(request):
                     "password": hashed_password  # Saving the hashed password
                 }
                 users_collection.insert_one(new_user)  # Insert user into MongoDB
-                messages.success(request, "Account created successfully!")
-                return redirect('login')
+                # Set session variable to show success message
+                request.session['user_id'] = str(new_user['_id'])
+                request.session['account_created'] = True
+                return redirect('area')
         else:
             messages.error(request, "Passwords do not match")
     return render(request, 'MainApp/signup.html')
@@ -74,7 +76,12 @@ def signup_view(request):
 def area_view(request):
     if not request.session.get('user_id'):  # Ensure user is logged in
         return redirect('login')
-    return render(request, 'MainApp/area.html')
+    # Check if account was just created and delete the session key
+    account_created = request.session.get('account_created', False)
+    if 'account_created' in request.session:
+        del request.session['account_created']  # Explicitly delete it after checking
+
+    return render(request, 'MainApp/area.html', {'account_created': account_created})
 
 def logout_view(request):
     if 'user_id' in request.session:
@@ -142,7 +149,7 @@ def accept_request(request):
 
     if request.method == "POST":
         friendname = request.POST.get('friend_id')  # Get the friend Name from the form
-        friend_request = FriendReq.find_one({"From": friendname, "To": name})
+        friend_request = FriendReq.find_one({"From": friendname,"To":name})
         if friend_request:
             sender = friend_request["From"]  # The user who sent the friend request
             receiver = name  # The current user accepting the request
