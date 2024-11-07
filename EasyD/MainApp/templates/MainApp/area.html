@@ -10,6 +10,16 @@
   
 </head>
 <body>
+  {% if account_created %}
+    <div id="successModal" class="modal" style="display: block;">
+        <div class="modal-content">
+            <div class="success-icon">&#10003;</div> <!-- Checkmark icon -->
+            <h2>Success</h2>
+            <p>Account created successfully!</p>
+            <button class="close-btn">Close</button>
+        </div>
+    </div>
+  {% endif %}
   <!-- Top Menu Section -->
   <header>
     <h1>Event Schedule</h1>
@@ -42,7 +52,8 @@
     </div>
     <button class="arrow right-arrow">→</button> <!-- Right arrow -->
   </section>
-
+  
   <script src="{% static 'MainApp/file.js' %}"></script>
+  
 </body>
 </html>

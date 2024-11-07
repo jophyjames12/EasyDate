@@ -1,4 +1,5 @@
 document.addEventListener('DOMContentLoaded', function() {
+
     const authContainer = document.querySelector('.auth-container');
     setTimeout(() => {
         authContainer.classList.add('show');
@@ -37,5 +38,24 @@ document.addEventListener('DOMContentLoaded', function() {
             moveSlide('right');
         });
     }
+
+    // Modal close button
+    function closeModal() {
+        const modal = document.getElementById("successModal");
+        if (modal) {
+            modal.style.display = "none";
+        }
+        if (overlay) {
+            overlay.style.display = "none";
+        }
+    }
+
+    // Add event listener to the close button
+    const closeButton = document.querySelector(".close-btn");
+    if (closeButton) {
+        closeButton.addEventListener("click", closeModal);
+    }
+
 });
+
 
