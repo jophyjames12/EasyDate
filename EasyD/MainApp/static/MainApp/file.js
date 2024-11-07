@@ -1,55 +1,41 @@
 document.addEventListener('DOMContentLoaded', function() {
     const authContainer = document.querySelector('.auth-container');
-    // Add a small timeout for a fade-in effect
     setTimeout(() => {
         authContainer.classList.add('show');
     }, 100);
 
-});
+    // Slider control for events (left and right arrows)
+    let currentIndex = 0; // Track the current slide index
+    const eventSlider = document.querySelector('.event-slider');
+    const eventItems = document.querySelectorAll('.event-item');
+    const totalItems = eventItems.length;
 
-document.addEventListener('DOMContentLoaded', function() {          //event listeners for slider buttons
-    document.querySelector('.right-arrow').addEventListener('click', nextSlide);
-    document.querySelector('.left-arrow').addEventListener('click', prevSlide);
-});
+    // Function to handle the slide movement (cyclic behavior)
+    function moveSlide(direction) {
+        if (direction === 'left') {
+            currentIndex = (currentIndex === 0) ? totalItems - 1 : currentIndex - 1; // Loop back to last slide
+        } else if (direction === 'right') {
+            currentIndex = (currentIndex === totalItems - 1) ? 0 : currentIndex + 1; // Loop back to first slide
+        }
 
-
-function toggleMenu() {
-    const dropdown = document.getElementById("dropdown");
-    dropdown.style.display = dropdown.style.display === "block" ? "none" : "block";
-}
-
-let currentSlide = 0; // Track the current slide index
-
-function showSlide(index) {
-    const slides = document.querySelectorAll('.slide');
-    const totalSlides = slides.length;
-
-    // Update the slide index within bounds
-    if (index >= totalSlides) {
-        currentSlide = 0;
-    } else if (index < 0) {
-        currentSlide = totalSlides - 1;
-    } else {
-        currentSlide = index;
+        // Calculate the new transform value to slide the items
+        const slideWidth = eventItems[0].clientWidth; // Width of one event item
+        const newTransformValue = -currentIndex * slideWidth; // Calculate the translation
+        eventSlider.style.transition = "transform 0.5s ease"; // Add smooth transition
+        eventSlider.style.transform = `translateX(${newTransformValue}px)`;
     }
 
-    console.log("Showing slide:", currentSlide);
+    // Add event listeners to the left and right arrows
+    const leftArrow = document.querySelector('.left-arrow');
+    const rightArrow = document.querySelector('.right-arrow');
 
-    // Move the slider-content container to show the current slide
-    const sliderContent = document.querySelector('.slider-content');
-    if (sliderContent) {
-        sliderContent.style.transform = `translateX(-${currentSlide * 100}%)`;
-    } else {
-        console.error("Slider content container not found.");
+    if (leftArrow && rightArrow) {
+        leftArrow.addEventListener('click', function() {
+            moveSlide('left');
+        });
+        rightArrow.addEventListener('click', function() {
+            moveSlide('right');
+        });
     }
-}
-
-function nextSlide() {
-    showSlide(currentSlide + 1);
-}
-
-function prevSlide() {
-    showSlide(currentSlide - 1);
-}
-
+});
 

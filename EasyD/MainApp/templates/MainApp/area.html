@@ -7,6 +7,7 @@
   {% load static %}  
   <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
   <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+  
 </head>
 <body>
   <!-- Top Menu Section -->
@@ -33,13 +34,15 @@
 
   <!-- Auto-sliding Event Design Section -->
   <section class="event">
+    <button class="arrow left-arrow">←</button> <!-- Left arrow -->
     <div class="event-slider">
       <div class="event-item">Event Design 1</div>
       <div class="event-item">Event Design 2</div>
       <div class="event-item">Event Design 3</div>
     </div>
+    <button class="arrow right-arrow">→</button> <!-- Right arrow -->
   </section>
 
-  <script src="file.js"></script>
+  <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>
