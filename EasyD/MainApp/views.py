@@ -99,12 +99,7 @@ def logout_view(request):
 # Search user and send a friend request if the user exists
 def search_user(request):
     userinfo(request)
-
     # Get pending friend requests for the current user
-    friends = []
-    friend_requests = FriendReq.find({"To": name})  # Find all friend requests sent to the current user
-    for friend in friend_requests:
-        friends.append(friend["From"])
 
     if request.method == "POST":#retrieves username
         username = request.POST.get('username')
@@ -116,32 +111,40 @@ def search_user(request):
         try:
             userinfo(request)#gets the detail of logged in user
             user = users_collection.find_one({"username":username})  # Finds a specific username
-            if user:#checks if isnt empty
+            if user:#checks if user exists
                     if username==name:#checks if he is trying to friend himself
                         return redirect("search_user")
                     userfriendlist=Friendlist.find_one({"username":name})
-                    for i in userfriendlist['friends']:#checks if the user is already in friendlist
-                        if i==username:
-                            return redirect("search_user")
+                    try:
+                        for i in userfriendlist['friends']:#checks if the user is already in friendlist
+                            if i==username:
+                                return redirect("search_user")
+                    except:#to avoid attribute not found error
+                        userfriendlist["friends"]=[]
                     friend={
-                        "From":name,
-                        "To":username
-                    }
+                            "From":name,
+                            "To":username
+                        }
                     FriendReq.insert_one(friend)
                     return redirect("area")
         except username.DoesNotExist:
             messages.error(request, "Invalid username.")
             return redirect("area")
-    return render(request, 'MainApp/search.html')
+    friends = []
+    friend_requests = FriendReq.find({"To": name})  # Find all friend requests sent to the current user
+    for friend in friend_requests:
+        friends.append(friend["From"])
+    return render(request, "MainApp/search.html", {"friends": friends}) 
+
 
 
 def check_request(request):
     userinfo(request)  # Ensure user is logged in and `name` is set
-    pending_requests = FriendReq.find({"To": name})  # Get all friend requests to the current user
-    friends = []  # List to hold the usernames of users who sent requests
+    pending_requests = FriendReq.find_one({"To": name})  # Get all friend requests to the current user
+    friends = []  # List to hold the usernames of users who sent request
     for request in pending_requests:
         friends.append(request["From"])  # Add the sender's username to the friends list
-    return render(request, "MainApp/.html", {"friends": friends})  # Pass friends to the template
+    return render(request, "MainApp/search.html", {"friends": friends})  # Pass friends to the template
 
 def accept_request(request):
     userinfo(request)  #  this function retrieves and sets `name` (current user's name)
@@ -166,7 +169,7 @@ def accept_request(request):
                 upsert=True  # Create document if it doesn't exist
             )
     FriendReq.delete_one({"From": friendname,"To":name}) 
-    return redirect("friendreq")
+    return redirect("search_user")
 
 
 def reject_request(request):
