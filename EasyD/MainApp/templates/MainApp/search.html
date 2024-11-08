@@ -3,14 +3,27 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>Search for User</title>
+
+
 </head>
 <body>
-    <form method="post" action="{% url 'search_user' %}">
+    <form id="searchForm" method="post" action="{% url 'search_user' %}">
         {% csrf_token %}
         <label for="username">Search for User:</label>
         <input type="text" id="username" name="username" required>
         <button type="submit">Search</button>
     </form>
+
+    <!-- Display Django messages -->
+<!--    <div id="messages">
+        {% for message in messages %}
+            <p class="{% if message.tags == 'error' %} error-message {% else %} success-message {% endif %}">
+                {{ message }}
+            </p>
+        {% endfor %}
+    </div>-->
+
+ 
 </body>
 </html>
