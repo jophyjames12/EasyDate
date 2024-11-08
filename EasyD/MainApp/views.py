@@ -133,7 +133,6 @@ def search_user(request):
                         messages.success(request, "Friend request sent successfully.")
 
                     return render(request, 'MainApp/search.html', {"friends": friends})
-
         except Exception as e:
             messages.error(request, f"Error: {str(e)}")
             return render(request, 'MainApp/search.html', {"friends": friends})
@@ -147,10 +146,10 @@ def check_request(request):
     friends = []  # List to hold the usernames of users who sent requests
     for request in pending_requests:
         friends.append(request["From"])  # Add the sender's username to the friends list
-    return render(request, "MainApp/search.html", {"friends": friends})  # Pass friends to the template
+    return render(request, "MainApp/.html", {"friends": friends})  # Pass friends to the template
 
 def accept_request(request):
-    userinfo(request)  # Assuming this function retrieves and sets `name` (current user's name)
+    userinfo(request)  #  this function retrieves and sets `name` (current user's name)
 
     if request.method == "POST":
         friendname = request.POST.get('friend_id')  # Get the friend Name from the form
