@@ -16,8 +16,8 @@ def userinfo(request):
     global user
     user = request.session.get('user_id')  # getting The userid of the account first
     global name
-    name=users_collection.find_one({"_id":ObjectId(user)}).get('username') #extracts username
-    
+    name = users_collection.find_one({"_id": ObjectId(user)}).get('username')  # extracts username
+
 def home(request):
     # Redirect to area_view if user is logged in
     if not request.session.get('user_id'):
@@ -37,6 +37,7 @@ def login_view(request):
         if user and pbkdf2_sha256.verify(password, user['password']):
             # Store the user ID in the session
             request.session['user_id'] = str(user['_id'])
+            request.session['login_success'] = True  # Set login success flag
             return redirect('area')
         else:
             messages.error(request, "Invalid username or password")
@@ -67,7 +68,7 @@ def signup_view(request):
                 users_collection.insert_one(new_user)  # Insert user into MongoDB
                 # Set session variable to show success message
                 request.session['user_id'] = str(new_user['_id'])
-                request.session['account_created'] = True
+                request.session['account_created'] = True  # Set account created flag
                 return redirect('area')
         else:
             messages.error(request, "Passwords do not match")
@@ -76,12 +77,18 @@ def signup_view(request):
 def area_view(request):
     if not request.session.get('user_id'):  # Ensure user is logged in
         return redirect('login')
+    
     # Check if account was just created and delete the session key
     account_created = request.session.get('account_created', False)
+    login_success = request.session.get('login_success', False)
+    
     if 'account_created' in request.session:
         del request.session['account_created']  # Explicitly delete it after checking
+    
+    if 'login_success' in request.session:
+        del request.session['login_success']  # Explicitly delete it after checking
 
-    return render(request, 'MainApp/area.html', {'account_created': account_created})
+    return render(request, 'MainApp/area.html', {'account_created': account_created, 'login_success': login_success})
 
 def logout_view(request):
     if 'user_id' in request.session:
@@ -142,14 +149,12 @@ def check_request(request):
         friends.append(request["From"])  # Add the sender's username to the friends list
     return render(request, "MainApp/search.html", {"friends": friends})  # Pass friends to the template
 
-
-
 def accept_request(request):
     userinfo(request)  # Assuming this function retrieves and sets `name` (current user's name)
 
     if request.method == "POST":
         friendname = request.POST.get('friend_id')  # Get the friend Name from the form
-        friend_request = FriendReq.find_one({"From": friendname,"To":name})
+        friend_request = FriendReq.find_one({"From": friendname, "To": name})
         if friend_request:
             sender = friend_request["From"]  # The user who sent the friend request
             receiver = name  # The current user accepting the request
@@ -181,5 +186,6 @@ def reject_request(request):
 
 def profile(request):
     return render(request, 'MainApp/profile.html')
+
 
 
