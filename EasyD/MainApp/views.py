@@ -3,6 +3,7 @@ from django.shortcuts import render, redirect
 from django.contrib import messages
 from bson.objectid import ObjectId
 from pymongo import MongoClient
+from django.http import JsonResponse
 from passlib.hash import pbkdf2_sha256  # For password hashing
 
 # MongoDB connection
@@ -17,24 +18,24 @@ def userinfo(request):
     user = request.session.get('user_id')  # getting The userid of the account first
     global name
     name = users_collection.find_one({"_id": ObjectId(user)}).get('username')  # extracts username
-
 def home(request):
     # Redirect to area_view if user is logged in
     if not request.session.get('user_id'):
         return render(request, 'MainApp/login.html')
     return render(request, 'MainApp/area.html')
 
-def login_view(request):
+
+def login_view(request):#to login
     if request.session.get('user_id'):  # If already logged in, redirect to area_view
         return render(request, 'MainApp/area.html')
 
-    if request.method == 'POST':
+    if request.method == 'POST':#gets username and password for authentication
         username = request.POST['username']
         password = request.POST['password']
 
         user = users_collection.find_one({"username": username})
 
-        if user and pbkdf2_sha256.verify(password, user['password']):
+        if user and pbkdf2_sha256.verify(password, user['password']): #encrypts data
             # Store the user ID in the session
             request.session['user_id'] = str(user['_id'])
             request.session['login_success'] = True  # Set login success flag
@@ -47,16 +48,16 @@ def signup_view(request):
     if request.session.get('user_id'):  # If already logged in, redirect to area_view
         return redirect('area_view')
 
-    if request.method == 'POST':
+    if request.method == 'POST':#takes the username password email for signup
         username = request.POST['username']
         email = request.POST['email']
         password = request.POST['password']
         confirm_password = request.POST['confirm_password']
 
-        if password == confirm_password:
-            if users_collection.find_one({"username": username}):
+        if password == confirm_password:#confirm if password is correct
+            if users_collection.find_one({"username": username}): #searches if username exists or not
                 messages.error(request, "Username already exists")
-            elif users_collection.find_one({"email": email}):
+            elif users_collection.find_one({"email": email}):#
                 messages.error(request, "Email already registered")
             else:
                 hashed_password = pbkdf2_sha256.hash(password)
@@ -74,7 +75,7 @@ def signup_view(request):
             messages.error(request, "Passwords do not match")
     return render(request, 'MainApp/signup.html')
 
-def area_view(request):
+def area_view(request):#Main page that shows upcoming dates and popular events
     if not request.session.get('user_id'):  # Ensure user is logged in
         return redirect('login')
     
@@ -105,40 +106,34 @@ def search_user(request):
     for friend in friend_requests:
         friends.append(friend["From"])
 
-    if request.method == "POST":
+    if request.method == "POST":#retrieves username
         username = request.POST.get('username')
-        if not username:
+        if not username:#checks if it is empty
             messages.error(request, "No username provided.")
-            return render(request, 'MainApp/search.html', {"friends": friends})
 
+            return render(request, 'MainApp/area.html')
+        
         try:
-            all_users = users_collection.find()  # Fetches all users from the database
-            for user in all_users:
-                if user['username'] == username:
-                    # Check if the user is not trying to send a friend request to themselves
-                    if user['username'] == name:
-                        messages.error(request, "You cannot send a friend request to yourself.")
-                        return render(request, 'MainApp/search.html', {"friends": friends})
+            userinfo(request)#gets the detail of logged in user
+            user = users_collection.find_one({"username":username})  # Finds a specific username
+            if user:#checks if isnt empty
+                    if username==name:#checks if he is trying to friend himself
+                        return redirect("search_user")
+                    userfriendlist=Friendlist.find_one({"username":name})
+                    for i in userfriendlist['friends']:#checks if the user is already in friendlist
+                        if i==username:
+                            return redirect("search_user")
+                    friend={
+                        "From":name,
+                        "To":username
+                    }
+                    FriendReq.insert_one(friend)
+                    return redirect("area")
+        except username.DoesNotExist:
+            messages.error(request, "Invalid username.")
+            return redirect("area")
+    return render(request, 'MainApp/search.html')
 
-                    # Check if a friend request already exists
-                    existing_request = FriendReq.find_one({"From": name, "To": username})
-                    if existing_request:
-                        messages.error(request, "Friend request already sent.")
-                    else:
-                        friend = {
-                            "From": name,
-                            "To": username
-                        }
-                        FriendReq.insert_one(friend)
-                        messages.success(request, "Friend request sent successfully.")
-
-                    return render(request, 'MainApp/search.html', {"friends": friends})
-        except Exception as e:
-            messages.error(request, f"Error: {str(e)}")
-            return render(request, 'MainApp/search.html', {"friends": friends})
-
-    # Render search page with friend requests in context
-    return render(request, 'MainApp/search.html', {"friends": friends})
 
 def check_request(request):
     userinfo(request)  # Ensure user is logged in and `name` is set
@@ -170,11 +165,9 @@ def accept_request(request):
                 {"$addToSet": {"friends": sender}},
                 upsert=True  # Create document if it doesn't exist
             )
-            # Delete the friend request after acceptance
-            FriendReq.delete_one({"From": friendname, "To": name})
-            messages.success(request, f"Friend request from {friendname} accepted!")
+    FriendReq.delete_one({"From": friendname,"To":name}) 
+    return redirect("friendreq")
 
-    return redirect("search_user")
 
 def reject_request(request):
     if request.method == "POST":
