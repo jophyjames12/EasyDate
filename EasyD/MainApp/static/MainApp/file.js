@@ -39,23 +39,18 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Modal close button
+    // Modal close function
     function closeModal() {
         const modal = document.getElementById("successModal");
         if (modal) {
-            modal.style.display = "none";
-        }
-        if (overlay) {
-            overlay.style.display = "none";
+            modal.style.display = "none"; // Hide the modal
         }
     }
 
-    // Add event listener to the close button
+    // Add event listener to the close button (inside the modal)
     const closeButton = document.querySelector(".close-btn");
     if (closeButton) {
-        closeButton.addEventListener("click", closeModal);
+        closeButton.addEventListener("click", closeModal); // Close the modal when clicked
     }
 
 });
-
-
