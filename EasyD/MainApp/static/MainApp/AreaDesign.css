@@ -2,9 +2,9 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-  
 }
-html{
+
+html {
   background-image: url('./bg_images/background2.gif');
   background-size: cover;
   background-position: center;
@@ -17,10 +17,21 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  
-
 }
 
+/* Modal overlay */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5); /* Semi-transparent black background */
+  z-index: 999; /* Positioned above all other content */
+  display: none; /* Hidden by default */
+}
+
+/* Header */
 header {
   width: 100%;
   top: 0;
@@ -67,14 +78,14 @@ body {
   background-color: #ddd;
 }
 
+/* Schedule */
 .schedule {
   width: 80%;
   border-radius: 30px;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);  /* Shadow effect for depth */
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   border: 1px solid #333;
   margin-top: 30px;
-  
 }
 
 .schedule-slider {
@@ -87,24 +98,24 @@ body {
   padding: 20px;
   text-align: center;
   border-right: 1px solid #ddd;
-  background-color: rgba(243, 243, 243, 0.7); /* Semi-transparent background color */
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);  /* Text shadow for a subtle 3D effect */
+  background-color: rgba(243, 243, 243, 0.7);
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+/* Event */
 .event {
   width: 80%;
-  
   overflow: hidden;
   border: 1px solid #333;
   border-radius: 30px;
-  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);  /* Shadow effect for depth */
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
   margin-top: 30px;
-  position: relative; /* To position the arrows */
+  position: relative;
 }
 
 .event-slider {
   display: flex;
-  transition: transform 0.5s ease; /* Add transition for smooth sliding */
+  transition: transform 0.5s ease;
 }
 
 .event-item {
@@ -112,21 +123,18 @@ body {
   padding: 30px;
   font-size: 24px;
   text-align: center;
-  
-  background-color: rgba(243, 243, 243, 0.7); /* Semi-transparent background color */
+  background-color: rgba(243, 243, 243, 0.7);
   border-right: 1px solid #ddd;
-  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);  /* Text shadow for a subtle 3D effect */
-  border-radius: 10px; /* Rounded corners for the event item */
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2); /* Soft shadow for depth */
-  transition: transform 0.3s ease, box-shadow 0.3s ease; /* Smooth transitions */
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
-/* Optional: Hover effect to make the box slightly enlarge and add a shadow */
 .event-item:hover {
-  transform: scale(1.05); /* Slightly enlarge the item on hover */
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3); /* Increase the shadow depth on hover */
+  transform: scale(1.05);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
 }
-
 
 /* Arrows for sliding */
 .arrow {
@@ -155,7 +163,69 @@ body {
   background-color: rgba(0, 0, 0, 0.7);
 }
 
+/* Modal */
+.modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  background-color: white;
+  margin-top: 90px;
+  width: 300px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border-radius: 8px;
+  z-index: 1000;
+  text-align: center;
+}
 
+.modal-content {
+  background-color: white;
+  padding: 20px;
+  border-radius: 8px;
+  width: 100%;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.2);
+  text-align: center;
+}
+
+.success-icon {
+  font-size: 40px;
+  color: green;
+  margin-bottom: 15px;
+}
+
+.modal-content h2 {
+  margin: 10px 0;
+  font-size: 20px;
+}
+
+.modal-content p {
+  margin: 10px 0;
+  font-size: 14px;
+  color: #555;
+}
+
+.close-btn {
+  margin-top: 15px;
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  display: inline-block;
+  text-align: center;
+}
+
+.close-btn:hover {
+  background-color: #0056b3;
+}
+
+/* Ensure buttons are disabled when modal is visible */
+body.modal-open {
+  pointer-events: none; /* Disable interactions with all elements */
+}
+
+/* Modal fade-in animation */
 @keyframes slide {
   0% { transform: translateX(0); }
   33% { transform: translateX(-100%); }
