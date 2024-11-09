@@ -28,8 +28,10 @@
     <div class="menu">
       <button onclick="toggleMenu()">☰ Menu</button>
       <div id="dropdown" class="dropdown-content">
-        <a href="#">Profile</a>
+
         <a href="map">map</a>
+        <!-- Update Profile link to go to the profile page -->
+        <a href="{% url 'profile' %}">Profile</a>  <!-- Link to profile page -->
         <a href="logout/">Logout</a>
         <a href="search_user">Friends</a> <!-- Link to Friends feature -->
       </div>
@@ -61,3 +63,4 @@
 
 </body>
 </html>
+

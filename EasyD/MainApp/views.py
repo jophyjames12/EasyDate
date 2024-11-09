@@ -11,6 +11,7 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
+DateReq = db['DateRequests']  # New collection for date requests
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
@@ -113,6 +114,8 @@ def logout_view(request):
     if 'user_id' in request.session:
         # Remove user ID from session to log the user out
         del request.session['user_id']
+    # Clear messages properly after the user logs out
+    messages.get_messages(request).used = True  # This clears all messages
     return redirect('login')
 
 # View to handle user search and friend request functionality
@@ -225,9 +228,85 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
+
 # Profile view to display the user's profile information
+# --- New Features Below ---
+
+# Send a date request to a friend
+def send_date_request(request):
+    userinfo(request)
+    if request.method == "POST":
+        friendname = request.POST.get('friend_id')
+
+        # Ensure the user isn't trying to send a date request to themselves
+        if friendname == name:
+            messages.error(request, "You cannot send a date request to yourself.")
+            return redirect('search_user')  # Ensure the user stays on the search page
+
+        # Check if the friend is actually in the user's friend list
+        user_friendlist = Friendlist.find_one({"username": name})
+        if not user_friendlist or friendname not in user_friendlist.get("friends", []):
+            messages.error(request, "You can only send a date request to your friends.")
+            return redirect('search_user')  # Stay on the search page
+
+        # Check if there's already an existing date request
+        existing_date_request = DateReq.find_one({"From": name, "To": friendname}) or DateReq.find_one({"From": friendname, "To": name})
+
+        if existing_date_request:
+            messages.info(request, "Date request already sent. Waiting for response.")
+            return redirect("search_user")  # Show the message on the search page
+
+        # Create a new date request and send it
+        date_request = {
+            "From": name,
+            "To": friendname,
+            "status": "pending"  # Initially, the date request is pending
+        }
+        DateReq.insert_one(date_request)
+        messages.success(request, f"Date request sent to {friendname}.")
+        
+        return redirect("search_user")  # Ensure the user is redirected to the search page to see the message
+
+# View pending date requests and show them on the profile page
+
 def profile(request):
-    return render(request, 'MainApp/profile.html')
+    userinfo(request)
+    # Fetch the pending date requests for the user
+    sent_requests = DateReq.find({"From": name, "status": "pending"})
+    received_requests = DateReq.find({"To": name, "status": "pending"})
+    
+    # Prepare lists of users that sent or received requests
+    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
+    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
+    return render(request, 'MainApp/profile.html', {
+        "sent_from": sent_from,
+        "received_from": received_from
+    })
+
+# Accept or reject a date request
+def handle_date_request(request):
+    userinfo(request)
+
+    if request.method == "POST":
+        request_id = request.POST.get('request_id')
+        action = request.POST.get('action')  # either 'accept' or 'reject'
+
+        # Fetch the date request
+        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+
+        if date_request:
+            if action == "accept":
+                DateReq.update_one({"_id": ObjectId(request_id)}, {"$set": {"status": "accepted"}})
+                messages.success(request, "Date request accepted.")
+            elif action == "reject":
+                DateReq.delete_one({"_id": ObjectId(request_id)})
+                messages.success(request, "Date request rejected.")
+        else:
+            messages.error(request, "Date request not found.")
+
+    return redirect('profile')
+
+
 
 def map_view(request):
     return render(request,'MainApp/Map.html')
