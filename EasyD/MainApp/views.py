@@ -242,7 +242,8 @@ def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
-
+        lat=request.POST.get('latitude')
+        lon=request.POST.get('longitude')#todo store location
         # Ensure the user isn't trying to send a date request to themselves
         if friendname == name:
             messages.error(request, "You cannot send a date request to yourself.")

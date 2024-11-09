@@ -43,6 +43,8 @@
                         <form action="{% url 'send_date_request' %}" method="POST" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="friend_id" value="{{ friend }}">
+                            <input type="hidden" name="latitude" id="latitude">
+                            <input type="hidden" name="longitude" id="longitude">
                             <button type="submit">Send Date Request</button>
                         </form>
                     </li>

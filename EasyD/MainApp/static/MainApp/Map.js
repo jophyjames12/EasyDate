@@ -18,6 +18,7 @@ const reviews = JSON.parse(document.getElementById('reviews-data').textContent);
  * Function to locate the user's current position using geolocation
  * This is called when the user clicks the "Locate Me" button
  */
+
 function locateUser() {
     // Check if the browser supports geolocation
     if (navigator.geolocation) {
