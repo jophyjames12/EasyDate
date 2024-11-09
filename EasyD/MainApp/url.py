@@ -16,4 +16,6 @@ urlpatterns=[
     path("reject_request/",views.reject_request,name='reject_request'),
     path("area/search_user/", views.search_user, name='search_user'),
     path("search_user/", views.search_user, name='search_user'),
+    path('map/', views.map_view, name='map_view'),
+    path('area/map/', views.map_view, name='map_view'),
 ]

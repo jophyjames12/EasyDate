@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Places and Sort</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+        #place-details { margin-top: 20px; }
+        .place-item { cursor: pointer; padding: 5px; }
+        .place-item:hover { background-color: #e0e0e0; }
+        select, input { margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>Search Places and Sort</h1>
+
+    <label for="tag">Search by Tag: </label>
+    <select id="tag">
+        <option value="restaurant">Restaurant</option>
+        <option value="cafe">Cafe</option>
+        <option value="bar">Bar</option>
+        <option value="club">Club</option>
+        <option value="shop">Shop</option>
+    </select>
+
+    <label for="sort">Sort by: </label>
+    <select id="sort">
+        <option value="distance">Distance</option>
+        <option value="reviews">Reviews</option>
+    </select>
+
+    <button onclick="searchPlaces()">Search</button>
+
+    <div id="map"></div>
+    <div id="place-details"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map').setView([0, 0], 13);
+
+        // Add OpenStreetMap tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+
+        let userMarker;
+        let placeMarkers = [];
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(position => {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    map.setView([lat, lng], 15);
+
+                    if (userMarker) map.removeLayer(userMarker);
+                    userMarker = L.marker([lat, lng]).addTo(map).bindPopup("You are here").openPopup();
+                });
+            } else {
+                alert("Geolocation is not supported by this browser.");
+            }
+        }
+
+        function searchPlaces() {
+            const tag = document.getElementById('tag').value;
+            const sortBy = document.getElementById('sort').value;
+
+            if (!userMarker) {
+                alert("Please allow location access.");
+                return;
+            }
+
+            const userLat = userMarker.getLatLng().lat;
+            const userLon = userMarker.getLatLng().lng;
+
+            console.log(`Searching for ${tag} within 3000 meters of ${userLat}, ${userLon}`);
+            const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="${tag}"](around:3000,${userLat},${userLon});out qt;`;
+
+            fetch(overpassUrl)
+                .then(response => response.json())
+                .then(data => {
+                    const places = data.elements;
+                    displayPlaces(places, sortBy, userLat, userLon);
+                })
+                .catch(error => console.error("Error fetching places:", error));
+        }
+
+        function displayPlaces(places, sortBy, userLat, userLon) {
+            placeMarkers.forEach(marker => map.removeLayer(marker));
+            placeMarkers = [];
+
+            const placeDetailsDiv = document.getElementById('place-details');
+            placeDetailsDiv.innerHTML = "<h2>Places:</h2>";
+
+            // Sort places by selected criteria
+            if (sortBy === 'distance') {
+                places.sort((a, b) => {
+                    const latA = a.lat || a.geometry?.lat;
+                    const lonA = a.lon || a.geometry?.lon;
+                    const latB = b.lat || b.geometry?.lat;
+                    const lonB = b.lon || b.geometry?.lon;
+
+                    const distanceA = getDistance(userLat, userLon, latA, lonA);
+                    const distanceB = getDistance(userLat, userLon, latB, lonB);
+                    return distanceA - distanceB;  // Sort in ascending order (nearest first)
+                });
+            } else if (sortBy === 'reviews') {
+                places.sort((a, b) => {
+                    const reviewsA = a.tags?.rating || 0;
+                    const reviewsB = b.tags?.rating || 0;
+                    return reviewsB - reviewsA;  // Sort by highest rating first
+                });
+            }
+
+            // Display the sorted places
+            places.forEach((place, index) => {
+                const lat = place.lat || place.geometry?.lat;
+                const lon = place.lon || place.geometry?.lon;
+                const name = place.tags?.name || `Place ${index + 1}`;
+                const rating = place.tags?.rating || "No reviews";
+
+                const marker = L.marker([lat, lon]).addTo(map);
+                marker.bindPopup(`<strong>${name}</strong><br>Rating: ${rating}`);
+                placeMarkers.push(marker);
+
+                const placeItem = document.createElement('div');
+                placeItem.className = 'place-item';
+                placeItem.innerHTML = `<strong>${name}</strong> - ${rating} - Click for directions`;
+                placeItem.onclick = () => showRouteToPlace(lat, lon);
+                placeDetailsDiv.appendChild(placeItem);
+            });
+        }
+
+        function showRouteToPlace(destLat, destLon) {
+            if (!userMarker) {
+                alert("Unable to find your location.");
+                return;
+            }
+
+            const userLat = userMarker.getLatLng().lat;
+            const userLon = userMarker.getLatLng().lng;
+
+            console.log("Requesting route from", userLat, userLon, "to", destLat, destLon);
+
+            const routeUrl = `https://api.openrouteservice.org/v2/directions/foot-walking?api_key=5b3ce3597851110001cf6248f15d20aadb1345fc89678fd01720be24&start=${userLon},${userLat}&end=${destLon},${destLat}`;
+
+            fetch(routeUrl)
+                .then(response => {
+                    if (!response.ok) throw new Error("Failed to fetch route");
+                    return response.json();
+                })
+                .then(data => {
+                    const coordinates = data.routes[0].geometry.coordinates;
+                    const latLngs = coordinates.map(coord => [coord[1], coord[0]]);
+
+                    if (window.routeLine) map.removeLayer(window.routeLine);
+
+                    window.routeLine = L.polyline(latLngs, { color: 'blue', weight: 5 }).addTo(map);
+                    map.fitBounds(window.routeLine.getBounds());
+                })
+                .catch(error => {
+                    console.error("Error fetching route:", error);
+                    alert("Failed to retrieve route. Check API key and network.");
+                });
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c; // in km
+        }
+
+        locateUser();
+    </script>
+</body>
+</html>
