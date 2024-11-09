@@ -17,6 +17,9 @@ urlpatterns=[
     path("area/search_user/", views.search_user, name='search_user'),
     path('send_date_request/', views.send_date_request, name='send_date_request'),
     path("search_user/", views.search_user, name='search_user'),
+    path('map/', views.map_view, name='map_view'),
+    path('area/map/', views.map_view, name='map_view'),
     path("profile/", views.profile, name="profile"),  # Profile URL
     path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
+
 ]
