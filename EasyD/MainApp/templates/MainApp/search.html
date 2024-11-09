@@ -3,28 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Search and Friend Requests</title>
+    <title>Search Users</title>
     {% load static %}
     <link rel="stylesheet" href="{% static '/MainApp/friends.css' %}">
 </head>
 <body>
 
-    <!-- Friend Requests Section -->
+    <h1>Search for Users</h1>
+
+    <!-- Search Bar -->
+    <form method="POST" action="{% url 'search_user' %}">
+        {% csrf_token %}
+        <input type="text" name="username" placeholder="Search by username" required>
+        <button type="submit">Search</button>
+    </form>
+    <br>
+    <!-- Displaying Messages -->
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <div class="alert {{ message.tags }}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    <hr>
+
+    <!-- Displaying Friends List -->
+    <section class="friends-list">
+        <h2>Your Friends</h2>
+        <ul>
+            {% if all_friends %}
+                {% for friend in all_friends %}
+                    <li>
+                        <strong>{{ friend }}</strong>
+
+                        <!-- Send Date Request Button -->
+                        <form action="{% url 'send_date_request' %}" method="POST" class="inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="friend_id" value="{{ friend }}">
+                            <button type="submit">Send Date Request</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            {% else %}
+                <li>You have no friends added yet.</li>
+            {% endif %}
+        </ul>
+    </section>
+
+    <hr>
+
+    <!-- Displaying Pending Friend Requests -->
     <section class="friend-requests">
-        <h1>Pending Friend Requests</h1>
+        <h2>Pending Friend Requests</h2>
         <ul>
             {% if friends %}
                 {% for friend in friends %}
                     <li>
                         <strong>{{ friend }}</strong>
-                        
+
                         <!-- Accept button -->
                         <form action="{% url 'accept_request' %}" method="POST" class="inline-form">
                             {% csrf_token %}
                             <input type="hidden" name="friend_id" value="{{ friend }}">
                             <button type="submit" name="action" value="accept">Accept</button>
                         </form>
-                        
+
                         <!-- Reject button -->
                         <form action="{% url 'reject_request' %}" method="POST" class="inline-form">
                             {% csrf_token %}
@@ -39,48 +86,10 @@
         </ul>
     </section>
 
-    <hr>
-
-    <!-- Friend Search and Request Section -->
-    <section class="user-search">
-        <h1>Search for Users</h1>
-        <form method="post" action="{% url 'search_user' %}">
-            {% csrf_token %}
-            <label for="username">Search for User:</label>
-            <input type="text" id="username" name="username" required>
-            <button type="submit">Search</button>
-        </form>
-    </section>
-
-    <!-- Display any success or error messages below the search form -->
-    {% if messages %}
-        <div class="message-container">
-            {% for message in messages %}
-                <div class="{% if message.tags %}message {{ message.tags }}{% endif %}">
-                    {{ message }}
-                </div>
-            {% endfor %}
-        </div>
-    {% endif %}
-
-    <hr>
-
-    <!-- Friends List Section -->
-    <section class="friends-list">
-        <h1>Your Friends</h1>
-        <ul>
-            {% if all_friends %}
-                {% for friend in all_friends %}
-                    <li>{{ friend }}</li>
-                {% endfor %}
-            {% else %}
-                <li>You have no friends added yet.</li>
-            {% endif %}
-        </ul>
-    </section>
-
 </body>
 </html>
+
+
 
 
 
