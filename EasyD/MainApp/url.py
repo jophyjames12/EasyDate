@@ -24,4 +24,5 @@ urlpatterns=[
     path('rate_place/', views.rate_place, name='rate_place'),
     path('api/places/', views.get_places, name='get_places'),
     path("sort_places_by_reviews/", views.sort_places_by_reviews, name="sort_places_by_reviews"),
+
 ]

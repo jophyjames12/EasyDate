@@ -276,15 +276,12 @@ def send_date_request(request):
 
 def profile(request):
     userinfo(request)
-    # Fetch the pending date requests for the user
-    sent_requests = DateReq.find({"From": name, "status": "pending"})
+    # Only fetch the pending date requests for the user where they are the receiver
     received_requests = DateReq.find({"To": name, "status": "pending"})
     
-    # Prepare lists of users that sent or received requests
-    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
+    # Prepare a list of users that sent requests to the logged-in user
     received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
     return render(request, 'MainApp/profile.html', {
-        "sent_from": sent_from,
         "received_from": received_from
     })
 
@@ -416,3 +413,4 @@ def sort_places_by_reviews(request):
             return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
