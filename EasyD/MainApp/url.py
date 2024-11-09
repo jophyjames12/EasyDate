@@ -21,5 +21,7 @@ urlpatterns=[
     path('area/map/', views.map_view, name='map_view'),
     path("profile/", views.profile, name="profile"),  # Profile URL
     path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
+    path('save_preferences/', views.save_preferences, name='save_preferences'),
+    path('profile/', views.profile_view, name='profile'),
 
 ]
