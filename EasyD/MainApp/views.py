@@ -313,6 +313,23 @@ def handle_date_request(request):
 def map_view(request):
     Rev=Review.find()
     return render(request,'MainApp/Map.html',{'reviews': Rev})
+    
+# View to handle saving preferences
+def save_preferences(request):
+    if request.method == 'POST':
+        preferences = request.POST.getlist('preferences[]')  # List of selected preferences
+        # Assuming the user is logged in and the user model has a `preferences` field
+        user = request.user
+        user.preferences.set(preferences)
+        user.save()
+        return JsonResponse({'success': True})
+
+# Profile view to show user preferences
+def profile_view(request):
+    user = request.user
+    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
+    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
+    
 
 @csrf_exempt
 def rate_place(request):
