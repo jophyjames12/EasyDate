@@ -1,9 +1,13 @@
+from asyncio.log import logger
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -11,7 +15,8 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
-DateReq = db['DateRequests']  # New collection for date requests
+DateReq = db['DateRequests']  
+Review=db['Reviews']
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
@@ -306,4 +311,106 @@ def handle_date_request(request):
 
 
 def map_view(request):
-    return render(request,'MainApp/Map.html')
+    Rev=Review.find()
+    return render(request,'MainApp/Map.html',{'reviews': Rev})
+
+@csrf_exempt
+def rate_place(request):
+    if request.method == 'POST':
+        try:
+            # Parse the JSON data from the frontend
+            data = json.loads(request.body)
+
+            # Ensure all required fields are present
+            place_id = data.get('placeId')
+            rating = data.get('rating')
+            latitude = data.get('lat')
+            longitude = data.get('lon')
+
+            if not place_id or not rating or not latitude or not longitude:
+                logger.error("Missing required fields")
+                return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
+
+            #storing in db
+            existing_review = Review.find_one({"name": place_id, "lat": latitude, "lon": longitude})
+            
+            if existing_review:#check if it exists
+                 total_ratings = existing_review.get("total_ratings", 0) + 1
+                 avg_rating = (existing_review.get("average_rating", 0) * existing_review.get("total_ratings", 0) + rating) / total_ratings
+                # Update the review entry
+                 Review.update_one(
+                    {"_id": existing_review["_id"]}, 
+                    {"$set": {"average_rating": avg_rating, "total_ratings": total_ratings}}
+                 
+                 )
+            else:
+                Review.insert_one({
+                "name": place_id,
+                "lat": latitude,
+                "lon": longitude,
+                "total_ratings": 1,
+                "average_rating": rating
+                })         
+
+            return JsonResponse({'status': 'success', 'message': 'Rating submitted successfully','rating':rating})
+
+        except ValueError as ve:
+            logger.error(f"Error: {ve}")
+            return JsonResponse({'status': 'error', 'message': str(ve)}, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+
+@csrf_exempt
+def get_places(request):
+    places = list(Place.objects.all().values())
+    return JsonResponse(places, safe=False)
+
+@csrf_exempt
+def sort_places_by_reviews(request):
+    if request.method == 'POST':
+        try:
+            # Parse the JSON data from the frontend
+            data = json.loads(request.body)
+
+            # Extract the list of places (lat, lon, name) from the frontend
+            places = data.get('places', [])
+            
+            if not places:
+                return JsonResponse({'status': 'error', 'message': 'No places data provided'}, status=400)
+
+            # Fetch ratings for each place and sort them by the average_rating
+            sorted_places = []
+            for place in places:
+                # Assuming place contains lat, lon, and name to find the review
+                review = Review.find_one({
+                    "lat": place['lat'],
+                    "lon": place['lon'],
+                    "name": place['name']
+                })
+                
+                # If the place has a review, append it with the average rating
+                if review:
+                    place['average_rating'] = review.get('average_rating', 0)
+                else:
+                    place['average_rating'] = 0  # Default to 0 if no review exists
+                
+                sorted_places.append(place)
+
+            # Sort the places by average_rating
+            sorted_places.sort(key=lambda x: x.get('average_rating', 0), reverse=True)
+            
+            return JsonResponse({'status': 'success', 'sorted_places': sorted_places})
+
+        except ValueError as ve:
+            logger.error(f"Error: {ve}")
+            return JsonResponse({'status': 'error', 'message': str(ve)}, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
