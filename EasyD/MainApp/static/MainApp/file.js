@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', function () {
     const eventItems = document.querySelectorAll('.event-item');
     const totalItems = eventItems.length;
 
+<<<<<<< HEAD
     if (eventSlider && eventItems.length > 0) {
         // Function to handle the slide movement (cyclic behavior)
         function moveSlide(direction) {
@@ -49,6 +50,30 @@ document.addEventListener('DOMContentLoaded', function () {
             eventSlider.style.transition = "none"; // Disable transition for instant adjustment
             eventSlider.style.transform = `translateX(${newTransformValue}px)`;
         });
+=======
+    // Function to move the slider left or right with cyclic behavior
+    function moveSlide(direction) {
+        if (direction === 'left') {
+            currentIndex = (currentIndex === 0) ? totalItems - 1 : currentIndex - 1;
+        } else if (direction === 'right') {
+            currentIndex = (currentIndex === totalItems - 1) ? 0 : currentIndex + 1;
+        }
+
+        // Calculate the new transform value for the slider
+        const slideWidth = eventItems[0].clientWidth;
+        const newTransformValue = -currentIndex * slideWidth;
+        eventSlider.style.transition = "transform 0.5s ease";
+        eventSlider.style.transform = `translateX(${newTransformValue}px)`;
+    }
+
+    // Event listeners for left and right arrows
+    const leftArrow = document.querySelector('.left-arrow');
+    const rightArrow = document.querySelector('.right-arrow');
+
+    if (leftArrow && rightArrow) {
+        leftArrow.addEventListener('click', () => moveSlide('left'));
+        rightArrow.addEventListener('click', () => moveSlide('right'));
+>>>>>>> 0d57b5c0bdab33bcfb02d882742fc26ff2dd56af
     }
 
     // Function to close the modal
