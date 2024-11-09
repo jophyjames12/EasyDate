@@ -126,18 +126,38 @@ document.addEventListener('DOMContentLoaded', function () {
 
 });
 
-const form = document.getElementById('dateRequestForm');
-form.addEventListener('submit', function(event) {
-    if ("geolocation" in navigator) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            const latitude = position.coords.latitude;
-            const longitude = position.coords.longitude;
-            console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
-            // You can save these coordinates in your database or store them
-        }, function(error) {
-            console.error("Error occurred: " + error.message);
-        });
-    } else {
-        console.log("Geolocation is not supported by this browser.");
-    }    
+// Get all forms with the class 'dating-form'
+const forms = document.querySelectorAll('.inline-form');
+
+forms.forEach(form => {
+    form.addEventListener('submit', function(event) {
+        // Prevent the form from submitting immediately
+        event.preventDefault();
+
+        // Check if geolocation is supported by the browser
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
+
+                // Assign the latitude and longitude to the respective hidden input fields
+                form.querySelector('#latitude').value = latitude;
+                form.querySelector('#longitude').value = longitude;
+
+                // Log the latitude and longitude for verification
+                console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
+
+                // Now submit the form with the geolocation data
+                form.submit();
+            }, function(error) {
+                console.error("Error occurred: " + error.message);
+                // If there's an error getting geolocation, submit the form without location data
+                form.submit();
+            });
+        } else {
+            console.log("Geolocation is not supported by this browser.");
+            // If geolocation is not supported, submit the form without the geolocation data
+            form.submit();
+        }
+    });
 });

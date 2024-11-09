@@ -17,7 +17,7 @@ FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
 DateReq = db['DateRequests']  
 Review=db['Reviews']
-
+Location=db['Location']
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -242,8 +242,27 @@ def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
-        lat=request.POST.get('latitude')
-        lon=request.POST.get('longitude')#todo store location
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+        try:
+            # Fetch user location based on the name (or another identifier like 'friendname')
+            usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        except:
+            print("Error while fetching user location")
+            return redirect('search_user')  # Handle case if the user is not found
+
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        else:
+            print("User not found in the Location collection")
+
         # Ensure the user isn't trying to send a date request to themselves
         if friendname == name:
             messages.error(request, "You cannot send a date request to yourself.")
