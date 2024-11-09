@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Your Profile</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static '/MainApp/profile.css' %}">
+</head>
+<body>
+
+    <h1>Welcome, {{ name }}!</h1>
+
+    <!-- Your Date Requests Section -->
+    <section class="date-requests">
+        <h2>Your Date Requests</h2>
+        {% if sent_from or received_from %}
+            <ul>
+                {% for request in sent_from %}
+                    <li>
+                        <strong>To:</strong> {{ request.username }} <br>
+                        <strong>Status:</strong> Pending <br>
+                        <form method="POST" action="{% url 'handle_date_request' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="request_id" value="{{ request.request_id }}">
+                            <button type="submit" name="action" value="accept">Accept</button>
+                            <button type="submit" name="action" value="reject">Reject</button>
+                        </form>
+                    </li>
+                {% endfor %}
+                {% for request in received_from %}
+                    <li>
+                        <strong>From:</strong> {{ request.username }} <br>
+                        <strong>Status:</strong> Pending <br>
+                        <form method="POST" action="{% url 'handle_date_request' %}">
+                            {% csrf_token %}
+                            <input type="hidden" name="request_id" value="{{ request.request_id }}">
+                            <button type="submit" name="action" value="accept">Accept</button>
+                            <button type="submit" name="action" value="reject">Reject</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p>No date requests.</p>
+        {% endif %}
+    </section>
+
+</body>
+</html>
+
+
+
+
