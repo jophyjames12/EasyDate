@@ -11,15 +11,32 @@
 <body>
   
   <!-- Success Modal for Account Creation -->
-  {% if account_created %}
-    <div id="successModal" class="modal" style="display: block;">
-        <div class="modal-content">
-            <div class="success-icon">&#10003;</div> <!-- Checkmark icon -->
-            <h2>Success</h2>
-            <p>Account created successfully!</p>
-            <button class="close-btn" onclick="closeModal()">Close</button>
-        </div>
+  {% if account_created %} 
+  <div id="successModal" class="modal">
+    <div class="modal-content">
+        <div class="success-icon">✔️</div>
+        <h2>Account Created Successfully!</h2>
+        <p>Click Next to select your preferences.</p>
+        <button class="next-btn">Next</button>
     </div>
+  </div> 
+
+  <!-- Preferences Modal -->
+  <div id="preferencesModal" class="modal" style="display: none;">
+      <div class="modal-content preferences-modal">
+          <h2>Select Your Preferences</h2>
+          <form>
+              <div class="preferences-options">
+                  <label><input type="checkbox" value="restaurant"> Restaurant</label>
+                  <label><input type="checkbox" value="bar"> Bar</label>
+                  <label><input type="checkbox" value="stall"> Stalls</label>
+                  <label><input type="checkbox" value="club"> Club</label>
+              </div>
+              <button type="button" class="save-btn">Save</button>
+          </form>
+      </div>
+  </div>
+
   {% endif %}
 
   <!-- Top Menu Section -->

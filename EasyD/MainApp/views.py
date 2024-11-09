@@ -18,7 +18,7 @@ FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
 DateReq = db['DateRequests']  
 Review=db['Reviews']
-
+Location=db['Location']
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -242,6 +242,26 @@ def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+        try:
+            # Fetch user location based on the name (or another identifier like 'friendname')
+            usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        except:
+            print("Error while fetching user location")
+            return redirect('search_user')  # Handle case if the user is not found
+
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        else:
+            print("User not found in the Location collection")
         date = request.POST.get('date')
         time = request.POST.get('time')
 
@@ -335,6 +355,23 @@ def handle_date_request(request):
 def map_view(request):
     Rev=Review.find()
     return render(request,'MainApp/Map.html',{'reviews': Rev})
+    
+# View to handle saving preferences
+def save_preferences(request):
+    if request.method == 'POST':
+        preferences = request.POST.getlist('preferences[]')  # List of selected preferences
+        # Assuming the user is logged in and the user model has a `preferences` field
+        user = request.user
+        user.preferences.set(preferences)
+        user.save()
+        return JsonResponse({'success': True})
+
+# Profile view to show user preferences
+def profile_view(request):
+    user = request.user
+    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
+    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
+    
 
 @csrf_exempt
 def rate_place(request):
@@ -388,7 +425,12 @@ def rate_place(request):
 
 @csrf_exempt
 def get_places(request):
+<<<<<<< HEAD
     places = list(Place.objects.all().values())
+=======
+    places = list(places.objects.all().values())
+
+>>>>>>> 101269e2e596fcfddbe1a192079a2dc49490abb1
     return JsonResponse(places, safe=False)
 
 @csrf_exempt

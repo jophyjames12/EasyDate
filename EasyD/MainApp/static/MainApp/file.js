@@ -37,175 +37,129 @@ document.addEventListener('DOMContentLoaded', function () {
         rightArrow.addEventListener('click', () => moveSlide('right'));
     }
 
-    // Function to close the modal
-    function closeModal() {
-        const modal = document.getElementById("successModal");
+
+    // Modal close function
+    function closeModal(modalId) {
+        const modal = document.getElementById(modalId);
+
         if (modal) {
-            modal.style.display = "none"; // Hide the modal
+            modal.style.display = "none";
         }
+        
+    }
+
+    // Show the preferences modal after the "Next" button is clicked
+    const nextButton = document.querySelector(".next-btn"); // Change to the correct class
+    if (nextButton) {
+        nextButton.addEventListener("click", function() {
+            const accountCreatedModal = document.getElementById("successModal");
+            const preferencesModal = document.getElementById("preferencesModal");
+
+            if (accountCreatedModal && preferencesModal) {
+                accountCreatedModal.style.display = "none";  // Hide account created modal
+                preferencesModal.style.display = "block";  // Show preferences modal
+            }
+        });
+    }
+
+    // Handle preferences form submission
+    const saveButton = document.querySelector(".save-btn");
+    if (saveButton) {
+        saveButton.addEventListener("submit", function(e) {
+            e.preventDefault(); // Prevent form from submitting traditionally
+
+            const selectedPreferences = Array.from(document.querySelectorAll('input[name="preferences"]:checked')).map(input => input.value);
+
+            // Send the selected preferences to the backend (using AJAX)
+            // Example using fetch (AJAX)
+            fetch('/save_preferences/', {  // Update the URL as needed to match your backend endpoint
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')  // Make sure to handle CSRF token if using Django
+                },
+                body: JSON.stringify({ preferences: selectedPreferences })
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Preferences saved:', data);
+                
+                // After saving preferences, show success message or close the modal
+                const saveButton = document.getElementById(".save-btn");
+                if (saveButton) {
+                    saveButton.style.display = "none";  // Close the preferences modal
+                }
+                // Optionally, show a confirmation modal or message here
+                alert("Preferences saved successfully!");
+            })
+            .catch(error => {
+                console.error('Error saving preferences:', error);
+                alert("There was an error saving your preferences.");
+            });
+        });
+    }
+
+    // Function to get CSRF token (for Django)
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
 
     // Add event listener to the modal close button
     const closeButton = document.querySelector(".close-btn");
     if (closeButton) {
-        closeButton.addEventListener("click", closeModal);
+        closeButton.addEventListener("click", function() {
+            closeModal('preferencesModal');
+        });  // Close the preferences modal when clicked
+
     }
 
-    // --- Map Initialization Section ---
-    const map = L.map('map').setView([51.505, -0.09], 13); // Default coordinates
-    let userMarker; // Marker to represent the user’s location
-    let placeMarkers = []; // Array to store markers for the found places
+  
 
-    // Load map tiles from OpenStreetMap
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        maxZoom: 19,
-        attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+});
 
-    // Geolocation to center map on user’s location if available
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition((position) => {
-            const { latitude, longitude } = position.coords;
-            userMarker = L.marker([latitude, longitude]).addTo(map);
-            map.setView([latitude, longitude], 14); // Center map on user's location
-        }, () => alert("Geolocation is not enabled."));
-    } else {
-        alert("Geolocation is not supported by this browser.");
-    }
+// Get all forms with the class 'dating-form'
+const forms = document.querySelectorAll('.inline-form');
 
-    // --- Search Function Section ---
-    function searchPlaces() {
-        const tag = document.getElementById('tag').value;
-        const ambiance = document.getElementById('ambiance').value;
-        const sortBy = document.getElementById('sort').value;
+forms.forEach(form => {
+    form.addEventListener('submit', function(event) {
+        // Prevent the form from submitting immediately
+        event.preventDefault();
 
-        // Ensure user location is available before making API calls
-        if (!userMarker) {
-            alert("Please allow location access.");
-            return;
-        }
+        // Check if geolocation is supported by the browser
+        if ("geolocation" in navigator) {
+            navigator.geolocation.getCurrentPosition(function(position) {
+                const latitude = position.coords.latitude;
+                const longitude = position.coords.longitude;
 
-        const userLat = userMarker.getLatLng().lat;
-        const userLon = userMarker.getLatLng().lng;
+                // Assign the latitude and longitude to the respective hidden input fields
+                form.querySelector('#latitude').value = latitude;
+                form.querySelector('#longitude').value = longitude;
 
-        // Overpass API query for places with specific tag and ambiance
-        const overpassUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
-            node["amenity"="${tag}"](around:3000,${userLat},${userLon});
-            node["atmosphere"="${ambiance}"](around:3000,${userLat},${userLon});
-            out qt;`;
+                // Log the latitude and longitude for verification
+                console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
 
-        // Fetch places from Overpass API
-        fetch(overpassUrl)
-            .then(response => response.json())
-            .then(data => {
-                let places = data.elements;
-
-                // Fallbacks if no places match both tag and ambiance
-                if (places.length === 0) {
-                    console.log("No places found with selected criteria, trying with tag only.");
-                    const fallbackUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
-                        node["amenity"="${tag}"](around:3000,${userLat},${userLon});
-                        out qt;`;
-
-                    fetch(fallbackUrl)
-                        .then(response => response.json())
-                        .then(data => {
-                            places = data.elements;
-                            if (places.length === 0) {
-                                console.log("No places found with selected tag, trying ambiance only.");
-                                const ambianceFallbackUrl = `https://overpass-api.de/api/interpreter?data=[out:json];
-                                    node["atmosphere"="${ambiance}"](around:3000,${userLat},${userLon});
-                                    out qt;`;
-
-                                fetch(ambianceFallbackUrl)
-                                    .then(response => response.json())
-                                    .then(data => {
-                                        places = data.elements;
-                                        displayPlaces(places, sortBy, userLat, userLon);
-                                    })
-                                    .catch(error => console.error("Error fetching ambiance-only places:", error));
-                            } else {
-                                displayPlaces(places, sortBy, userLat, userLon);
-                            }
-                        })
-                        .catch(error => console.error("Error fetching tag-only places:", error));
-                } else {
-                    displayPlaces(places, sortBy, userLat, userLon);
-                }
-            })
-            .catch(error => console.error("Error fetching places:", error));
-    }
-
-    // --- Function to Display Places ---
-    function displayPlaces(places, sortBy, userLat, userLon) {
-        // Clear previous markers
-        placeMarkers.forEach(marker => map.removeLayer(marker));
-        placeMarkers = [];
-
-        const placeDetailsDiv = document.getElementById('place-details');
-        placeDetailsDiv.innerHTML = "<h2>Places:</h2>";
-
-        if (places.length === 0) {
-            placeDetailsDiv.innerHTML = "<h2>No places found matching the criteria</h2>";
-            return;
-        }
-
-        // Sort places by distance or reviews based on selection
-        if (sortBy === 'distance') {
-            places.sort((a, b) => {
-                const distanceA = getDistance(userLat, userLon, a.lat, a.lon);
-                const distanceB = getDistance(userLat, userLon, b.lat, b.lon);
-                return distanceA - distanceB;
+                // Now submit the form with the geolocation data
+                form.submit();
+            }, function(error) {
+                console.error("Error occurred: " + error.message);
+                // If there's an error getting geolocation, submit the form without location data
+                form.submit();
             });
-        } else if (sortBy === 'reviews') {
-            places.sort((a, b) => (b.tags?.rating || 0) - (a.tags?.rating || 0));
+        } else {
+            console.log("Geolocation is not supported by this browser.");
+            // If geolocation is not supported, submit the form without the geolocation data
+            form.submit();
         }
-
-        // Add each place as a marker on the map and list in the sidebar
-        places.forEach((place, index) => {
-            const lat = place.lat;
-            const lon = place.lon;
-            const name = place.tags?.name || `Place ${index + 1}`;
-            const rating = place.tags?.rating || "No reviews";
-
-            const marker = L.marker([lat, lon]).addTo(map);
-            marker.bindPopup(`<strong>${name}</strong><br>Rating: ${rating}`);
-            placeMarkers.push(marker);
-
-            const placeItem = document.createElement('div');
-            placeItem.className = 'place-item';
-            placeItem.innerHTML = `<strong>${name}</strong> - ${rating} - Click for directions`;
-            placeItem.onclick = () => showRouteToPlace(lat, lon);
-            placeDetailsDiv.appendChild(placeItem);
-        });
-    }
-
-    // --- Helper Functions ---
-
-    // Calculate distance between two points
-    function getDistance(lat1, lon1, lat2, lon2) {
-        const R = 6371e3; // Earth radius in meters
-        const φ1 = lat1 * Math.PI / 180;
-        const φ2 = lat2 * Math.PI / 180;
-        const Δφ = (lat2 - lat1) * Math.PI / 180;
-        const Δλ = (lon2 - lon1) * Math.PI / 180;
-
-        const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-            Math.cos(φ1) * Math.cos(φ2) *
-            Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
-        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-        return R * c; // Distance in meters
-    }
-
-    // Show route to the selected place on the map
-    function showRouteToPlace(lat, lon) {
-        L.Routing.control({
-            waypoints: [
-                L.latLng(userMarker.getLatLng().lat, userMarker.getLatLng().lng),
-                L.latLng(lat, lon)
-            ],
-            routeWhileDragging: true
-        }).addTo(map);
-    }
+    });
 });
