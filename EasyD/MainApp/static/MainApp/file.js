@@ -13,44 +13,6 @@ document.addEventListener('DOMContentLoaded', function () {
     const eventItems = document.querySelectorAll('.event-item');
     const totalItems = eventItems.length;
 
-<<<<<<< HEAD
-    if (eventSlider && eventItems.length > 0) {
-        // Function to handle the slide movement (cyclic behavior)
-        function moveSlide(direction) {
-            if (direction === 'left') {
-                currentIndex = (currentIndex === 0) ? totalItems - 1 : currentIndex - 1; // Loop back to last slide
-            } else if (direction === 'right') {
-                currentIndex = (currentIndex === totalItems - 1) ? 0 : currentIndex + 1; // Loop back to first slide
-            }
-
-            // Calculate the new transform value to slide the items
-            const slideWidth = eventItems[0].clientWidth; // Width of one event item
-            const newTransformValue = -currentIndex * slideWidth; // Calculate the translation
-            eventSlider.style.transition = "transform 0.5s ease"; // Add smooth transition
-            eventSlider.style.transform = `translateX(${newTransformValue}px)`;
-        }
-
-        // Add event listeners to the left and right arrows
-        const leftArrow = document.querySelector('.left-arrow');
-        const rightArrow = document.querySelector('.right-arrow');
-
-        if (leftArrow && rightArrow) {
-            leftArrow.addEventListener('click', function() {
-                moveSlide('left');
-            });
-            rightArrow.addEventListener('click', function() {
-                moveSlide('right');
-            });
-        }
-
-        // Automatically adjust slider on window resize
-        window.addEventListener('resize', function() {
-            const slideWidth = eventItems[0].clientWidth;
-            const newTransformValue = -currentIndex * slideWidth;
-            eventSlider.style.transition = "none"; // Disable transition for instant adjustment
-            eventSlider.style.transform = `translateX(${newTransformValue}px)`;
-        });
-=======
     // Function to move the slider left or right with cyclic behavior
     function moveSlide(direction) {
         if (direction === 'left') {
@@ -73,7 +35,6 @@ document.addEventListener('DOMContentLoaded', function () {
     if (leftArrow && rightArrow) {
         leftArrow.addEventListener('click', () => moveSlide('left'));
         rightArrow.addEventListener('click', () => moveSlide('right'));
->>>>>>> 0d57b5c0bdab33bcfb02d882742fc26ff2dd56af
     }
 
 
@@ -168,7 +129,7 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 // Get all forms with the class 'dating-form'
-const forms = document.querySelectorAll('.inline-form');
+const forms = document.querySelectorAll('.mr-1');
 
 forms.forEach(form => {
     form.addEventListener('submit', function(event) {
@@ -201,4 +162,32 @@ forms.forEach(form => {
             form.submit();
         }
     });
+});
+
+const searchForm = document.getElementById('search-form');
+searchForm.addEventListener('submit', function (event) {
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            const latitude = position.coords.latitude;
+            const longitude = position.coords.longitude;
+
+            // Assign the latitude and longitude to the respective hidden input fields
+            searchForm.querySelector('#latitude').value = latitude;
+            searchForm.querySelector('#longitude').value = longitude;
+
+            // Log the latitude and longitude for verification
+            console.log(`Latitude: ${latitude}, Longitude: ${longitude}`);
+
+            // Now submit the form with the geolocation data
+            searchForm.submit();
+        }, function(error) {
+            console.error("Error occurred: " + error.message);
+            // If there's an error getting geolocation, submit the form without location data
+            searchForm.submit();
+        });
+    } else {
+        console.log("Geolocation is not supported by this browser.");
+        // If geolocation is not supported, submit the form without the geolocation data
+        searchForm.submit();
+    }
 });

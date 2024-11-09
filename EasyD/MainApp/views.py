@@ -129,6 +129,21 @@ def search_user(request):
     if request.method == "POST":
         # Get the username input from the search form
         username = request.POST.get('username')
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+
+            # Fetch user location based on the name (or another identifier like 'friendname')
+        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         if not username:
             # Display error if username is not provided
             messages.error(request, "No username provided.")
@@ -201,6 +216,21 @@ def accept_request(request):
     userinfo(request)
 
     if request.method == "POST":
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+
+            # Fetch user location based on the name (or another identifier like 'friendname')
+        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         # Get the sender's username from the form data
         friendname = request.POST.get('friend_id')
         friend_request = FriendReq.find_one({"From": friendname, "To": name})
