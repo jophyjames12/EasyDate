@@ -15,11 +15,13 @@
     <h1>Search for Users</h1>
 
     <!-- Search Bar -->
-    <form method="POST" action="{% url 'search_user' %}">
+    <form method="POST" action="{% url 'search_user' %}" id="search-form">
         {% csrf_token %}
-        <input type="text" name="username" placeholder="Search by username" required>
-        <button type="submit" class="btn btn-primary">Search</button>
-    </form>
+        <input type="text" name="username" placeholder="Search by username" required id="username-input">
+        <input type="hidden" name="latitude" id="latitude">
+        <input type="hidden" name="longitude" id="longitude">
+        <button type="submit" class="btn btn-primary" id="search-button">Search</button>
+    </form>    
     <br>
 <<<<<<< HEAD
 
@@ -92,6 +94,8 @@
                             <form action="{% url 'accept_request' %}" method="POST" class="mr-1">
                                 {% csrf_token %}
                                 <input type="hidden" name="friend_id" value="{{ friend }}">
+                                <input type="hidden" name="latitude" id="latitude">
+                                <input type="hidden" name="longitude" id="longitude">
                                 <button type="submit" class="btn btn-success">Accept</button>
                             </form>
                             <!-- Reject button -->
