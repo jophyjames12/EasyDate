@@ -20,9 +20,20 @@
                     <li>
                         <strong>From:</strong> {{ request.username }} <br>
                         <strong>Status:</strong> Pending <br>
+
+                        <!-- Form for accepting or rejecting the date request -->
                         <form method="POST" action="{% url 'handle_date_request' %}">
                             {% csrf_token %}
                             <input type="hidden" name="request_id" value="{{ request.request_id }}">
+
+                            <!-- Editable date and time fields when accepting a date request -->
+                            <label for="new_date_{{ request.request_id }}">New Date:</label>
+                            <input type="date" id="new_date_{{ request.request_id }}" name="new_date" value="{{ request.date }}">
+
+                            <label for="new_time_{{ request.request_id }}">New Time:</label>
+                            <input type="time" id="new_time_{{ request.request_id }}" name="new_time" value="{{ request.time }}">
+
+                            <!-- Action buttons to accept or reject the request -->
                             <button type="submit" name="action" value="accept">Accept</button>
                             <button type="submit" name="action" value="reject">Reject</button>
                         </form>
@@ -36,6 +47,8 @@
 
 </body>
 </html>
+
+
 
 
 
