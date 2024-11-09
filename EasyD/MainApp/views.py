@@ -305,8 +305,5 @@ def handle_date_request(request):
 
 
 
-<<<<<<< HEAD
-=======
 def map_view(request):
     return render(request,'MainApp/Map.html')
->>>>>>> 29647906827d1cb802adc5b9c539abab5764e6ca
