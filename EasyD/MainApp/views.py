@@ -455,12 +455,8 @@ def rate_place(request):
 
 @csrf_exempt
 def get_places(request):
-<<<<<<< HEAD
-    places = list(Place.objects.all().values())
-=======
     places = list(places.objects.all().values())
 
->>>>>>> 101269e2e596fcfddbe1a192079a2dc49490abb1
     return JsonResponse(places, safe=False)
 
 @csrf_exempt
