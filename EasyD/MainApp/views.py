@@ -233,11 +233,10 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
-
 # Profile view to display the user's profile information
 # --- New Features Below ---
 
-# Send a date request to a friend
+# Send a date request to a friend with date and time input
 def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
@@ -262,50 +261,62 @@ def send_date_request(request):
             Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         else:
             print("User not found in the Location collection")
+        date = request.POST.get('date')
+        time = request.POST.get('time')
 
         # Ensure the user isn't trying to send a date request to themselves
         if friendname == name:
             messages.error(request, "You cannot send a date request to yourself.")
-            return redirect('search_user')  # Ensure the user stays on the search page
+            return redirect('search_user')
 
-        # Check if the friend is actually in the user's friend list
+        # Check if the friend is in the user's friend list
         user_friendlist = Friendlist.find_one({"username": name})
         if not user_friendlist or friendname not in user_friendlist.get("friends", []):
             messages.error(request, "You can only send a date request to your friends.")
-            return redirect('search_user')  # Stay on the search page
+            return redirect('search_user')
 
-        # Check if there's already an existing date request
+        # Check for an existing date request
         existing_date_request = DateReq.find_one({"From": name, "To": friendname}) or DateReq.find_one({"From": friendname, "To": name})
 
         if existing_date_request:
             messages.info(request, "Date request already sent. Waiting for response.")
-            return redirect("search_user")  # Show the message on the search page
+            return redirect("search_user")
 
-        # Create a new date request and send it
+        # Create a new date request with date and time
         date_request = {
             "From": name,
             "To": friendname,
-            "status": "pending"  # Initially, the date request is pending
+            "status": "pending",
+            "date": date,
+            "time": time
         }
         DateReq.insert_one(date_request)
         messages.success(request, f"Date request sent to {friendname}.")
-        
-        return redirect("search_user")  # Ensure the user is redirected to the search page to see the message
+        return redirect("search_user")
 
 # View pending date requests and show them on the profile page
-
+# Profile view to display the user's profile information
+# --- New Features Below ---
+# View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
-    # Only fetch the pending date requests for the user where they are the receiver
+    # Only fetch pending date requests for the user
     received_requests = DateReq.find({"To": name, "status": "pending"})
-    
-    # Prepare a list of users that sent requests to the logged-in user
-    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
-    return render(request, 'MainApp/profile.html', {
-        "received_from": received_from
-    })
 
-# Accept or reject a date request
+    # Prepare received requests with date and time
+    received_from = [
+        {
+            "username": req["From"],
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", "")
+        }
+        for req in received_requests
+    ]
+    return render(request, 'MainApp/profile.html', {"received_from": received_from})
+
+
+# Handle accepting or rejecting a date request
 def handle_date_request(request):
     userinfo(request)
 
@@ -318,7 +329,18 @@ def handle_date_request(request):
 
         if date_request:
             if action == "accept":
-                DateReq.update_one({"_id": ObjectId(request_id)}, {"$set": {"status": "accepted"}})
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date', date_request["date"])
+                new_time = request.POST.get('new_time', date_request["time"])
+                
+                # Update the date request with the new date/time if provided
+                DateReq.update_one({"_id": ObjectId(request_id)}, {
+                    "$set": {
+                        "status": "accepted", 
+                        "date": new_date, 
+                        "time": new_time
+                    }
+                })
                 messages.success(request, "Date request accepted.")
             elif action == "reject":
                 DateReq.delete_one({"_id": ObjectId(request_id)})
@@ -327,7 +349,6 @@ def handle_date_request(request):
             messages.error(request, "Date request not found.")
 
     return redirect('profile')
-
 
 
 def map_view(request):
@@ -403,7 +424,8 @@ def rate_place(request):
 
 @csrf_exempt
 def get_places(request):
-    places = list(Place.objects.all().values())
+    places = list(places.objects.all().values())
+
     return JsonResponse(places, safe=False)
 
 @csrf_exempt
