@@ -5,58 +5,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search and Friend Requests</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static '/MainApp/friends.css' %}"> <!-- Link to the CSS file -->
+    <link rel="stylesheet" href="{% static '/MainApp/friends.css' %}">
 </head>
 <body>
 
     <!-- Friend Requests Section -->
-    <h1>Pending Friend Requests</h1>
-    <ul>
-        {% if friends %}
-            {% for friend in friends %}
-                <li>
-                    {{ friend }} <!-- Display the friend's username -->
-                    
-                    <!-- Accept button wrapped in a form -->
-                    <form action="{% url 'accept_request' %}" method="POST" style="display:inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="friend_id" value="{{ friend }}">
-                        <button type="submit" name="action" value="accept">Accept</button>
-                    </form>
-                    
-                    <!-- Reject button wrapped in a form -->
-                    <form action="{% url 'reject_request' %}" method="POST" style="display:inline;">
-                        {% csrf_token %}
-                        <input type="hidden" name="friend_id" value="{{ friend }}">
-                        <button type="submit" name="action" value="reject">Reject</button>
-                    </form>
-                </li>
-            {% endfor %}
-        {% else %}
-            <li>No pending friend requests.</li>
-        {% endif %}
-    </ul>
+    <section class="friend-requests">
+        <h1>Pending Friend Requests</h1>
+        <ul>
+            {% if friends %}
+                {% for friend in friends %}
+                    <li>
+                        <strong>{{ friend }}</strong>
+                        
+                        <!-- Accept button -->
+                        <form action="{% url 'accept_request' %}" method="POST" class="inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="friend_id" value="{{ friend }}">
+                            <button type="submit" name="action" value="accept">Accept</button>
+                        </form>
+                        
+                        <!-- Reject button -->
+                        <form action="{% url 'reject_request' %}" method="POST" class="inline-form">
+                            {% csrf_token %}
+                            <input type="hidden" name="friend_id" value="{{ friend }}">
+                            <button type="submit" name="action" value="reject">Reject</button>
+                        </form>
+                    </li>
+                {% endfor %}
+            {% else %}
+                <li>No pending friend requests.</li>
+            {% endif %}
+        </ul>
+    </section>
 
     <hr>
 
     <!-- Friend Search and Request Section -->
-    <h1>Search for Users</h1>
-    <form method="post" action="{% url 'search_user' %}">
-        {% csrf_token %}
-        <label for="username">Search for User:</label>
-        <input type="text" id="username" name="username" required>
-        <button type="submit">Search</button>
-    </form>
+    <section class="user-search">
+        <h1>Search for Users</h1>
+        <form method="post" action="{% url 'search_user' %}">
+            {% csrf_token %}
+            <label for="username">Search for User:</label>
+            <input type="text" id="username" name="username" required>
+            <button type="submit">Search</button>
+        </form>
+    </section>
 
-    <!-- Display any messages -->
+    <!-- Display any success or error messages below the search form -->
     {% if messages %}
-        <div style="border: 1px solid #ddd; padding: 10px; margin-bottom: 20px;">
+        <div class="message-container">
             {% for message in messages %}
-                <p>{{ message }}</p>
+                <div class="{% if message.tags %}message {{ message.tags }}{% endif %}">
+                    {{ message }}
+                </div>
             {% endfor %}
         </div>
     {% endif %}
 
+    <hr>
+
+    <!-- Friends List Section -->
+    <section class="friends-list">
+        <h1>Your Friends</h1>
+        <ul>
+            {% if all_friends %}
+                {% for friend in all_friends %}
+                    <li>{{ friend }}</li>
+                {% endfor %}
+            {% else %}
+                <li>You have no friends added yet.</li>
+            {% endif %}
+        </ul>
+    </section>
+
 </body>
 </html>
+
+
+
 

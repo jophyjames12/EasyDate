@@ -39,7 +39,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-
     // Modal close function
     function closeModal() {
         const modal = document.getElementById("successModal");
@@ -55,4 +54,8 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
 });
+
+
+
+
 
