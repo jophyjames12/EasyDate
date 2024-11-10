@@ -552,6 +552,40 @@ def get_nearby_places(latitude, longitude, request):
         return response.json().get('elements', [])
     return []
 
+def handle_date_request(request):
+    userinfo(request)
+
+    if request.method == "POST":
+        request_id = request.POST.get('request_id')
+        action = request.POST.get('action')  # either 'accept' or 'reject'
+
+        # Fetch the date request
+        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+
+        if date_request:
+            if action == "accept":
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date', date_request["date"])
+                new_time = request.POST.get('new_time', date_request["time"])
+                
+                # Update the date request with the new date/time if provided
+                DateReq.update_one({"_id": ObjectId(request_id)}, {
+                    "$set": {
+                        "status": "accepted", 
+                        "date": new_date, 
+                        "time": new_time
+                    }
+                })
+                messages.success(request, "Date request accepted.")
+            elif action == "reject":
+                DateReq.delete_one({"_id": ObjectId(request_id)})
+                messages.success(request, "Date request rejected.")
+        else:
+            messages.error(request, "Date request not found.")
+
+    return redirect('profile')
+
+
 # Map view to show midpoint
 def map_view(request):
     Rev = Review.find()
