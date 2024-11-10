@@ -397,13 +397,12 @@ def map_view(request):
 
 @csrf_exempt
 def update_preferences(request):
+    userinfo(request)
     if request.method == 'POST':
-        name = request.user.username  # Assuming you're using the logged-in user's name
         selected_preferences = request.POST.get('selected_preferences', '')
 
         # Convert the comma-separated string into a list
         preferences = selected_preferences.split(',')
-
         # Find the user in the database or create a new record
         existing_user = Preference.find_one({'name': name})
         
