@@ -62,66 +62,35 @@ document.addEventListener('DOMContentLoaded', function () {
         });
     }
 
-    // Handle preferences form submission
-    const saveButton = document.querySelector(".save-btn");
-    if (saveButton) {
-        saveButton.addEventListener("submit", function(e) {
-            e.preventDefault(); // Prevent form from submitting traditionally
-
-            const selectedPreferences = Array.from(document.querySelectorAll('input[name="preferences"]:checked')).map(input => input.value);
-
-            // Send the selected preferences to the backend (using AJAX)
-            // Example using fetch (AJAX)
-            fetch('/save_preferences/', {  // Update the URL as needed to match your backend endpoint
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-CSRFToken': getCookie('csrftoken')  // Make sure to handle CSRF token if using Django
-                },
-                body: JSON.stringify({ preferences: selectedPreferences })
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Preferences saved:', data);
-                
-                // After saving preferences, show success message or close the modal
-                const saveButton = document.getElementById(".save-btn");
-                if (saveButton) {
-                    saveButton.style.display = "none";  // Close the preferences modal
-                }
-                // Optionally, show a confirmation modal or message here
-                alert("Preferences saved successfully!");
-            })
-            .catch(error => {
-                console.error('Error saving preferences:', error);
-                alert("There was an error saving your preferences.");
-            });
+    // Handle preferences form submission when "Save" button is clicked
+    document.querySelectorAll(".save-btn").forEach(button => {
+        button.addEventListener("click", function(event) {
+            event.preventDefault();
+    
+            // Collect selected preferences
+            const selectedPreferences = Array.from(document.querySelectorAll('input[name="preferences"]:checked'))
+                .map(input => input.value);
+    
+            // Assign selected preferences to hidden input field
+            document.querySelector("#selectedPreferencesInput").value = selectedPreferences.join(",");
+    
+            // Submit the form
+            document.querySelector("#save").submit();
+    
+            // Close the preferences modal after saving
+            closeModal("preferencesModal");
         });
-    }
+    });
+    
 
-    // Function to get CSRF token (for Django)
-    function getCookie(name) {
-        let cookieValue = null;
-        if (document.cookie && document.cookie !== '') {
-            const cookies = document.cookie.split(';');
-            for (let i = 0; i < cookies.length; i++) {
-                const cookie = cookies[i].trim();
-                if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return cookieValue;
-    }
 
-    // Add event listener to the modal close button
+
+    // Add event listener to the close button (inside the modal) if needed
     const closeButton = document.querySelector(".close-btn");
     if (closeButton) {
         closeButton.addEventListener("click", function() {
-            closeModal('preferencesModal');
-        });  // Close the preferences modal when clicked
-
+            closeModal("successModal");
+        });
     }
 
   

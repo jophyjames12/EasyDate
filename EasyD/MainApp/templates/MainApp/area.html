@@ -25,13 +25,15 @@
   <div id="preferencesModal" class="modal" style="display: none;">
       <div class="modal-content preferences-modal">
           <h2>Select Your Preferences</h2>
-          <form>
+          <form id="save" action="{% url 'update_preferences' %}" method="POST">
+            {% csrf_token %}
               <div class="preferences-options">
-                  <label><input type="checkbox" value="restaurant"> Restaurant</label>
-                  <label><input type="checkbox" value="bar"> Bar</label>
-                  <label><input type="checkbox" value="stall"> Stalls</label>
-                  <label><input type="checkbox" value="club"> Club</label>
+                  <label><input type="checkbox" name="preferences" value="restaurant"> Restaurant</label>
+                  <label><input type="checkbox" name="preferences" value="bar"> Bar</label>
+                  <label><input type="checkbox" name="preferences" value="stall"> Stalls</label>
+                  <label><input type="checkbox" name="preferences" value="club"> Club</label>
               </div>
+              <input type="hidden" name="selected_preferences" id="selectedPreferencesInput">
               <button type="button" class="save-btn">Save</button>
           </form>
       </div>

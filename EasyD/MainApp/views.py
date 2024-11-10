@@ -1,5 +1,7 @@
+
 from asyncio.log import logger
 from tkinter import Place
+
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -7,7 +9,7 @@ from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
 import json
 
 # MongoDB connection
@@ -16,9 +18,15 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
-DateReq = db['DateRequests']  
+
+DateReq = db['DateRequests']  # New collection for date requests
+Preference = db['PreferenceList']
+
+
+
 Review=db['Reviews']
 Location=db['Location']
+
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -321,8 +329,19 @@ def send_date_request(request):
 # View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
-    # Only fetch pending date requests for the user
+
+    # Fetch the pending date requests for the user
+    sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
+    
+    # Prepare lists of users that sent or received requests
+    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
+    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
+    return render(request, 'MainApp/profile.html', {
+        "sent_from": sent_from,
+        "received_from": received_from
+    })
+
 
     # Prepare received requests with date and time
     received_from = [
@@ -373,75 +392,44 @@ def handle_date_request(request):
 
 
 def map_view(request):
-    Rev=Review.find()
-    return render(request,'MainApp/Map.html',{'reviews': Rev})
-    
-# View to handle saving preferences
-def save_preferences(request):
-    if request.method == 'POST':
-        preferences = request.POST.getlist('preferences[]')  # List of selected preferences
-        # Assuming the user is logged in and the user model has a `preferences` field
-        user = request.user
-        user.preferences.set(preferences)
-        user.save()
-        return JsonResponse({'success': True})
+    return render(request,'MainApp/Map.html')
 
-# Profile view to show user preferences
-def profile_view(request):
-    user = request.user
-    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
-    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
-    
 
 @csrf_exempt
-def rate_place(request):
+def update_preferences(request):
     if request.method == 'POST':
-        try:
-            # Parse the JSON data from the frontend
-            data = json.loads(request.body)
+        name = request.user.username  # Assuming you're using the logged-in user's name
+        selected_preferences = request.POST.get('selected_preferences', '')
 
-            # Ensure all required fields are present
-            place_id = data.get('placeId')
-            rating = data.get('rating')
-            latitude = data.get('lat')
-            longitude = data.get('lon')
+        # Convert the comma-separated string into a list
+        preferences = selected_preferences.split(',')
 
-            if not place_id or not rating or not latitude or not longitude:
-                logger.error("Missing required fields")
-                return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
-
-            #storing in db
-            existing_review = Review.find_one({"name": place_id, "lat": latitude, "lon": longitude})
-            
-            if existing_review:#check if it exists
-                 total_ratings = existing_review.get("total_ratings", 0) + 1
-                 avg_rating = (existing_review.get("average_rating", 0) * existing_review.get("total_ratings", 0) + rating) / total_ratings
-                # Update the review entry
-                 Review.update_one(
-                    {"_id": existing_review["_id"]}, 
-                    {"$set": {"average_rating": avg_rating, "total_ratings": total_ratings}}
-                 
-                 )
-            else:
-                Review.insert_one({
-                "name": place_id,
-                "lat": latitude,
-                "lon": longitude,
-                "total_ratings": 1,
-                "average_rating": rating
-                })         
-
-            return JsonResponse({'status': 'success', 'message': 'Rating submitted successfully','rating':rating})
-
-        except ValueError as ve:
-            logger.error(f"Error: {ve}")
-            return JsonResponse({'status': 'error', 'message': str(ve)}, status=400)
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+        # Find the user in the database or create a new record
+        existing_user = Preference.find_one({'name': name})
+        
+        if existing_user:
+            # Update preferences if user already has a document
+            Preference.update_one({"name": name}, {"$set": {"preferences": preferences}})
+        else:
+            # Insert new document if user doesn't have one
+            Preference.insert_one({"name": name, "preferences": preferences})
+        
+        return render(request, 'MainApp/area.html')
     else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+        return JsonResponse({"status": "error", "message": "Invalid request method."})
 
+# View to handle saving preferences
+#@csrf_exempt  # Temporarily exempt CSRF for testing, use CSRF middleware properly
+#@login_required
+#def save_preferences(request):
+ #   if request.method == 'POST':
+  #      data = json.loads(request.body)
+   #     preferences = data.get('preferences', [])
+
+
+        # Save preferences to the user model or a related model
+    #    user = request.user
+     #   user.preferences.set(preferences)  # Assuming you have a preferences field
 
 @csrf_exempt
 def get_places(request):
@@ -449,48 +437,14 @@ def get_places(request):
 
     return JsonResponse(places, safe=False)
 
-@csrf_exempt
-def sort_places_by_reviews(request):
-    if request.method == 'POST':
-        try:
-            # Parse the JSON data from the frontend
-            data = json.loads(request.body)
 
-            # Extract the list of places (lat, lon, name) from the frontend
-            places = data.get('places', [])
-            
-            if not places:
-                return JsonResponse({'status': 'error', 'message': 'No places data provided'}, status=400)
+      #  return JsonResponse({"message": "Preferences saved successfully"})
 
-            # Fetch ratings for each place and sort them by the average_rating
-            sorted_places = []
-            for place in places:
-                # Assuming place contains lat, lon, and name to find the review
-                review = Review.find_one({
-                    "lat": place['lat'],
-                    "lon": place['lon'],
-                    "name": place['name']
-                })
-                
-                # If the place has a review, append it with the average rating
-                if review:
-                    place['average_rating'] = review.get('average_rating', 0)
-                else:
-                    place['average_rating'] = 0  # Default to 0 if no review exists
-                
-                sorted_places.append(place)
+   # return JsonResponse({"error": "Invalid request"}, status=400)
 
-            # Sort the places by average_rating
-            sorted_places.sort(key=lambda x: x.get('average_rating', 0), reverse=True)
-            
-            return JsonResponse({'status': 'success', 'sorted_places': sorted_places})
-
-        except ValueError as ve:
-            logger.error(f"Error: {ve}")
-            return JsonResponse({'status': 'error', 'message': str(ve)}, status=400)
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
-            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
-    else:
-        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+# Profile view to show user preferences
+def profile_view(request):
+    user = request.user
+    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
+    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
 
