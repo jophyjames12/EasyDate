@@ -1,3 +1,7 @@
+
+from asyncio.log import logger
+from tkinter import Place
+
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
@@ -14,8 +18,14 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
+
 DateReq = db['DateRequests']  # New collection for date requests
 Preference = db['PreferenceList']
+
+
+
+Review=db['Reviews']
+Location=db['Location']
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
@@ -128,6 +138,21 @@ def search_user(request):
     if request.method == "POST":
         # Get the username input from the search form
         username = request.POST.get('username')
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+
+            # Fetch user location based on the name (or another identifier like 'friendname')
+        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         if not username:
             # Display error if username is not provided
             messages.error(request, "No username provided.")
@@ -200,6 +225,21 @@ def accept_request(request):
     userinfo(request)
 
     if request.method == "POST":
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+
+            # Fetch user location based on the name (or another identifier like 'friendname')
+        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         # Get the sender's username from the form data
         friendname = request.POST.get('friend_id')
         friend_request = FriendReq.find_one({"From": friendname, "To": name})
@@ -232,49 +272,64 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
-
 # Profile view to display the user's profile information
 # --- New Features Below ---
 
-# Send a date request to a friend
+# Send a date request to a friend with date and time input
 def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
 
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+        try:
+            # Fetch user location based on the name (or another identifier like 'friendname')
+            usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        except:
+            print("Error while fetching user location")
+            return redirect('search_user')  # Handle case if the user is not found
+
+
+        date = request.POST.get('date')
+        time = request.POST.get('time')
+
         # Ensure the user isn't trying to send a date request to themselves
         if friendname == name:
             messages.error(request, "You cannot send a date request to yourself.")
-            return redirect('search_user')  # Ensure the user stays on the search page
+            return redirect('search_user')
 
-        # Check if the friend is actually in the user's friend list
+        # Check if the friend is in the user's friend list
         user_friendlist = Friendlist.find_one({"username": name})
         if not user_friendlist or friendname not in user_friendlist.get("friends", []):
             messages.error(request, "You can only send a date request to your friends.")
-            return redirect('search_user')  # Stay on the search page
+            return redirect('search_user')
 
-        # Check if there's already an existing date request
+        # Check for an existing date request
         existing_date_request = DateReq.find_one({"From": name, "To": friendname}) or DateReq.find_one({"From": friendname, "To": name})
 
         if existing_date_request:
             messages.info(request, "Date request already sent. Waiting for response.")
-            return redirect("search_user")  # Show the message on the search page
+            return redirect("search_user")
 
-        # Create a new date request and send it
+        # Create a new date request with date and time
         date_request = {
             "From": name,
             "To": friendname,
-            "status": "pending"  # Initially, the date request is pending
+            "status": "pending",
+            "date": date,
+            "time": time
         }
         DateReq.insert_one(date_request)
         messages.success(request, f"Date request sent to {friendname}.")
-        
-        return redirect("search_user")  # Ensure the user is redirected to the search page to see the message
+        return redirect("search_user")
 
 # View pending date requests and show them on the profile page
-
+# Profile view to display the user's profile information
+# --- New Features Below ---
+# View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
+
     # Fetch the pending date requests for the user
     sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
@@ -287,7 +342,21 @@ def profile(request):
         "received_from": received_from
     })
 
-# Accept or reject a date request
+
+    # Prepare received requests with date and time
+    received_from = [
+        {
+            "username": req["From"],
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", "")
+        }
+        for req in received_requests
+    ]
+    return render(request, 'MainApp/profile.html', {"received_from": received_from})
+
+
+# Handle accepting or rejecting a date request
 def handle_date_request(request):
     userinfo(request)
 
@@ -300,7 +369,18 @@ def handle_date_request(request):
 
         if date_request:
             if action == "accept":
-                DateReq.update_one({"_id": ObjectId(request_id)}, {"$set": {"status": "accepted"}})
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date', date_request["date"])
+                new_time = request.POST.get('new_time', date_request["time"])
+                
+                # Update the date request with the new date/time if provided
+                DateReq.update_one({"_id": ObjectId(request_id)}, {
+                    "$set": {
+                        "status": "accepted", 
+                        "date": new_date, 
+                        "time": new_time
+                    }
+                })
                 messages.success(request, "Date request accepted.")
             elif action == "reject":
                 DateReq.delete_one({"_id": ObjectId(request_id)})
@@ -309,7 +389,6 @@ def handle_date_request(request):
             messages.error(request, "Date request not found.")
 
     return redirect('profile')
-
 
 
 def map_view(request):
@@ -347,9 +426,17 @@ def update_preferences(request):
   #      data = json.loads(request.body)
    #     preferences = data.get('preferences', [])
 
+
         # Save preferences to the user model or a related model
     #    user = request.user
      #   user.preferences.set(preferences)  # Assuming you have a preferences field
+
+@csrf_exempt
+def get_places(request):
+    places = list(places.objects.all().values())
+
+    return JsonResponse(places, safe=False)
+
 
       #  return JsonResponse({"message": "Preferences saved successfully"})
 

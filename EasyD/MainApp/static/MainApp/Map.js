@@ -18,6 +18,7 @@ const reviews = JSON.parse(document.getElementById('reviews-data').textContent);
  * Function to locate the user's current position using geolocation
  * This is called when the user clicks the "Locate Me" button
  */
+
 function locateUser() {
     // Check if the browser supports geolocation
     if (navigator.geolocation) {
@@ -59,8 +60,8 @@ document.getElementById('locate-btn').addEventListener('click', locateUser);
 function searchPlaces() {
     // Ensure user location is set before searching
     if (!userMarker) {
-        alert("Please allow location access first.");
         locateUser(); // Try locating the user again if not already located
+        alert("Click again");
         return;
     }
 
@@ -85,7 +86,27 @@ function searchPlaces() {
         .then(response => response.json())
         .then(data => {
             const places = data.elements || [];
-            displayPlaces(places, sortBy, userLat, userLon);
+
+            // If sorting by reviews, request the sorted data from the backend
+            if (sortBy === 'reviews') {
+                fetch('/sort_places_by_reviews/', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ places })
+                })
+                .then(response => response.json())
+                .then(sortedData => {
+                    if (sortedData.status === 'success') {
+                        displayPlaces(sortedData.sorted_places, sortBy, userLat, userLon);
+                    } else {
+                        console.error("Error sorting places by reviews:", sortedData.message);
+                    }
+                })
+                .catch(error => console.error("Error fetching sorted places by reviews:", error));
+            } else {
+                // Default sorting by distance
+                displayPlaces(places, sortBy, userLat, userLon);
+            }
         })
         .catch(error => console.error("Error fetching places:", error));
 }
@@ -168,10 +189,6 @@ function ratePlace(placeId) {
             alert("Error: " + data.message);
         }
     })
-    .catch(error => {
-        console.error('Error submitting rating:', error);
-        alert('An error occurred while submitting the rating');
-    });
 }
 
 /**
