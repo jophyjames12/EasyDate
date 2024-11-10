@@ -23,13 +23,6 @@
         <button type="submit" class="btn btn-primary" id="search-button">Search</button>
     </form>    
     <br>
-
-
-
-    <!-- Displaying Messages -->
-
-
-
     {% if messages %}
         <div class="messages">
             {% for message in messages %}
@@ -60,7 +53,7 @@
                             <input type="hidden" name="friend_id" value="{{ friend }}">
                             <input type="hidden" name="latitude" id="latitude">
                             <input type="hidden" name="longitude" id="longitude">
-                            <button type="submit">Send Date Request</button>
+                            
                         </form>
                         <!-- Button to open modal for date request -->
                         <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#dateRequestModal" data-friend-id="{{ friend }}">
