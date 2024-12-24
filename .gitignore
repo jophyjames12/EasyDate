@@ -1,7 +1,19 @@
-EasyD/MainApp/_pycache_/
+# Compiled bytecode
+__pycache__/
 *.pyc
 *.pyo
 
-# Virtual environment
+# SQLite database
+db.sqlite3
+
+# Pipenv and virtual environments
+pipenv.json
 .venv/
 venv/
+
+# Temporary files from editors
+tempCodeRunnerFile.js
+
+# Dependency management files (these should not be ignored)
+# Pipfile
+# Pipfile.lock
