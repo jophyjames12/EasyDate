@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Schedule</title>
+  {% load static %}  
+  <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
+  <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+</head>
+<body>
+  
+  <!-- Success Modal for Account Creation -->
+  {% if account_created %} 
+  <div id="successModal" class="modal">
+    <div class="modal-content">
+        <div class="success-icon">✔️</div>
+        <h2>Account Created Successfully!</h2>
+        <p>Click Next to select your preferences.</p>
+        <button class="next-btn">Next</button>
+    </div>
+  </div> 
+
+  <!-- Preferences Modal -->
+  <div id="preferencesModal" class="modal" style="display: none;">
+      <div class="modal-content preferences-modal">
+          <h2>Select Your Preferences</h2>
+          <form id="save" action="{% url 'update_preferences' %}" method="POST">
+            {% csrf_token %}
+              <div class="preferences-options">
+                  <label><input type="checkbox" name="preferences" value="restaurant"> Restaurant</label>
+                  <label><input type="checkbox" name="preferences" value="bar"> Bar</label>
+                  <label><input type="checkbox" name="preferences" value="stall"> Stalls</label>
+                  <label><input type="checkbox" name="preferences" value="club"> Club</label>
+              </div>
+              <input type="hidden" name="selected_preferences" id="selectedPreferencesInput">
+              <button type="button" class="save-btn">Save</button>
+          </form>
+      </div>
+  </div>
+
+  {% endif %}
+
+  <!-- Top Menu Section -->
+  <header>
+    <h1>Event Schedule</h1>
+    <div class="menu">
+      <button onclick="toggleMenu()">☰ Menu</button>
+      <div id="dropdown" class="dropdown-content">
+
+        <a href="map">map</a>
+        <!-- Update Profile link to go to the profile page -->
+        <a href="{% url 'profile' %}">Profile</a>  <!-- Link to profile page -->
+        <a href="logout/">Logout</a>
+        <a href="search_user">Friends</a> <!-- Link to Friends feature -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Horizontal Sliding Schedule Section -->
+  <section class="schedule">
+    <div class="schedule-slider">
+      <div class="schedule-item">01/01/2024 - Location 1<br>10:00 AM - User A</div>
+      <div class="schedule-item">02/01/2024 - Location 2<br>11:00 AM - User B</div>
+      <div class="schedule-item">03/01/2024 - Location 3<br>12:00 PM - User C</div>
+    </div>
+  </section>
+
+  <!-- Auto-sliding Event Design Section -->
+  <section class="event">
+    <button class="arrow left-arrow">←</button> <!-- Left arrow -->
+    <div class="event-slider">
+      <div class="event-item">Event Design 1</div>
+      <div class="event-item">Event Design 2</div>
+      <div class="event-item">Event Design 3</div>
+    </div>
+    <button class="arrow right-arrow">→</button> <!-- Right arrow -->
+  </section>
+  
+  <script src="{% static 'MainApp/file.js' %}"></script>
+  
+
+</body>
+</html>
+

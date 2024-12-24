@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search Places and Rate</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map { height: 600px; width: 100%; }
+        #place-details { margin-top: 20px; }
+        .place-item { cursor: pointer; padding: 5px; border: 1px solid #ddd; margin-bottom: 5px; }
+        .place-item:hover { background-color: #f9f9f9; }
+        select, input, button { margin: 10px 0; padding: 5px; }
+        #search-results { border: 1px solid #ccc; max-height: 150px; overflow-y: auto; margin-top: 5px; }
+        .search-result { padding: 5px; cursor: pointer; }
+        .search-result:hover { background-color: #e0e0e0; }
+        .search-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        #error-message { color: red; margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Search Places and Rate</h1>
+    <button id="locate-btn">Locate Me</button>
+    <div class="search-container">
+        <label for="manual-location">Set Location Manually:</label>
+        <input type="text" id="manual-location" placeholder="Enter location">
+        <div id="search-results"></div>
+    </div>
+    <label for="tag">Search by Tag:</label>
+    <select id="tag">
+        <option value="restaurant">Restaurant</option>
+        <option value="cafe">Cafe</option>
+        <option value="bar">Bar</option>
+        <option value="club">Club</option>
+        <option value="shop">Shop</option>
+    </select>
+    <label for="ambiance">Select Ambiance:</label>
+    <select id="ambiance">
+        <option value="any">Any</option>
+        <option value="chill">Chill</option>
+        <option value="lively">Lively</option>
+        <option value="romantic">Romantic</option>
+        <option value="fun">Fun</option>
+    </select>
+    <label for="sort">Sort by:</label>
+    <select id="sort">
+        <option value="distance">Distance</option>
+        <option value="reviews">Reviews</option>
+    </select>
+    <button id="search-btn">Search</button>
+    <div id="error-message"></div>
+    <div id="map"></div>
+    <div id="place-details"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const map = L.map('map').setView([20.5937, 78.9629], 5);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            const userMarker = null;
+            const placeMarkers = [];
+
+            const locateBtn = document.getElementById('locate-btn');
+            const manualLocationInput = document.getElementById('manual-location');
+            const searchResultsContainer = document.getElementById('search-results');
+            const errorMessage = document.getElementById('error-message');
+
+            const geocoderApiKey = '2f30476331e54e569f1f4a926097e208';
+
+            // Display error messages
+            function displayError(message) {
+                errorMessage.textContent = message;
+                setTimeout(() => (errorMessage.textContent = ''), 5000);
+            }
+
+            // Geolocation functionality
+            function locateUser() {
+                if (navigator.geolocation) {
+                    navigator.geolocation.getCurrentPosition(
+                        (position) => {
+                            const lat = position.coords.latitude;
+                            const lon = position.coords.longitude;
+                            map.setView([lat, lon], 15);
+                            addUserMarker(lat, lon, "You are here");
+                        },
+                        () => {
+                            displayError("Unable to access your location.");
+                        }
+                    );
+                } else {
+                    displayError("Geolocation is not supported by this browser.");
+                }
+            }
+
+            // Add user marker
+            function addUserMarker(lat, lon, popupText) {
+                if (userMarker) {
+                    userMarker.setLatLng([lat, lon]).openPopup();
+                } else {
+                    L.marker([lat, lon])
+                        .addTo(map)
+                        .bindPopup(popupText)
+                        .openPopup();
+                }
+            }
+
+            // Autocomplete feature
+            manualLocationInput.addEventListener('input', () => {
+                const query = manualLocationInput.value.trim();
+                if (query.length < 3) return;
+
+                fetch(`https://api.geocoderapi.com/v1/autocomplete?text=${encodeURIComponent(query)}&apikey=${geocoderApiKey}`)
+                    .then((response) => response.json())
+                    .then((data) => {
+                        if (data.results) {
+                            displaySearchResults(data.results);
+                        } else {
+                            displayError("No results found.");
+                        }
+                    })
+                    .catch(() => {
+                        displayError("Error fetching location data.");
+                    });
+            });
+
+
+            function displaySearchResults(results) {
+                searchResultsContainer.innerHTML = '';
+
+                if (results.length === 0) {
+                    searchResultsContainer.innerHTML =
+                        '<p>No results found. Try refining your search.</p>';
+                    return;
+                }
+
+                results.forEach((result) => {
+                    const searchResult = document.createElement('div');
+                    searchResult.className = 'search-result';
+                    searchResult.textContent = result.place_name;
+                    searchResult.addEventListener('click', () => {
+                        const [lon, lat] = result.center;
+                        manualLocationInput.value = result.place_name;
+                        map.setView([lat, lon], 15);
+                        addUserMarker(lat, lon, result.place_name);
+                        searchResultsContainer.innerHTML = '';
+                    });
+                    searchResultsContainer.appendChild(searchResult);
+                });
+            }
+
+            // Event listeners
+            locateBtn.addEventListener('click', locateUser);
+        });
+    </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
