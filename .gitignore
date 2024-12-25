@@ -8,8 +8,7 @@ db.sqlite3
 
 # Pipenv and virtual environments
 pipenv.json
-.venv/
-venv
+venv/
 
 # Temporary files from editors
 tempCodeRunnerFile.js
