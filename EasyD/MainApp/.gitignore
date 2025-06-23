@@ -1,6 +1,5 @@
-EasyD/MainApp/_pycache_/
-*.pyc
-*.pyo
+_pycache_
+
 
 # Virtual environment
 .venv/
