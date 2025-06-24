@@ -67,7 +67,7 @@
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
 
-            const userMarker = null;
+            let userMarker = null;
             const placeMarkers = [];
 
             const locateBtn = document.getElementById('locate-btn');
@@ -77,13 +77,11 @@
 
             const geocoderApiKey = '2f30476331e54e569f1f4a926097e208';
 
-            // Display error messages
             function displayError(message) {
                 errorMessage.textContent = message;
                 setTimeout(() => (errorMessage.textContent = ''), 5000);
             }
 
-            // Geolocation functionality
             function locateUser() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -95,26 +93,45 @@
                         },
                         () => {
                             displayError("Unable to access your location.");
+                        },
+                        {
+                            enableHighAccuracy: true,
+                            timeout: 10000,
+                            maximumAge: 0
                         }
                     );
+
                 } else {
-                    displayError("Geolocation is not supported by this browser.");
+                    displayError("Geolocation not supported by this browser.");
+                    fallbackGeoJS();
                 }
             }
 
-            // Add user marker
+            function fallbackGeoJS() {
+                fetch("https://get.geojs.io/v1/ip/geo.json")
+                    .then(res => res.json())
+                    .then(data => {
+                        const lat = parseFloat(data.latitude);
+                        const lon = parseFloat(data.longitude);
+                        map.setView([lat, lon], 12);
+                        addUserMarker(lat, lon, "Your approx. location (via IP)");
+                    })
+                    .catch(() => {
+                        displayError("Unable to fetch location from GeoJS.");
+                    });
+            }
+
             function addUserMarker(lat, lon, popupText) {
                 if (userMarker) {
-                    userMarker.setLatLng([lat, lon]).openPopup();
+                    userMarker.setLatLng([lat, lon]).setPopupContent(popupText).openPopup();
                 } else {
-                    L.marker([lat, lon])
+                    userMarker = L.marker([lat, lon])
                         .addTo(map)
                         .bindPopup(popupText)
                         .openPopup();
                 }
             }
 
-            // Autocomplete feature
             manualLocationInput.addEventListener('input', () => {
                 const query = manualLocationInput.value.trim();
                 if (query.length < 3) return;
@@ -132,7 +149,6 @@
                         displayError("Error fetching location data.");
                     });
             });
-
 
             function displaySearchResults(results) {
                 searchResultsContainer.innerHTML = '';
@@ -158,8 +174,15 @@
                 });
             }
 
-            // Event listeners
+            // Event Listeners
             locateBtn.addEventListener('click', locateUser);
+
+            // Try GeoJS fallback on load if browser location is blocked
+            setTimeout(() => {
+                if (!userMarker) {
+                    fallbackGeoJS();
+                }
+            }, 3000);
         });
     </script>
 </body>

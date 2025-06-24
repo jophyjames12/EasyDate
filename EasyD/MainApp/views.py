@@ -599,6 +599,29 @@ def save_preferences(request):
         user.preferences.set(preferences)
         user.save()
         return JsonResponse({'success': True})
+    
+@csrf_exempt
+def update_preferences(request):
+    if request.method == 'POST':
+        name = request.user.username  # Assuming you're using the logged-in user's name
+        selected_preferences = request.POST.get('selected_preferences', '')
+
+        # Convert the comma-separated string into a list
+        preferences = selected_preferences.split(',')
+
+        # Find the user in the database or create a new record
+        existing_user = Preference.find_one({'name': name})
+        
+        if existing_user:
+            # Update preferences if user already has a document
+            Preference.update_one({"name": name}, {"$set": {"preferences": preferences}})
+        else:
+            # Insert new document if user doesn't have one
+            Preference.insert_one({"name": name, "preferences": preferences})
+        
+        return render(request, 'MainApp/area.html')
+    else:
+        return JsonResponse({"status": "error", "message": "Invalid request method."})
 
 # Profile view to show preferences
 def profile_view(request):
