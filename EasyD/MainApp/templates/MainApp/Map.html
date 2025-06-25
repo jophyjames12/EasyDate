@@ -61,15 +61,15 @@
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             const map = L.map('map').setView([20.5937, 78.9629], 5);
-        
+
             L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
                 attribution: '&copy; OpenStreetMap contributors'
             }).addTo(map);
-        
+
             let userMarker = null;
             const placeMarkers = [];
-        
+
             const locateBtn = document.getElementById('locate-btn');
             const manualLocationInput = document.getElementById('manual-location');
             const searchResultsContainer = document.getElementById('search-results');
@@ -79,14 +79,63 @@
             const sortSelect = document.getElementById('sort');
             const searchBtn = document.getElementById('search-btn');
             const placeDetails = document.getElementById('place-details');
-        
+
             const geocoderApiKey = '2f30476331e54e569f1f4a926097e208';
-        
+
             function displayError(message) {
                 errorMessage.textContent = message;
                 setTimeout(() => (errorMessage.textContent = ''), 5000);
             }
-        
+
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+
+            function addUserMarker(lat, lon, popupText = "You are here") {
+                if (userMarker) {
+                    userMarker.setLatLng([lat, lon]).setPopupContent(popupText).openPopup();
+                } else {
+                    userMarker = L.marker([lat, lon], { draggable: true })
+                        .addTo(map)
+                        .bindPopup(popupText)
+                        .openPopup();
+
+                    userMarker.on("dragend", function (e) {
+                        const position = e.target.getLatLng();
+                        map.setView([position.lat, position.lng], 15);
+                        userMarker.setLatLng(position).setPopupContent("Location updated!").openPopup();
+                        fetch('/update_location/', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'X-CSRFToken': getCookie('csrftoken'),
+                            },
+                            body: `latitude=${position.lat}&longitude=${position.lng}`
+                        })
+                        .then(response => response.json())
+                        .then(data => {
+                            if (data.status === 'success') {
+                                console.log('Location updated in DB!');
+                            } else {
+                                console.error('Failed to update location:', data.message);
+                            }
+                        })
+                        .catch(error => console.error('Error:', error));
+                    });
+                }
+            }
+
             function locateUser() {
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
@@ -95,23 +144,17 @@
                             const lon = position.coords.longitude;
                             map.setView([lat, lon], 15);
                             addUserMarker(lat, lon, "You are here");
+                            //autoSearchNearby(lat, lon);
                         },
-                        () => {
-                            displayError("Unable to access your location.");
-                        },
-                        {
-                            enableHighAccuracy: true,
-                            timeout: 10000,
-                            maximumAge: 0
-                        }
+                        () => displayError("Unable to access your location."),
+                        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
-        
                 } else {
                     displayError("Geolocation not supported by this browser.");
                     fallbackGeoJS();
                 }
             }
-        
+
             function fallbackGeoJS() {
                 fetch("https://get.geojs.io/v1/ip/geo.json")
                     .then(res => res.json())
@@ -119,59 +162,18 @@
                         const lat = parseFloat(data.latitude);
                         const lon = parseFloat(data.longitude);
                         map.setView([lat, lon], 12);
-                        addUserMarker(lat, lon, "Your approx. location (via IP)");
+                        addUserMarker(lat, lon, "Approx. location via IP");
+                        //autoSearchNearby(lat, lon);
                     })
-                    .catch(() => {
-                        displayError("Unable to fetch location from GeoJS.");
-                    });
+                    .catch(() => displayError("Unable to fetch location from GeoJS."));
             }
-        
-            <!-- Inside your <script> tag (just replace the existing addUserMarker function with this) -->
-            function addUserMarker(lat, lon, popupText = "You are here") {
-                if (userMarker) {
-                    userMarker.setLatLng([lat, lon]).setPopupContent(popupText).openPopup();
-                } else {
-                    userMarker = L.marker([lat, lon], { draggable: true })
-                        .addTo(map) 
-                        .bindPopup(popupText)
-                        .openPopup();
-                
-                    userMarker.on("dragend", function (e) {
-                        const position = e.target.getLatLng();
-                        map.setView([position.lat, position.lng], 15);
-                        userMarker.setLatLng(position).setPopupContent("Location updated!").openPopup();
-                    });
-                }
-            }
-                
-        
-            manualLocationInput.addEventListener('input', () => {
-                const query = manualLocationInput.value.trim();
-                if (query.length < 3) return;
-        
-                fetch(`https://api.geocoderapi.com/v1/autocomplete?text=${encodeURIComponent(query)}&apikey=${geocoderApiKey}`)
-                    .then((response) => response.json())
-                    .then((data) => {
-                        if (data.results) {
-                            displaySearchResults(data.results);
-                        } else {
-                            displayError("No results found.");
-                        }
-                    })
-                    .catch(() => {
-                        displayError("Error fetching location data.");
-                    });
-            });
-        
+
             function displaySearchResults(results) {
                 searchResultsContainer.innerHTML = '';
-        
                 if (results.length === 0) {
-                    searchResultsContainer.innerHTML =
-                        '<p>No results found. Try refining your search.</p>';
+                    searchResultsContainer.innerHTML = '<p>No results found. Try refining your search.</p>';
                     return;
                 }
-        
                 results.forEach((result) => {
                     const searchResult = document.createElement('div');
                     searchResult.className = 'search-result';
@@ -182,21 +184,35 @@
                         map.setView([lat, lon], 15);
                         addUserMarker(lat, lon, result.place_name);
                         searchResultsContainer.innerHTML = '';
+                        autoSearchNearby(lat, lon);
                     });
                     searchResultsContainer.appendChild(searchResult);
                 });
             }
-        
-            // Clear all place markers
+
+            manualLocationInput.addEventListener('input', () => {
+                const query = manualLocationInput.value.trim();
+                if (query.length < 3) return;
+                fetch(`https://api.geocoderapi.com/v1/autocomplete?text=${encodeURIComponent(query)}&apikey=${geocoderApiKey}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.results) {
+                            displaySearchResults(data.results);
+                        } else {
+                            displayError("No results found.");
+                        }
+                    })
+                    .catch(() => displayError("Error fetching location data."));
+            });
+
             function clearPlaceMarkers() {
                 placeMarkers.forEach(marker => map.removeLayer(marker));
                 placeMarkers.length = 0;
                 placeDetails.innerHTML = '';
             }
-        
-            // Calculate distance between two lat/lon points in meters
+
             function distance(lat1, lon1, lat2, lon2) {
-                const R = 6371000; // meters
+                const R = 6371000;
                 const toRad = x => x * Math.PI / 180;
                 const dLat = toRad(lat2 - lat1);
                 const dLon = toRad(lon2 - lon1);
@@ -206,10 +222,8 @@
                 const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
                 return R * c;
             }
-        
-            // Fetch nearby places from Overpass API
+
             async function fetchNearbyPlaces(lat, lon, tag) {
-                // Overpass QL query for amenities around lat/lon within 1 km
                 const query = `
                     [out:json][timeout:25];
                     (
@@ -229,43 +243,30 @@
                     return [];
                 }
             }
-        
-            // Add place markers and list
+
             function displayPlaces(places, userLat, userLon) {
                 clearPlaceMarkers();
-        
                 if (places.length === 0) {
                     placeDetails.innerHTML = '<p>No places found nearby.</p>';
                     return;
                 }
-        
-                // Optional: Filter by ambiance here if you have data, currently skipped
-        
-                // Sort places
+
                 if (sortSelect.value === 'distance') {
                     places.sort((a, b) => {
                         const aDist = distance(userLat, userLon, a.lat || a.center.lat, a.lon || a.center.lon);
                         const bDist = distance(userLat, userLon, b.lat || b.center.lat, b.lon || b.center.lon);
                         return aDist - bDist;
                     });
-                } else if (sortSelect.value === 'reviews') {
-                    // If you have ratings data, sort by average rating descending
-                    // For now, no ratings data available, so fallback to distance
-                    places.sort((a, b) => {
-                        return 0; // No rating data, no sorting applied
-                    });
                 }
-        
+
                 places.forEach(place => {
                     const lat = place.lat || (place.center && place.center.lat);
                     const lon = place.lon || (place.center && place.center.lon);
-                    const name = place.tags && place.tags.name ? place.tags.name : "Unnamed place";
-                    const address = place.tags && place.tags['addr:full'] ? place.tags['addr:full'] : '';
+                    const name = place.tags?.name || "Unnamed place";
+                    const address = place.tags?.['addr:full'] || '';
                     const popupContent = `<b>${name}</b><br>${address}`;
-        
                     const marker = L.marker([lat, lon]).addTo(map).bindPopup(popupContent);
                     placeMarkers.push(marker);
-        
                     const div = document.createElement('div');
                     div.className = 'place-item';
                     div.textContent = name;
@@ -276,52 +277,29 @@
                     placeDetails.appendChild(div);
                 });
             }
-        
-            // Search button event handler
-            searchBtn.addEventListener('click', async () => {
-                let lat, lon;
-        
-                if (manualLocationInput.value.trim()) {
-                    // Use manual location input coordinates if possible
-                    // But since manual input only sets map view and user marker on click,
-                    // get userMarker's position as source of truth
-                    if (userMarker) {
-                        const pos = userMarker.getLatLng();
-                        lat = pos.lat;
-                        lon = pos.lng;
-                    } else {
-                        displayError("Please select a location from suggestions or use 'Locate Me' button.");
-                        return;
-                    }
-                } else if (userMarker) {
-                    const pos = userMarker.getLatLng();
-                    lat = pos.lat;
-                    lon = pos.lng;
-                } else {
-                    displayError("Please set your location manually or use 'Locate Me' button.");
-                    return;
-                }
-        
-                const selectedTag = tagSelect.value;
-                // ambiance currently ignored - you can add filtering logic here
-                // const selectedAmbiance = ambianceSelect.value;
-        
-                // Fetch nearby places and display them
-                const places = await fetchNearbyPlaces(lat, lon, selectedTag);
+
+            async function autoSearchNearby(lat, lon) {
+                const places = await fetchNearbyPlaces(lat, lon, tagSelect.value);
                 displayPlaces(places, lat, lon);
+            }
+
+            searchBtn.addEventListener('click', () => {
+                if (userMarker) {
+                    const pos = userMarker.getLatLng();
+                    autoSearchNearby(pos.lat, pos.lng);
+                } else {
+                    displayError("Please set your location first.");
+                }
             });
-        
-            // Event Listeners
+
             locateBtn.addEventListener('click', locateUser);
-        
-            // Try GeoJS fallback on load if browser location is blocked
+
             setTimeout(() => {
                 if (!userMarker) {
                     fallbackGeoJS();
                 }
             }, 3000);
         });
-        </script>
-        
+    </script>
 </body>
 </html>
