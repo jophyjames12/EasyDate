@@ -20,6 +20,45 @@ Friendlist = db['FriendList']
 DateReq = db['DateRequests']  
 Review=db['Reviews']
 Location=db['Location']
+
+#Add this function at the top of your views.py file after the MongoDB connections
+def update_user_location(username, latitude, longitude):
+    """
+    Helper function to update or insert user location
+    """
+    try:
+        # Convert lat/lon to float to ensure proper data type
+        lat = float(latitude) if latitude else None
+        lon = float(longitude) if longitude else None
+        
+        if lat is None or lon is None:
+            print(f"Invalid coordinates for {username}: lat={latitude}, lon={longitude}")
+            return False
+        
+        # Check if user location exists
+        existing_location = Location.find_one({'name': username})
+        
+        if existing_location:
+            # Update existing location
+            result = Location.update_one(
+                {'name': username}, 
+                {'$set': {'lat': lat, 'lon': lon}}
+            )
+            print(f"Updated location for {username}: lat={lat}, lon={lon}")
+            return result.modified_count > 0
+        else:
+            # Insert new location
+            result = Location.insert_one({
+                'name': username,
+                'lat': lat,
+                'lon': lon
+            })
+            print(f"Inserted new location for {username}: lat={lat}, lon={lon}")
+            return result.inserted_id is not None
+            
+    except (ValueError, TypeError) as e:
+        print(f"Error updating location for {username}: {e}")
+        return False
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -127,79 +166,54 @@ def logout_view(request):
 
 # View to handle user search and friend request functionality
 def search_user(request):
-    userinfo(request)  # Retrieve logged-in user's info
+    userinfo(request)
     if request.method == "POST":
-        # Get the username input from the search form
         username = request.POST.get('username')
         lat = request.POST.get('latitude')
         lon = request.POST.get('longitude')
-
-        # Assuming you are searching for the user by some unique identifier (like 'name')
-
-            # Fetch user location based on the name (or another identifier like 'friendname')
-        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
-        if not usename:
-            Location.insert_one({'name':name,'lat':lat,'lon':lon})
-        # Check if the user was found, if so, update the latitude and longitude
-        if usename:
-            usename['lat'] = lat
-            usename['lon'] = lon
-            # Update the user's location in the database (instead of inserting)
-            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        
+        # Update user location with better error handling
+        if lat and lon:
+            location_updated = update_user_location(name, lat, lon)
+            if not location_updated:
+                messages.warning(request, "Failed to update your location.")
+        else:
+            messages.warning(request, "Location data not provided.")
+        
         if not username:
-            # Display error if username is not provided
             messages.error(request, "No username provided.")
             return redirect("search_user")
         
-        # Find the target user in MongoDB by username
         target_user = users_collection.find_one({"username": username})
-        
         if target_user:
             if username == name:
-                # Prevent user from sending a friend request to themselves
                 messages.error(request, "You cannot send a friend request to yourself.")
                 return redirect("search_user")
             
-            # Check if a friend request already exists
             existing_request = FriendReq.find_one({"From": name, "To": username}) or FriendReq.find_one({"From": username, "To": name})
             user_friendlist = Friendlist.find_one({"username": name})
             
             if user_friendlist and username in user_friendlist.get("friends", []):
-                # Notify if the user is already in the friend list
                 messages.info(request, "This user is already in your friend list.")
                 return redirect("search_user")
             
             if existing_request:
-                # Notify if a friend request has already been sent
                 messages.info(request, "Friend request already sent. Waiting for response.")
                 return redirect("search_user")
             
-            # Send a new friend request by adding it to the database
-            friend_request = {
-                "From": name,
-                "To": username
-            }
+            friend_request = {"From": name, "To": username}
             FriendReq.insert_one(friend_request)
             messages.success(request, f"Friend request sent to {username}.")
             return redirect("search_user")
         
-        # Display error if the target user is not found
         messages.error(request, "User not found.")
         return redirect("search_user")
     
-    # Retrieve pending friend requests and list of all friends for the logged-in user
-    friends = []
-    friend_requests = FriendReq.find({"To": name})
-    for friend in friend_requests:
-        # Append each friend request sender to the friends list
-        friends.append(friend["From"])
-
-    # Retrieve the logged-in user's friends list
+    friends = [friend["From"] for friend in FriendReq.find({"To": name})]
     user_friendlist = Friendlist.find_one({"username": name})
     all_friends = user_friendlist.get("friends", []) if user_friendlist else []
-
-    # Render the search page with friend requests and friends list
     return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends})
+
 
 # Check and display pending friend requests for the user
 def check_request(request):
@@ -212,48 +226,6 @@ def check_request(request):
         friends.append(friend_request["From"])
     # Display pending requests on the search page
     return render(request, "MainApp/search.html", {"friends": friends})
-
-# Accept friend request by updating friend lists
-def accept_request(request):
-    userinfo(request)
-
-    if request.method == "POST":
-        lat = request.POST.get('latitude')
-        lon = request.POST.get('longitude')
-
-        # Assuming you are searching for the user by some unique identifier (like 'name')
-
-            # Fetch user location based on the name (or another identifier like 'friendname')
-        usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
-        if not usename:
-            Location.insert_one({'name':name,'lat':lat,'lon':lon})
-        # Check if the user was found, if so, update the latitude and longitude
-        if usename:
-            usename['lat'] = lat
-            usename['lon'] = lon
-            # Update the user's location in the database (instead of inserting)
-            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
-        # Get the sender's username from the form data
-        friendname = request.POST.get('friend_id')
-        friend_request = FriendReq.find_one({"From": friendname, "To": name})
-        if friend_request:
-            sender = friend_request["From"]
-            receiver = name
-            # Add receiver to sender's friend list and vice versa
-            Friendlist.update_one(
-                {"username": sender},
-                {"$addToSet": {"friends": receiver}},
-                upsert=True
-            )
-            Friendlist.update_one(
-                {"username": receiver},
-                {"$addToSet": {"friends": sender}},
-                upsert=True
-            )
-            # Delete the accepted friend request
-            FriendReq.delete_one({"From": friendname, "To": name})
-            messages.success(request, f"You are now friends with {friendname}.")
-    return redirect("search_user")
 
 # Reject friend request by removing it from the database
 def reject_request(request):
@@ -272,46 +244,29 @@ def send_date_request(request):
         friendname = request.POST.get('friend_id')
         lat = request.POST.get('latitude')
         lon = request.POST.get('longitude')
-
-        # Assuming you are searching for the user by some unique identifier (like 'name')
-        try:
-            # Fetch user location based on the name (or another identifier like 'friendname')
-            usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
-        except:
-            print("Error while fetching user location")
-            return redirect('search_user')  # Handle case if the user is not found
-
-        # Check if the user was found, if so, update the latitude and longitude
-        if usename:
-            usename['lat'] = lat
-            usename['lon'] = lon
-
-            # Update the user's location in the database (instead of inserting)
-            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
-        else:
-            print("User not found in the Location collection")
+        
+        # Update user location with better error handling
+        if lat and lon:
+            update_user_location(name, lat, lon)
+        
         date = request.POST.get('date')
         time = request.POST.get('time')
 
-        # Ensure the user isn't trying to send a date request to themselves
         if friendname == name:
             messages.error(request, "You cannot send a date request to yourself.")
             return redirect('search_user')
 
-        # Check if the friend is in the user's friend list
         user_friendlist = Friendlist.find_one({"username": name})
         if not user_friendlist or friendname not in user_friendlist.get("friends", []):
             messages.error(request, "You can only send a date request to your friends.")
             return redirect('search_user')
 
-        # Check for an existing date request
         existing_date_request = DateReq.find_one({"From": name, "To": friendname}) or DateReq.find_one({"From": friendname, "To": name})
 
         if existing_date_request:
             messages.info(request, "Date request already sent. Waiting for response.")
             return redirect("search_user")
 
-        # Create a new date request with date and time
         date_request = {
             "From": name,
             "To": friendname,
@@ -470,10 +425,21 @@ def search_user(request):
 
 # Accept friend request
 def accept_request(request):
+    print("==== accept_request view reached ====")
+
     userinfo(request)
+    print(f"Current user: {name}")  # Debug line
     if request.method == "POST":
         lat = request.POST.get('latitude')
         lon = request.POST.get('longitude')
+        if lat and lon:
+            try:
+                lat = float(lat)
+                lon = float(lon)
+                Location.update_one({'name': name}, {'$set': {'lat': lat, 'lon': lon}}, upsert=True)
+            except ValueError:
+                print("Invalid coordinates received.")
+
         usename = Location.find_one({'name': name})
         if not usename:
             Location.insert_one({'name':name,'lat':lat,'lon':lon})
@@ -680,3 +646,38 @@ def rate_place(request):
             return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+from django.views.decorators.csrf import csrf_exempt
+from django.http import JsonResponse
+import json
+
+@csrf_exempt
+def update_location(request):
+    """
+    Dedicated endpoint for updating user location
+    """
+    if request.method == 'POST':
+        try:
+            userinfo(request)  # Make sure userinfo sets 'name' globally or adjust accordingly
+            
+            # Support both JSON and form data
+            if request.content_type == 'application/json':
+                data = json.loads(request.body)
+                lat = data.get('latitude')
+                lon = data.get('longitude')
+            else:
+                lat = request.POST.get('latitude')
+                lon = request.POST.get('longitude')
+            
+            if lat and lon:
+                success = update_user_location(name, lat, lon)
+                if success:
+                    return JsonResponse({'status': 'success', 'message': 'Location updated'})
+                else:
+                    return JsonResponse({'status': 'error', 'message': 'Failed to update location'})
+            else:
+                return JsonResponse({'status': 'error', 'message': 'Missing coordinates'})
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)})
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
