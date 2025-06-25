@@ -1,5 +1,4 @@
-import json
-import math
+
 from asyncio.log import logger
 from tkinter import Place
 from django.http import HttpResponse, JsonResponse
@@ -9,7 +8,8 @@ from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
 from django.views.decorators.csrf import csrf_exempt
-from django.http import JsonResponse
+from django.contrib.auth.decorators import login_required
+import json
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -17,9 +17,11 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
-DateReq = db['DateRequests']  
+DateReq = db['DateRequests']  # New collection for date requests
+Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
+
 
 #Add this function at the top of your views.py file after the MongoDB connections
 def update_user_location(username, latitude, longitude):
@@ -59,6 +61,7 @@ def update_user_location(username, latitude, longitude):
     except (ValueError, TypeError) as e:
         print(f"Error updating location for {username}: {e}")
         return False
+
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -237,18 +240,25 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
+# Profile view to display the user's profile information
+# --- New Features Below ---
+
 # Send a date request to a friend with date and time input
 def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
-        lat = request.POST.get('latitude')
-        lon = request.POST.get('longitude')
-        
-        # Update user location with better error handling
-        if lat and lon:
-            update_user_location(name, lat, lon)
-        
+
+
+        # Assuming you are searching for the user by some unique identifier (like 'name')
+        try:
+            # Fetch user location based on the name (or another identifier like 'friendname')
+            usename = Location.find_one({'name': name})  # Make sure the correct field is used for lookup
+        except:
+            print("Error while fetching user location")
+            return redirect('search_user')  # Handle case if the user is not found
+
+
         date = request.POST.get('date')
         time = request.POST.get('time')
 
@@ -284,8 +294,19 @@ def send_date_request(request):
 # View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
-    # Only fetch pending date requests for the user
+
+    # Fetch the pending date requests for the user
+    sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
+    
+    # Prepare lists of users that sent or received requests
+    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
+    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
+    return render(request, 'MainApp/profile.html', {
+        "sent_from": sent_from,
+        "received_from": received_from
+    })
+
 
     # Prepare received requests with date and time
     received_from = [
@@ -298,6 +319,7 @@ def profile(request):
         for req in received_requests
     ]
     return render(request, 'MainApp/profile.html', {"received_from": received_from})
+
 
 
 
@@ -518,6 +540,7 @@ def get_nearby_places(latitude, longitude, request):
         return response.json().get('elements', [])
     return []
 
+
 def handle_date_request(request):
     userinfo(request)
 
@@ -552,29 +575,18 @@ def handle_date_request(request):
     return redirect('profile')
 
 
-# Map view to show midpoint
 def map_view(request):
-    Rev = Review.find()
-    return render(request, 'MainApp/Map.html', {'reviews': Rev})
-    
-# Saving preferences
-def save_preferences(request):
-    if request.method == 'POST':
-        preferences = request.POST.getlist('preferences[]')
-        user = request.user
-        user.preferences.set(preferences)
-        user.save()
-        return JsonResponse({'success': True})
-    
+    return render(request,'MainApp/Map.html')
+
+
 @csrf_exempt
 def update_preferences(request):
+    userinfo(request)
     if request.method == 'POST':
-        name = request.user.username  # Assuming you're using the logged-in user's name
         selected_preferences = request.POST.get('selected_preferences', '')
 
         # Convert the comma-separated string into a list
         preferences = selected_preferences.split(',')
-
         # Find the user in the database or create a new record
         existing_user = Preference.find_one({'name': name})
         
@@ -589,50 +601,37 @@ def update_preferences(request):
     else:
         return JsonResponse({"status": "error", "message": "Invalid request method."})
 
-# Profile view to show preferences
-def profile_view(request):
-    user = request.user
-    preferences = user.preferences.all()
-    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
+# View to handle saving preferences
+#@csrf_exempt  # Temporarily exempt CSRF for testing, use CSRF middleware properly
+#@login_required
+#def save_preferences(request):
+ #   if request.method == 'POST':
+  #      data = json.loads(request.body)
+   #     preferences = data.get('preferences', [])
+
+
+        # Save preferences to the user model or a related model
+    #    user = request.user
+     #   user.preferences.set(preferences)  # Assuming you have a preferences field
 
 @csrf_exempt
-def rate_place(request):
-    if request.method == 'POST':
-        try:
-            # Parse the JSON data from the frontend
-            data = json.loads(request.body)
+def get_places(request):
+    places = list(places.objects.all().values())
 
-            # Ensure all required fields are present
-            place_id = data.get('placeId')
-            rating = data.get('rating')
-            latitude = data.get('lat')
-            longitude = data.get('lon')
+    return JsonResponse(places, safe=False)
 
-            if not place_id or not rating or not latitude or not longitude:
-                logger.error("Missing required fields")
-                return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
 
-            # Storing in DB
-            existing_review = Review.find_one({"name": place_id, "lat": latitude, "lon": longitude})
-            
-            if existing_review:  # Check if it exists
-                total_ratings = existing_review.get("total_ratings", 0) + 1
-                avg_rating = (existing_review.get("average_rating", 0) * existing_review.get("total_ratings", 0) + rating) / total_ratings
-                # Update the review entry
-                Review.update_one(
-                    {"_id": existing_review["_id"]}, 
-                    {"$set": {"average_rating": avg_rating, "total_ratings": total_ratings}}
-                )
-            else:
-                # Insert a new review if it doesn't exist
-                Review.insert_one({
-                    "name": place_id,
-                    "lat": latitude,
-                    "lon": longitude,
-                    "total_ratings": 1,
-                    "average_rating": rating
-                })
+      #  return JsonResponse({"message": "Preferences saved successfully"})
 
+   # return JsonResponse({"error": "Invalid request"}, status=400)
+
+# Profile view to show user preferences
+def profile_view(request):
+    user = request.user
+    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
+    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
+
+"""
             return JsonResponse({'status': 'success', 'message': 'Rating submitted successfully', 'rating': rating})
 
         except ValueError as ve:
@@ -653,9 +652,8 @@ import json
 
 @csrf_exempt
 def update_location(request):
-    """
+
     Dedicated endpoint for updating user location
-    """
     if request.method == 'POST':
         try:
             userinfo(request)  # Make sure userinfo sets 'name' globally or adjust accordingly
@@ -681,3 +679,4 @@ def update_location(request):
             return JsonResponse({'status': 'error', 'message': str(e)})
     else:
         return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+"""
