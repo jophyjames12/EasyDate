@@ -1,4 +1,5 @@
-
+import json
+import math
 from asyncio.log import logger
 from tkinter import Place
 from django.http import HttpResponse, JsonResponse
@@ -8,8 +9,7 @@ from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
 from django.views.decorators.csrf import csrf_exempt
-from django.contrib.auth.decorators import login_required
-import json
+from django.http import JsonResponse
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -17,15 +17,9 @@ db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
-
-DateReq = db['DateRequests']  # New collection for date requests
-Preference = db['PreferenceList']
-
-
-
+DateReq = db['DateRequests']  
 Review=db['Reviews']
 Location=db['Location']
-
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -271,14 +265,13 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
-# Profile view to display the user's profile information
-# --- New Features Below ---
-
 # Send a date request to a friend with date and time input
 def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
         friendname = request.POST.get('friend_id')
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
 
         # Assuming you are searching for the user by some unique identifier (like 'name')
         try:
@@ -288,7 +281,15 @@ def send_date_request(request):
             print("Error while fetching user location")
             return redirect('search_user')  # Handle case if the user is not found
 
+        # Check if the user was found, if so, update the latitude and longitude
+        if usename:
+            usename['lat'] = lat
+            usename['lon'] = lon
 
+            # Update the user's location in the database (instead of inserting)
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        else:
+            print("User not found in the Location collection")
         date = request.POST.get('date')
         time = request.POST.get('time')
 
@@ -328,19 +329,8 @@ def send_date_request(request):
 # View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
-
-    # Fetch the pending date requests for the user
-    sent_requests = DateReq.find({"From": name, "status": "pending"})
+    # Only fetch pending date requests for the user
     received_requests = DateReq.find({"To": name, "status": "pending"})
-    
-    # Prepare lists of users that sent or received requests
-    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
-    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
-    return render(request, 'MainApp/profile.html', {
-        "sent_from": sent_from,
-        "received_from": received_from
-    })
-
 
     # Prepare received requests with date and time
     received_from = [
@@ -355,7 +345,213 @@ def profile(request):
     return render(request, 'MainApp/profile.html', {"received_from": received_from})
 
 
-# Handle accepting or rejecting a date request
+
+# Helper to get user info
+def userinfo(request):
+    global user, name
+    user = request.session.get('user_id')
+    name = users_collection.find_one({"_id": ObjectId(user)}).get('username')
+
+# Home view
+def home(request):
+    if not request.session.get('user_id'):
+        return render(request, 'MainApp/login.html')
+    return render(request, 'MainApp/area.html')
+
+# Login view
+def login_view(request):
+    if request.session.get('user_id'):
+        return render(request, 'MainApp/area.html')
+    if request.method == 'POST':
+        username = request.POST['username']
+        password = request.POST['password']
+        user = users_collection.find_one({"username": username})
+        if user and pbkdf2_sha256.verify(password, user['password']):
+            request.session['user_id'] = str(user['_id'])
+            request.session['login_success'] = True
+            return redirect('area')
+        else:
+            messages.error(request, "Invalid username or password")
+    return render(request, 'MainApp/login.html')
+
+# Signup view
+def signup_view(request):
+    if request.session.get('user_id'):
+        return redirect('area_view')
+    if request.method == 'POST':
+        username = request.POST['username']
+        email = request.POST['email']
+        password = request.POST['password']
+        confirm_password = request.POST['confirm_password']
+        if password == confirm_password:
+            if users_collection.find_one({"username": username}):
+                messages.error(request, "Username already exists")
+            elif users_collection.find_one({"email": email}):
+                messages.error(request, "Email already registered")
+            else:
+                hashed_password = pbkdf2_sha256.hash(password)
+                new_user = {
+                    "username": username,
+                    "email": email,
+                    "password": hashed_password
+                }
+                users_collection.insert_one(new_user)
+                request.session['user_id'] = str(new_user['_id'])
+                request.session['account_created'] = True
+                return redirect('area')
+        else:
+            messages.error(request, "Passwords do not match")
+    return render(request, 'MainApp/signup.html')
+
+# Area view
+def area_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    account_created = request.session.get('account_created', False)
+    login_success = request.session.get('login_success', False)
+    if 'account_created' in request.session:
+        del request.session['account_created']
+    if 'login_success' in request.session:
+        del request.session['login_success']
+    return render(request, 'MainApp/area.html', {'account_created': account_created, 'login_success': login_success})
+
+# Logout view
+def logout_view(request):
+    if 'user_id' in request.session:
+        del request.session['user_id']
+    messages.get_messages(request).used = True
+    return redirect('login')
+
+# Search and friend request
+def search_user(request):
+    userinfo(request)
+    if request.method == "POST":
+        username = request.POST.get('username')
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+        usename = Location.find_one({'name': name})
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        else:
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        if not username:
+            messages.error(request, "No username provided.")
+            return redirect("search_user")
+        
+        target_user = users_collection.find_one({"username": username})
+        if target_user:
+            if username == name:
+                messages.error(request, "You cannot send a friend request to yourself.")
+                return redirect("search_user")
+            
+            existing_request = FriendReq.find_one({"From": name, "To": username}) or FriendReq.find_one({"From": username, "To": name})
+            user_friendlist = Friendlist.find_one({"username": name})
+            
+            if user_friendlist and username in user_friendlist.get("friends", []):
+                messages.info(request, "This user is already in your friend list.")
+                return redirect("search_user")
+            
+            if existing_request:
+                messages.info(request, "Friend request already sent. Waiting for response.")
+                return redirect("search_user")
+            
+            friend_request = {"From": name, "To": username}
+            FriendReq.insert_one(friend_request)
+            messages.success(request, f"Friend request sent to {username}.")
+            return redirect("search_user")
+        
+        messages.error(request, "User not found.")
+        return redirect("search_user")
+    
+    friends = [friend["From"] for friend in FriendReq.find({"To": name})]
+    user_friendlist = Friendlist.find_one({"username": name})
+    all_friends = user_friendlist.get("friends", []) if user_friendlist else []
+    return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends})
+
+# Accept friend request
+def accept_request(request):
+    userinfo(request)
+    if request.method == "POST":
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+        usename = Location.find_one({'name': name})
+        if not usename:
+            Location.insert_one({'name':name,'lat':lat,'lon':lon})
+        else:
+            Location.update_one({'_id': usename['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        friendname = request.POST.get('friend_id')
+        friend_request = FriendReq.find_one({"From": friendname, "To": name})
+        if friend_request:
+            sender = friend_request["From"]
+            receiver = name
+            Friendlist.update_one({"username": sender}, {"$addToSet": {"friends": receiver}}, upsert=True)
+            Friendlist.update_one({"username": receiver}, {"$addToSet": {"friends": sender}}, upsert=True)
+            FriendReq.delete_one({"From": friendname, "To": name})
+            messages.success(request, f"You are now friends with {friendname}.")
+    return redirect("search_user")
+
+# Reject friend request
+def reject_request(request):
+    if request.method == "POST":
+        friendname = request.POST.get('friend_id')
+        FriendReq.delete_one({"From": friendname, "To": name})
+        messages.success(request, f"Friend request from {friendname} rejected!")
+    return redirect("search_user")
+
+# Calculate midpoint between two users and find nearby places
+@csrf_exempt
+def calculate_midpoint(lat1, lon1, lat2, lon2):
+    # Convert degrees to radians
+    lat1_rad = math.radians(lat1)
+    lon1_rad = math.radians(lon1)
+    lat2_rad = math.radians(lat2)
+    lon2_rad = math.radians(lon2)
+
+    # Calculate the midpoint in radians
+    bx = math.cos(lat2_rad) * math.cos(lon2_rad - lon1_rad)
+    by = math.cos(lat2_rad) * math.sin(lon2_rad - lon1_rad)
+    lat3_rad = math.atan2(math.sin(lat1_rad) + math.sin(lat2_rad),
+                          math.sqrt((math.cos(lat1_rad) + bx) ** 2 + by ** 2))
+    lon3_rad = lon1_rad + math.atan2(by, math.cos(lat1_rad) + bx)
+
+    # Convert back to degrees
+    lat3 = math.degrees(lat3_rad)
+    lon3 = math.degrees(lon3_rad)
+
+    return lat3, lon3
+
+# Updated function to get midpoint and nearby places
+def get_midpoint_and_nearby_places(request):
+    if request.method == 'POST':
+        try:
+            user_lat = float(request.POST.get('user_lat'))
+            user_lon = float(request.POST.get('user_lon'))
+            friend_lat = float(request.POST.get('friend_lat'))
+            friend_lon = float(request.POST.get('friend_lon'))
+
+            # Calculate midpoint
+            midpoint_lat, midpoint_lon = calculate_midpoint(user_lat, user_lon, friend_lat, friend_lon)
+
+            # Get nearby places
+            nearby_places = get_nearby_places(midpoint_lat, midpoint_lon)
+
+            return JsonResponse({
+                'midpoint': {'lat': midpoint_lat, 'lon': midpoint_lon},
+                'nearby_places': nearby_places
+            })
+
+        except (ValueError, KeyError, TypeError) as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=400)
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
+
+def get_nearby_places(latitude, longitude, request):
+    url = f"https://api.openstreetmap.org/api/0.6/map?bbox={longitude-0.01},{latitude-0.01},{longitude+0.01},{latitude+0.01}"
+    response = request.get(url)
+    if response.status_code == 200:
+        return response.json().get('elements', [])
+    return []
+
 def handle_date_request(request):
     userinfo(request)
 
@@ -390,18 +586,29 @@ def handle_date_request(request):
     return redirect('profile')
 
 
+# Map view to show midpoint
 def map_view(request):
-    return render(request,'MainApp/Map.html')
-
-
+    Rev = Review.find()
+    return render(request, 'MainApp/Map.html', {'reviews': Rev})
+    
+# Saving preferences
+def save_preferences(request):
+    if request.method == 'POST':
+        preferences = request.POST.getlist('preferences[]')
+        user = request.user
+        user.preferences.set(preferences)
+        user.save()
+        return JsonResponse({'success': True})
+    
 @csrf_exempt
 def update_preferences(request):
-    userinfo(request)
     if request.method == 'POST':
+        name = request.user.username  # Assuming you're using the logged-in user's name
         selected_preferences = request.POST.get('selected_preferences', '')
 
         # Convert the comma-separated string into a list
         preferences = selected_preferences.split(',')
+
         # Find the user in the database or create a new record
         existing_user = Preference.find_one({'name': name})
         
@@ -416,33 +623,60 @@ def update_preferences(request):
     else:
         return JsonResponse({"status": "error", "message": "Invalid request method."})
 
-# View to handle saving preferences
-#@csrf_exempt  # Temporarily exempt CSRF for testing, use CSRF middleware properly
-#@login_required
-#def save_preferences(request):
- #   if request.method == 'POST':
-  #      data = json.loads(request.body)
-   #     preferences = data.get('preferences', [])
-
-
-        # Save preferences to the user model or a related model
-    #    user = request.user
-     #   user.preferences.set(preferences)  # Assuming you have a preferences field
-
-@csrf_exempt
-def get_places(request):
-    places = list(places.objects.all().values())
-
-    return JsonResponse(places, safe=False)
-
-
-      #  return JsonResponse({"message": "Preferences saved successfully"})
-
-   # return JsonResponse({"error": "Invalid request"}, status=400)
-
-# Profile view to show user preferences
+# Profile view to show preferences
 def profile_view(request):
     user = request.user
-    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
+    preferences = user.preferences.all()
     return render(request, 'profile.html', {'user': user, 'preferences': preferences})
 
+@csrf_exempt
+def rate_place(request):
+    if request.method == 'POST':
+        try:
+            # Parse the JSON data from the frontend
+            data = json.loads(request.body)
+
+            # Ensure all required fields are present
+            place_id = data.get('placeId')
+            rating = data.get('rating')
+            latitude = data.get('lat')
+            longitude = data.get('lon')
+
+            if not place_id or not rating or not latitude or not longitude:
+                logger.error("Missing required fields")
+                return JsonResponse({'status': 'error', 'message': 'Missing required fields'}, status=400)
+
+            # Storing in DB
+            existing_review = Review.find_one({"name": place_id, "lat": latitude, "lon": longitude})
+            
+            if existing_review:  # Check if it exists
+                total_ratings = existing_review.get("total_ratings", 0) + 1
+                avg_rating = (existing_review.get("average_rating", 0) * existing_review.get("total_ratings", 0) + rating) / total_ratings
+                # Update the review entry
+                Review.update_one(
+                    {"_id": existing_review["_id"]}, 
+                    {"$set": {"average_rating": avg_rating, "total_ratings": total_ratings}}
+                )
+            else:
+                # Insert a new review if it doesn't exist
+                Review.insert_one({
+                    "name": place_id,
+                    "lat": latitude,
+                    "lon": longitude,
+                    "total_ratings": 1,
+                    "average_rating": rating
+                })
+
+            return JsonResponse({'status': 'success', 'message': 'Rating submitted successfully', 'rating': rating})
+
+        except ValueError as ve:
+            logger.error(f"Error: {ve}")
+            return JsonResponse({'status': 'error', 'message': str(ve)}, status=400)
+        except KeyError as ke:
+            logger.error(f"Missing key error: {ke}")
+            return JsonResponse({'status': 'error', 'message': f"Missing key: {str(ke)}"}, status=400)
+        except Exception as e:
+            logger.error(f"Unexpected error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    else:
+        return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
