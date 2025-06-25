@@ -26,5 +26,6 @@ urlpatterns=[
     #path('api/places/', views.get_places, name='get_places'),
     #path("sort_places_by_reviews/", views.sort_places_by_reviews, name="sort_places_by_reviews"),
     path('update-preferences/', views.update_preferences, name='update_preferences'),
+    path('update_location/', views.update_location, name='update_location'),
 
 ]
