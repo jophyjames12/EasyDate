@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -21,11 +22,13 @@
             margin: 10px 0;
         }
         #error-message { color: red; margin-top: 10px; }
+        #location-status { color: green; margin-top: 5px; font-size: 12px; }
     </style>
 </head>
 <body>
     <h1>Search Places and Rate</h1>
     <button id="locate-btn">Locate Me</button>
+    <div id="location-status"></div>
     <div class="search-container">
         <label for="manual-location">Set Location Manually:</label>
         <input type="text" id="manual-location" placeholder="Enter location">
@@ -74,6 +77,7 @@
             const manualLocationInput = document.getElementById('manual-location');
             const searchResultsContainer = document.getElementById('search-results');
             const errorMessage = document.getElementById('error-message');
+            const locationStatus = document.getElementById('location-status');
             const tagSelect = document.getElementById('tag');
             const ambianceSelect = document.getElementById('ambiance');
             const sortSelect = document.getElementById('sort');
@@ -84,7 +88,14 @@
 
             function displayError(message) {
                 errorMessage.textContent = message;
+                locationStatus.textContent = '';
                 setTimeout(() => (errorMessage.textContent = ''), 5000);
+            }
+
+            function displayLocationStatus(message) {
+                locationStatus.textContent = message;
+                errorMessage.textContent = '';
+                setTimeout(() => (locationStatus.textContent = ''), 3000);
             }
 
             function getCookie(name) {
@@ -102,6 +113,35 @@
                 return cookieValue;
             }
 
+            // NEW: Function to update location in database
+            function updateLocationInDB(lat, lon, source) {
+                console.log(`Updating location in DB: lat=${lat}, lon=${lon}, source=${source}`);
+                
+                fetch('/update_location/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: `latitude=${lat}&longitude=${lon}`
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Location update response:', data);
+                    if (data.status === 'success') {
+                        displayLocationStatus(`Location updated in database! (${source})`);
+                        console.log('Location successfully updated in DB!');
+                    } else {
+                        console.error('Failed to update location:', data.message);
+                        displayError(`Failed to update location: ${data.message}`);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error updating location:', error);
+                    displayError('Error updating location in database');
+                });
+            }
+
             function addUserMarker(lat, lon, popupText = "You are here") {
                 if (userMarker) {
                     userMarker.setLatLng([lat, lon]).setPopupContent(popupText).openPopup();
@@ -111,32 +151,22 @@
                         .bindPopup(popupText)
                         .openPopup();
 
+                    // UPDATED: Enhanced marker drag event with DB update
                     userMarker.on("dragend", function (e) {
                         const position = e.target.getLatLng();
                         map.setView([position.lat, position.lng], 15);
-                        userMarker.setLatLng(position).setPopupContent("Location updated!").openPopup();
-                        fetch('/update_location/', {
-                            method: 'POST',
-                            headers: {
-                                'Content-Type': 'application/x-www-form-urlencoded',
-                                'X-CSRFToken': getCookie('csrftoken'),
-                            },
-                            body: `latitude=${position.lat}&longitude=${position.lng}`
-                        })
-                        .then(response => response.json())
-                        .then(data => {
-                            if (data.status === 'success') {
-                                console.log('Location updated in DB!');
-                            } else {
-                                console.error('Failed to update location:', data.message);
-                            }
-                        })
-                        .catch(error => console.error('Error:', error));
+                        userMarker.setLatLng(position).setPopupContent("Location updated by dragging!").openPopup();
+                        
+                        // Update location in database when marker is dragged
+                        updateLocationInDB(position.lat, position.lng, 'marker drag');
                     });
                 }
             }
 
+            // UPDATED: Enhanced locateUser function with DB update
             function locateUser() {
+                displayLocationStatus('Getting your location...');
+                
                 if (navigator.geolocation) {
                     navigator.geolocation.getCurrentPosition(
                         (position) => {
@@ -144,9 +174,17 @@
                             const lon = position.coords.longitude;
                             map.setView([lat, lon], 15);
                             addUserMarker(lat, lon, "You are here");
+                            
+                            // NEW: Update location in database when "Locate Me" is clicked
+                            updateLocationInDB(lat, lon, 'GPS location');
+                            
                             //autoSearchNearby(lat, lon);
                         },
-                        () => displayError("Unable to access your location."),
+                        (error) => {
+                            console.error('Geolocation error:', error);
+                            displayError("Unable to access your location.");
+                            fallbackGeoJS();
+                        },
                         { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
                     );
                 } else {
@@ -155,7 +193,10 @@
                 }
             }
 
+            // UPDATED: Enhanced fallback with DB update
             function fallbackGeoJS() {
+                displayLocationStatus('Getting approximate location...');
+                
                 fetch("https://get.geojs.io/v1/ip/geo.json")
                     .then(res => res.json())
                     .then(data => {
@@ -163,9 +204,16 @@
                         const lon = parseFloat(data.longitude);
                         map.setView([lat, lon], 12);
                         addUserMarker(lat, lon, "Approx. location via IP");
+                        
+                        // NEW: Update location in database for IP-based location
+                        updateLocationInDB(lat, lon, 'IP geolocation');
+                        
                         //autoSearchNearby(lat, lon);
                     })
-                    .catch(() => displayError("Unable to fetch location from GeoJS."));
+                    .catch((error) => {
+                        console.error('GeoJS error:', error);
+                        displayError("Unable to fetch location from GeoJS.");
+                    });
             }
 
             function displaySearchResults(results) {
@@ -184,6 +232,10 @@
                         map.setView([lat, lon], 15);
                         addUserMarker(lat, lon, result.place_name);
                         searchResultsContainer.innerHTML = '';
+                        
+                        // NEW: Update location in database when manual location is selected
+                        updateLocationInDB(lat, lon, 'manual search');
+                        
                         autoSearchNearby(lat, lon);
                     });
                     searchResultsContainer.appendChild(searchResult);
@@ -292,7 +344,11 @@
                 }
             });
 
-            locateBtn.addEventListener('click', locateUser);
+            // UPDATED: Enhanced locate button event listener
+            locateBtn.addEventListener('click', () => {
+                console.log('Locate Me button clicked');
+                locateUser();
+            });
 
             setTimeout(() => {
                 if (!userMarker) {
@@ -303,3 +359,4 @@
     </script>
 </body>
 </html>
+

@@ -445,3 +445,44 @@ def profile_view(request):
     preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
     return render(request, 'profile.html', {'user': user, 'preferences': preferences})
 
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+        
+        if lat and lon:
+            # Try to find existing location record for the user
+            existing = Location.find_one({'name': name})
+            
+            if existing:
+                # Update existing location
+                Location.update_one(
+                    {'_id': existing['_id']}, 
+                    {'$set': {'lat': lat, 'lon': lon}}
+                )
+                print(f"Updated location for {name}: lat={lat}, lon={lon}")
+            else:
+                # Create new location record
+                Location.insert_one({
+                    'name': name, 
+                    'lat': lat, 
+                    'lon': lon
+                })
+                print(f"Created new location for {name}: lat={lat}, lon={lon}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': 'Location updated successfully'
+            })
+        else:
+            return JsonResponse({
+                'status': 'error', 
+                'message': 'Missing latitude or longitude'
+            })
+    
+    return JsonResponse({
+        'status': 'error', 
+        'message': 'Invalid request method'
+    })
