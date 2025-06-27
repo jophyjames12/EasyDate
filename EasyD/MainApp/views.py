@@ -509,43 +509,37 @@ def profile_view(request):
 def update_location(request):
     userinfo(request)
     if request.method == 'POST':
-        lat = request.POST.get('latitude')
-        lon = request.POST.get('longitude')
-        
-        if lat and lon:
-            # Try to find existing location record for the user
-            existing = Location.find_one({'name': name})
-            
-            if existing:
-                # Update existing location
-                Location.update_one(
-                    {'_id': existing['_id']}, 
-                    {'$set': {'lat': lat, 'lon': lon}}
-                )
-                print(f"Updated location for {name}: lat={lat}, lon={lon}")
-            else:
-                # Create new location record
-                Location.insert_one({
-                    'name': name, 
-                    'lat': lat, 
-                    'lon': lon
-                })
-                print(f"Created new location for {name}: lat={lat}, lon={lon}")
-            
-            return JsonResponse({
-                'status': 'success',
-                'message': 'Location updated successfully'
-            })
+        lat = None
+        lon = None
+
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
+
+        if lat is None or lon is None:
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        existing = Location.find_one({'name': name})
+        if existing:
+            Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
         else:
-            return JsonResponse({
-                'status': 'error', 
-                'message': 'Missing latitude or longitude'
-            })
-    
-    return JsonResponse({
-        'status': 'error', 
-        'message': 'Invalid request method'
-    })
+            Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
+
+        return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
