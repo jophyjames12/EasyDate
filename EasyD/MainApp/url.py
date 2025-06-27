@@ -29,4 +29,5 @@ urlpatterns=[
     path('update_location/', views.update_location, name='update_location'),
     path('date-map/<str:request_id>/', views.date_map_view, name='date_map'),
 
+
 ]

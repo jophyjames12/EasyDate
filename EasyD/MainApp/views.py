@@ -19,11 +19,25 @@ FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
 DateReq = db['DateRequests']  # New collection for date requests
 Preference = db['PreferenceList']
-
-
-
 Review=db['Reviews']
 Location=db['Location']
+
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = request.POST.get('latitude')
+        lon = request.POST.get('longitude')
+        if lat and lon:
+            existing = Location.find_one({'name': name})
+            if existing:
+                Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+            else:
+                Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
+            return JsonResponse({'status': 'success'})
+        return JsonResponse({'status': 'error', 'message': 'Missing coordinates'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
