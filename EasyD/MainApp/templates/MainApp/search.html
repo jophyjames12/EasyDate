@@ -91,7 +91,7 @@
     </ul>
 </section>
 
-<!-- Date Request Modal -->
+<!-- Date Request Send Modal -->
 <div class="modal fade" id="dateRequestModal" tabindex="-1" role="dialog" aria-labelledby="dateRequestModalLabel" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content">
@@ -107,17 +107,24 @@
                     <input type="hidden" name="friend_id" id="modalFriendId">
                     <input type="hidden" name="latitude" id="modalLatitude">
                     <input type="hidden" name="longitude" id="modalLongitude">
+                    
                     <div class="form-group">
-                        <label for="date">Date:</label>
+                        <label for="date">Select Date:</label>
                         <input type="date" id="date" name="date" class="form-control" required>
                     </div>
+                    
                     <div class="form-group">
-                        <label for="time">Time:</label>
+                        <label for="time">Select Time:</label>
                         <input type="time" id="time" name="time" class="form-control" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="message">Message (optional):</label>
+                        <textarea id="message" name="message" class="form-control" rows="3" placeholder="Add a message for your date request..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                     <button type="submit" class="btn btn-primary">Send Request</button>
                 </div>
             </form>
@@ -125,13 +132,119 @@
     </div>
 </div>
 
+<!-- Date Request Accept/Reject Modal -->
+<div class="modal fade" id="handleDateRequestModal" tabindex="-1" role="dialog" aria-labelledby="handleDateRequestModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <form method="POST" action="{% url 'handle_date_request' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="handleDateRequestModalLabel">Handle Date Request</h5>
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                        <span aria-hidden="true">&times;</span>
+                    </button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" name="request_id" id="modalRequestId">
+                    
+                    <!-- Display current date request details -->
+                    <div class="alert alert-info">
+                        <h6>Date Request from: <span id="modalFromUser"></span></h6>
+                        <p><strong>Proposed Date:</strong> <span id="modalCurrentDate"></span></p>
+                        <p><strong>Proposed Time:</strong> <span id="modalCurrentTime"></span></p>
+                    </div>
+                    
+                    <!-- Option to modify date/time when accepting -->
+                    <div id="acceptOptions" style="display: none;">
+                        <h6>You can modify the date/time if needed:</h6>
+                        <div class="form-group">
+                            <label for="new_date">New Date (optional):</label>
+                            <input type="date" id="new_date" name="new_date" class="form-control">
+                        </div>
+                        <div class="form-group">
+                            <label for="new_time">New Time (optional):</label>
+                            <input type="time" id="new_time" name="new_time" class="form-control">
+                        </div>
+                        <small class="text-muted">Leave empty to keep the original date and time</small>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                    <button type="submit" name="action" value="reject" class="btn btn-danger">Reject</button>
+                    <button type="submit" name="action" value="accept" class="btn btn-success" id="acceptBtn">Accept</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript to handle the modal -->
+<script>
+function openHandleDateRequestModal(requestId, fromUser, currentDate, currentTime) {
+    // Set the hidden fields
+    document.getElementById('modalRequestId').value = requestId;
+    
+    // Display current request details
+    document.getElementById('modalFromUser').textContent = fromUser;
+    document.getElementById('modalCurrentDate').textContent = currentDate || 'Not specified';
+    document.getElementById('modalCurrentTime').textContent = currentTime || 'Not specified';
+    
+    // Pre-fill the new date/time fields with current values
+    if (currentDate) {
+        document.getElementById('new_date').value = currentDate;
+    }
+    if (currentTime) {
+        document.getElementById('new_time').value = currentTime;
+    }
+    
+    // Show the modal
+    $('#handleDateRequestModal').modal('show');
+}
+
+// Show/hide accept options when accept button is clicked
+document.getElementById('acceptBtn').addEventListener('click', function(e) {
+    // Show the accept options before submitting
+    document.getElementById('acceptOptions').style.display = 'block';
+    e.preventDefault(); // Prevent immediate submission
+    
+    // Change the button text and behavior
+    this.textContent = 'Confirm Accept';
+    this.onclick = null; // Remove this event listener
+    this.type = 'submit'; // Make it submit the form
+});
+</script>
+
+<!-- Example of how to call the modal from your date requests list -->
+<!-- This would be in your template where you display received date requests -->
+<div class="date-requests">
+    {% for date_request in received_date_requests %}
+    <div class="card mb-2">
+        <div class="card-body">
+            <h6>Date request from {{ date_request.From }}</h6>
+            <p><strong>Date:</strong> {{ date_request.date|default:"Not specified" }}</p>
+            <p><strong>Time:</strong> {{ date_request.time|default:"Not specified" }}</p>
+            <button type="button" class="btn btn-sm btn-primary" 
+                    onclick="openHandleDateRequestModal('{{ date_request.pk }}', '{{ date_request.From }}', '{{ date_request.date }}', '{{ date_request.time }}')">
+                Handle Request
+            </button>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
 <!-- Modal Friend ID Script -->
 <script>
     $('#dateRequestModal').on('show.bs.modal', function (event) {
         const button = $(event.relatedTarget);
-        const friendId = button.data('friend-id');
+        const friendId = button.data('friendid'); // Changed from 'friend-id' to 'friendid' to match your HTML
         const modal = $(this);
         modal.find('#modalFriendId').val(friendId);
+        
+        // Add current location to the modal
+        if (userLatitude && userLongitude) {
+            modal.find('#modalLatitude').val(userLatitude);
+            modal.find('#modalLongitude').val(userLongitude);
+        }
     });
 </script>
 
