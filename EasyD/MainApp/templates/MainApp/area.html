@@ -7,6 +7,31 @@
   {% load static %}  
   <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
   <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+  <style>
+    /* Add styles for clickable date items */
+    .schedule-item {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+    
+    .schedule-item:hover {
+      background-color: #f0f8ff;
+      border-color: #007bff;
+      transform: translateY(-2px);
+    }
+    
+    .schedule-item:active {
+      transform: translateY(0);
+    }
+    
+    .no-dates {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 20px;
+    }
+  </style>
 </head>
 <body>
   
@@ -47,7 +72,6 @@
     <div class="menu">
       <button onclick="toggleMenu()">☰ Menu</button>
       <div id="dropdown" class="dropdown-content">
-
         <a href="map">map</a>
         <!-- Update Profile link to go to the profile page -->
         <a href="{% url 'profile' %}">Profile</a>  <!-- Link to profile page -->
@@ -60,9 +84,18 @@
   <!-- Horizontal Sliding Schedule Section -->
   <section class="schedule">
     <div class="schedule-slider">
-      <div class="schedule-item">01/01/2024 - Location 1<br>10:00 AM - User A</div>
-      <div class="schedule-item">02/01/2024 - Location 2<br>11:00 AM - User B</div>
-      <div class="schedule-item">03/01/2024 - Location 3<br>12:00 PM - User C</div>
+      {% if accepted_dates %}
+        {% for date in accepted_dates %}
+          <div class="schedule-item" onclick="goToDateMap('{{ date.request_id }}')">
+            {{ date.date }} - Meet with {{ date.partner }}<br>
+            {{ date.time }} - Click to view map
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="no-dates">
+          No upcoming dates. Send a date request to your friends!
+        </div>
+      {% endif %}
     </div>
   </section>
 
@@ -78,8 +111,12 @@
   </section>
   
   <script src="{% static 'MainApp/file.js' %}"></script>
-  
-
+  <script>
+    // Function to navigate to date map
+    function goToDateMap(requestId) {
+      window.location.href = '/date-map/' + requestId + '/';
+    }
+  </script>
 </body>
 </html>
 

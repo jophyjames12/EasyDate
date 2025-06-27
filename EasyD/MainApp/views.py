@@ -120,7 +120,8 @@ def signup_view(request):
 def area_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
-    
+    # Get user info
+    userinfo(request)
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -131,9 +132,32 @@ def area_view(request):
     
     if 'login_success' in request.session:
         del request.session['login_success']
+    
+    # Fetch accepted dates for the current user
+    accepted_dates = list(DateReq.find({
+        "$or": [
+            {"From": name, "status": "accepted"},
+            {"To": name, "status": "accepted"}
+        ]
+    }))
 
-    # Pass success messages to the template
-    return render(request, 'MainApp/area.html', {'account_created': account_created, 'login_success': login_success})
+    # Process dates to get partner info
+    processed_dates = []
+    for date_req in accepted_dates:
+        partner = date_req["To"] if date_req["From"] == name else date_req["From"]
+        processed_dates.append({
+            'date': date_req.get('date', ''),
+            'time': date_req.get('time', ''),
+            'partner': partner,
+            'request_id': str(date_req['_id'])
+        })
+
+    # Pass success messages and accepted dates to the template
+    return render(request, 'MainApp/area.html', {
+        'account_created': account_created, 
+        'login_success': login_success,
+        'accepted_dates': processed_dates
+    })
 
 # Logout view to end the user's session
 def logout_view(request):
@@ -381,19 +405,55 @@ def handle_date_request(request):
 
         if date_request:
             if action == "accept":
-                # Option to change the date or time before accepting
-                new_date = request.POST.get('new_date', date_request["date"])
-                new_time = request.POST.get('new_time', date_request["time"])
+                # Get the current date/time from the request
+                current_date = date_request.get("date", "")
+                current_time = date_request.get("time", "")
                 
-                # Update the date request with the new date/time if provided
-                DateReq.update_one({"_id": ObjectId(request_id)}, {
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date')
+                new_time = request.POST.get('new_time')
+                
+                # Debug logging
+                print(f"DEBUG - Current date: '{current_date}', Current time: '{current_time}'")
+                print(f"DEBUG - New date: '{new_date}', New time: '{new_time}'")
+                
+                # Use new values if provided, otherwise keep existing (but validate they're not empty)
+                final_date = new_date if new_date and new_date.strip() else current_date
+                final_time = new_time if new_time and new_time.strip() else current_time
+                
+                # If we still don't have date/time, require them
+                if not final_date or not final_time or final_date.strip() == "" or final_time.strip() == "":
+                    messages.error(request, "Date and time are required to accept the date request. Please provide both.")
+                    return redirect('profile')
+                
+                # Clean up the values
+                final_date = final_date.strip()
+                final_time = final_time.strip()
+                
+                # Debug logging
+                print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
+                
+                # Update the date request with the new date/time
+                update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
                     "$set": {
                         "status": "accepted", 
-                        "date": new_date, 
-                        "time": new_time
+                        "date": final_date, 
+                        "time": final_time
                     }
                 })
-                messages.success(request, "Date request accepted.")
+                
+                # Debug logging
+                print(f"DEBUG - Update result: {update_result.modified_count} documents modified")
+                
+                # Verify the update
+                updated_request = DateReq.find_one({"_id": ObjectId(request_id)})
+                print(f"DEBUG - Updated document: {updated_request}")
+                
+                if new_date or new_time:
+                    messages.success(request, f"Date request accepted with updated details: {final_date} at {final_time}.")
+                else:
+                    messages.success(request, f"Date request accepted for {final_date} at {final_time}.")
+                    
             elif action == "reject":
                 DateReq.delete_one({"_id": ObjectId(request_id)})
                 messages.success(request, "Date request rejected.")
@@ -459,3 +519,76 @@ def profile_view(request):
     preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
     return render(request, 'profile.html', {'user': user, 'preferences': preferences})
 
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = None
+        lon = None
+
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
+
+        if lat is None or lon is None:
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        existing = Location.find_one({'name': name})
+        if existing:
+            Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        else:
+            Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
+
+        return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
+
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+def date_map_view(request, request_id):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Fetch the specific date request
+    date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+    
+    if not date_request:
+        messages.error(request, "Date not found.")
+        return redirect('area')
+    
+    # Get partner info
+    partner = date_request["To"] if date_request["From"] == name else date_request["From"]
+    
+    # Get both users' locations
+    user_location = Location.find_one({'name': name})
+    partner_location = Location.find_one({'name': partner})
+    
+    # Prepare date info
+    date_info_dict = {
+        'date': date_request.get('date', ''),
+        'time': date_request.get('time', ''),
+        'partner': partner,
+        'user_lat': float(user_location['lat']) if user_location else None,
+        'user_lon': float(user_location['lon']) if user_location else None,
+        'partner_lat': float(partner_location['lat']) if partner_location else None,
+        'partner_lon': float(partner_location['lon']) if partner_location else None,
+    }
+    
+    context = {
+        'date_info': date_info_dict,
+        'date_info_json': json.dumps(date_info_dict),  # Add JSON serialized version
+    }
+    
+    return render(request, 'MainApp/Map.html', context)
