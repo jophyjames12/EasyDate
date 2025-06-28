@@ -10,6 +10,7 @@ from passlib.hash import pbkdf2_sha256  # For password hashing
 from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 import json
+import requests
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -592,3 +593,22 @@ def date_map_view(request, request_id):
     }
     
     return render(request, 'MainApp/Map.html', context)
+
+def get_osrm_route(request):
+    # Example values — in real case, use session data or MongoDB query
+    user_lat = float(request.GET.get("user_lat"))
+    user_lon = float(request.GET.get("user_lon"))
+    partner_lat = float(request.GET.get("partner_lat"))
+    partner_lon = float(request.GET.get("partner_lon"))
+
+    url = f"http://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+
+    try:
+        response = requests.get(url)
+        data = response.json()
+        geometry = data['routes'][0]['geometry']
+        return JsonResponse(geometry)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+   

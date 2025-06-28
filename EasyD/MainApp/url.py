@@ -28,6 +28,7 @@ urlpatterns=[
     path('update-preferences/', views.update_preferences, name='update_preferences'),
     path('update_location/', views.update_location, name='update_location'),
     path('date-map/<str:request_id>/', views.date_map_view, name='date_map'),
+    path("get-route/", views.get_osrm_route, name="get_osrm_route"),
 
 
 ]
