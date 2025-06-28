@@ -215,6 +215,7 @@
                     // Midpoint marker (green)
                     const midLat = (user_lat + partner_lat) / 2;
                     const midLon = (user_lon + partner_lon) / 2;
+
                     midpointMarker = L.marker([midLat, midLon], {
                         icon: L.icon({
                             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
@@ -228,15 +229,59 @@
                     }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
 
                     // Polyline connecting them
-                    L.polyline([
+                    /*L.polyline([
                         [user_lat, user_lon],
                         [midLat, midLon],
                         [partner_lat, partner_lon]
-                    ], {color: 'purple', weight: 3, opacity: 0.7}).addTo(map);
+                    ], {color: 'purple', weight: 3, opacity: 0.7}).addTo(map);*/
 
                     // Fit map bounds
                     const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
                     map.fitBounds(group.getBounds().pad(0.1));
+
+                    // Fetch and display the most efficient route from OSRM
+                    fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
+                        .then(res => res.json())
+                        .then(geojson => {
+                            const routeLine = L.geoJSON(geojson, {
+                                style: {
+                                    color: 'blue',
+                                    weight: 4,
+                                    opacity: 0.8
+                                }
+                            }).addTo(map);
+
+                            // Find the midpoint along the route (by index)
+                            const coords = geojson.coordinates;
+                            const midpointIndex = Math.floor(coords.length / 2);
+                            const [midLon, midLat] = coords[midpointIndex];
+
+                            // Add green marker at the midpoint
+                            midpointMarker = L.marker([midLat, midLon], {
+                                icon: L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41],
+                                    popupAnchor: [1, -34],
+                                    shadowSize: [41, 41]
+                                }),
+                                draggable: false
+                            }).addTo(map).bindPopup("Route Midpoint");
+
+                            // Fit map bounds to route
+                            const latlngs = coords.map(coord => [coord[1], coord[0]]);
+                            map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+
+                            // Optional: trigger nearby search at midpoint
+                            autoSearchNearby(midLat, midLon);
+                        })
+                        .catch(err => {
+                            console.error("Failed to load route:", err);
+                            alert("Could not load route between the two points.");
+                        });
+
+
 
                     // Search places near midpoint
                     autoSearchNearby(midLat, midLon);
