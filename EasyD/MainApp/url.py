@@ -22,13 +22,13 @@ urlpatterns=[
     path("profile/", views.profile, name="profile"),  # Profile URL
     path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
     path('profile/', views.profile_view, name='profile'),
-#    path('rate_place/', views.rate_place, name='rate_place'),
+    #path('rate_place/', views.rate_place, name='rate_place'),
     #path('api/places/', views.get_places, name='get_places'),
     #path("sort_places_by_reviews/", views.sort_places_by_reviews, name="sort_places_by_reviews"),
     path('update-preferences/', views.update_preferences, name='update_preferences'),
     path('update_location/', views.update_location, name='update_location'),
     path('date-map/<str:request_id>/', views.date_map_view, name='date_map'),
     path("get-route/", views.get_osrm_route, name="get_osrm_route"),
-
+    path('edit_profile/', views.edit_profile, name='edit_profile'),
 
 ]

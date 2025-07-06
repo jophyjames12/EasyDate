@@ -1,4 +1,3 @@
-
 from asyncio.log import logger
 from tkinter import Place
 from django.http import HttpResponse, JsonResponse
@@ -11,6 +10,10 @@ from django.views.decorators.csrf import csrf_exempt
 from django.contrib.auth.decorators import login_required
 import json
 import requests
+import os
+from django.conf import settings
+from django.core.files.storage import default_storage
+from django.core.files.base import ContentFile
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -22,6 +25,7 @@ DateReq = db['DateRequests']  # New collection for date requests
 Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
+Profiles = db['Profiles']  # New collection for storing profile info
 
 @csrf_exempt
 def update_location(request):
@@ -367,20 +371,21 @@ def send_date_request(request):
 def profile(request):
     userinfo(request)
 
+    # Fetch user profile information
+    user_profile = Profiles.find_one({"username": name})
+    bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
+    profile_picture = user_profile.get("profile_picture", None) if user_profile else None
+
     # Fetch the pending date requests for the user
     sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
     
+    # Get the user's friend count
+    user_friendlist = Friendlist.find_one({"username": name})
+    friend_count = len(user_friendlist.get("friends", [])) if user_friendlist else 0
+    
     # Prepare lists of users that sent or received requests
     sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
-    received_from = [{"username": req["From"], "request_id": str(req["_id"])} for req in received_requests]
-    return render(request, 'MainApp/profile.html', {
-        "sent_from": sent_from,
-        "received_from": received_from
-    })
-
-
-    # Prepare received requests with date and time
     received_from = [
         {
             "username": req["From"],
@@ -390,8 +395,98 @@ def profile(request):
         }
         for req in received_requests
     ]
-    return render(request, 'MainApp/profile.html', {"received_from": received_from})
+    
+    return render(request, 'MainApp/profile.html', {
+        "sent_from": sent_from,
+        "received_from": received_from,
+        "name": name,
+        "friend_count": friend_count,
+        "post_count": 0,
+        "bio": bio,
+        "profile_picture": profile_picture
+    })
 
+# Edit profile view
+def edit_profile(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        # Get the bio from the form
+        bio = request.POST.get('bio', '')
+        
+        # Handle profile picture upload
+        profile_picture = request.FILES.get('profile_picture')
+        profile_picture_url = None
+        
+        if profile_picture:
+            # Validate file size (5MB limit)
+            if profile_picture.size > 5 * 1024 * 1024:
+                messages.error(request, "Profile picture must be less than 5MB.")
+                return redirect('edit_profile')
+            
+            # Validate file type
+            if not profile_picture.content_type.startswith('image/'):
+                messages.error(request, "Please upload a valid image file.")
+                return redirect('edit_profile')
+            
+            # Create uploads directory if it doesn't exist
+            upload_dir = os.path.join(settings.MEDIA_ROOT, 'profile_pictures')
+            if not os.path.exists(upload_dir):
+                os.makedirs(upload_dir)
+            
+            # Generate unique filename
+            file_extension = os.path.splitext(profile_picture.name)[1]
+            filename = f"{name}_{user}{file_extension}"
+            file_path = os.path.join(upload_dir, filename)
+            
+            # Save the file
+            with open(file_path, 'wb+') as destination:
+                for chunk in profile_picture.chunks():
+                    destination.write(chunk)
+            
+            # Store relative path for database
+            profile_picture_url = f"/media/profile_pictures/{filename}"
+        
+        # Update or create profile in database
+        existing_profile = Profiles.find_one({"username": name})
+        
+        if existing_profile:
+            # Update existing profile
+            update_data = {"bio": bio}
+            if profile_picture_url:
+                update_data["profile_picture"] = profile_picture_url
+            
+            Profiles.update_one(
+                {"username": name},
+                {"$set": update_data}
+            )
+        else:
+            # Create new profile
+            profile_data = {
+                "username": name,
+                "bio": bio
+            }
+            if profile_picture_url:
+                profile_data["profile_picture"] = profile_picture_url
+            
+            Profiles.insert_one(profile_data)
+        
+        messages.success(request, "Profile updated successfully!")
+        return redirect('profile')
+    
+    # GET request - show edit form
+    user_profile = Profiles.find_one({"username": name})
+    bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
+    profile_picture = user_profile.get("profile_picture", None) if user_profile else None
+    
+    return render(request, 'MainApp/edit_profile.html', {
+        "name": name,
+        "bio": bio,
+        "profile_picture": profile_picture
+    })
 
 # Handle accepting or rejecting a date request
 def handle_date_request(request):

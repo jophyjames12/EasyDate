@@ -4,46 +4,367 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Your Profile</title>
-    {% load static %}
-    <link rel="stylesheet" href="{% static '/MainApp/profile.css' %}">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .profile-header {
+            background: white;
+            border-radius: 12px;
+            padding: 40px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+        }
+
+        .profile-content {
+            display: flex;
+            align-items: center;
+            gap: 30px;
+        }
+
+        .profile-picture {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 36px;
+            font-weight: bold;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .profile-picture img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 50%;
+        }
+
+        .profile-info {
+            flex: 1;
+        }
+
+        .username {
+            font-size: 28px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #212529;
+        }
+
+        .bio {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #e9ecef;
+            color: #6c757d;
+        }
+
+        .stats {
+            display: flex;
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .stat {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .edit-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+            text-decoration: none;
+        }
+
+        .edit-btn:hover {
+            background: #0056b3;
+        }
+
+        .date-requests {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            font-size: 20px;
+        }
+
+        .request-list {
+            list-style: none;
+        }
+
+        .request-item {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-left: 4px solid #667eea;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .request-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .request-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .request-from {
+            font-weight: bold;
+            color: #2c3e50;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            color: #2d3436;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .request-form {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .form-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .form-group {
+            flex: 1;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            font-size: 14px;
+        }
+
+        .btn-accept {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-accept:hover {
+            background: #218838;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #c82333;
+        }
+
+        .no-requests {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px dashed #ddd;
+        }
+
+        .no-requests::before {
+            content: '💌';
+            font-size: 48px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .profile-content {
+                flex-direction: column;
+                text-align: center;
+            }
+
+            .stats {
+                justify-content: center;
+            }
+
+            .form-row {
+                flex-direction: column;
+            }
+
+            .action-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="container">
+        <!-- Profile Header -->
+        <div class="profile-header">
+            <div class="profile-content">
+                <div class="profile-picture">
+                    {% if profile_picture %}
+                        <img src="{{ profile_picture }}" alt="Profile Picture">
+                    {% else %}
+                        {{ name|first|upper|default:"U" }}
+                    {% endif %}
+                </div>
+                <div class="profile-info">
+                    <div class="username">{{ name|default:"USERNAME" }}</div>
+                    <div class="bio">{{ bio|default:"Welcome to my profile! Let's connect and have some fun together." }}</div>
+                    <div class="stats">
+                        <div class="stat">
+                            <div class="stat-number">{{ post_count|default:0 }}</div>
+                            <div class="stat-label">posts</div>
+                        </div>
+                        <div class="stat">
+                            <div class="stat-number">{{ friend_count|default:0 }}</div>
+                            <div class="stat-label">friends</div>
+                        </div>
+                    </div>
+                </div>
+                <a href="{% url 'edit_profile' %}" class="edit-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
+            </div>
+        </div>
 
-    <h1>Welcome, {{ name }}!</h1>
-
-    <!-- Your Date Requests Section -->
-    <section class="date-requests">
-        <h2>Your Date Requests</h2>
-        {% if received_from %}
-            <ul>
-                {% for request in received_from %}
-                    <li>
-                        <strong>From:</strong> {{ request.username }} <br>
-                        <strong>Status:</strong> Pending <br>
-
-                        <!-- Form for accepting or rejecting the date request -->
-                        <form method="POST" action="{% url 'handle_date_request' %}">
-                            {% csrf_token %}
-                            <input type="hidden" name="request_id" value="{{ request.request_id }}">
-
-                            <!-- Editable date and time fields when accepting a date request -->
-                            <label for="new_date_{{ request.request_id }}">New Date:</label>
-                            <input type="date" id="new_date_{{ request.request_id }}" name="new_date" value="{{ request.date }}">
-
-                            <label for="new_time_{{ request.request_id }}">New Time:</label>
-                            <input type="time" id="new_time_{{ request.request_id }}" name="new_time" value="{{ request.time }}">
-
-                            <!-- Action buttons to accept or reject the request -->
-                            <button type="submit" name="action" value="accept">Accept</button>
-                            <button type="submit" name="action" value="reject">Reject</button>
-                        </form>
-                    </li>
-                {% endfor %}
-            </ul>
-        {% else %}
-            <p>No date requests.</p>
-        {% endif %}
-    </section>
-
+        <!-- Date Requests Section -->
+        <div class="date-requests">
+            <h2 class="section-title">Your Date Requests</h2>
+            {% if received_from %}
+                <ul class="request-list">
+                    {% for request in received_from %}
+                        <li class="request-item">
+                            <div class="request-header">
+                                <div class="request-from">From: {{ request.username }}</div>
+                                <div class="status-badge">Pending</div>
+                            </div>
+                            
+                            <form method="POST" action="{% url 'handle_date_request' %}" class="request-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="request_id" value="{{ request.request_id }}">
+                                
+                                <div class="form-row">
+                                    <div class="form-group">
+                                        <label for="new_date_{{ request.request_id }}">New Date:</label>
+                                        <input type="date" id="new_date_{{ request.request_id }}" name="new_date" value="{{ request.date }}">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="new_time_{{ request.request_id }}">New Time:</label>
+                                        <input type="time" id="new_time_{{ request.request_id }}" name="new_time" value="{{ request.time }}">
+                                    </div>
+                                </div>
+                                
+                                <div class="action-buttons">
+                                    <button type="submit" name="action" value="accept" class="btn btn-accept">Accept</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-reject">Reject</button>
+                                </div>
+                            </form>
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="no-requests">
+                    <p>No date requests at the moment.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
 </body>
 </html>
