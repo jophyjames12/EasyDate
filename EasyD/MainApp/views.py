@@ -11,6 +11,8 @@ from django.contrib.auth.decorators import login_required
 import json
 import requests
 import os
+import uuid
+from datetime import datetime
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -405,88 +407,148 @@ def profile(request):
         "bio": bio,
         "profile_picture": profile_picture
     })
-
 # Edit profile view
 def edit_profile(request):
     if not request.session.get('user_id'):
         return redirect('login')
     
+    # Get user info first
     userinfo(request)
     
+    # Get current user data from session/global variables
+    user_id = request.session.get('user_id')
+    # Assuming 'name' and 'user' are set by userinfo() function
+    # If not, you need to get them from the database or session
+    
     if request.method == 'POST':
-        # Get the bio from the form
-        bio = request.POST.get('bio', '')
-        
-        # Handle profile picture upload
-        profile_picture = request.FILES.get('profile_picture')
-        profile_picture_url = None
-        
-        if profile_picture:
-            # Validate file size (5MB limit)
-            if profile_picture.size > 5 * 1024 * 1024:
-                messages.error(request, "Profile picture must be less than 5MB.")
+        try:
+            # Get the bio from the form
+            bio = request.POST.get('bio', '').strip()
+            
+            # Handle profile picture upload
+            profile_picture = request.FILES.get('profile_picture')
+            profile_picture_url = None
+            old_profile_picture = None
+            
+            # Get existing profile to check for old picture
+            existing_profile = Profiles.find_one({"username": name})
+            if existing_profile:
+                old_profile_picture = existing_profile.get("profile_picture")
+            
+            if profile_picture:
+                # Validate file size (5MB limit)
+                if profile_picture.size > 5 * 1024 * 1024:
+                    messages.error(request, "Profile picture must be less than 5MB.")
+                    return redirect('edit_profile')
+                
+                # Validate file type
+                allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+                if profile_picture.content_type not in allowed_types:
+                    messages.error(request, "Please upload a valid image file (JPG, PNG, GIF).")
+                    return redirect('edit_profile')
+                
+                # Create uploads directory if it doesn't exist
+                upload_dir = os.path.join(settings.MEDIA_ROOT, 'profile_pictures')
+                if not os.path.exists(upload_dir):
+                    os.makedirs(upload_dir, mode=0o755)
+                
+                # Generate unique filename with timestamp to avoid conflicts
+                file_extension = os.path.splitext(profile_picture.name)[1].lower()
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                unique_id = str(uuid.uuid4())[:8]
+                filename = f"{name}_{timestamp}_{unique_id}{file_extension}"
+                file_path = os.path.join(upload_dir, filename)
+                
+                # Delete old profile picture if it exists
+                if old_profile_picture:
+                    old_file_path = os.path.join(settings.MEDIA_ROOT, old_profile_picture.lstrip('/media/'))
+                    if os.path.exists(old_file_path):
+                        try:
+                            os.remove(old_file_path)
+                        except OSError:
+                            pass  # Continue if file can't be deleted
+                
+                # Save the new file
+                try:
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in profile_picture.chunks():
+                            destination.write(chunk)
+                    
+                    # Verify file was saved successfully
+                    if not os.path.exists(file_path):
+                        messages.error(request, "Failed to save profile picture. Please try again.")
+                        return redirect('edit_profile')
+                    
+                    # Store relative path for database
+                    profile_picture_url = f"/media/profile_pictures/{filename}"
+                    
+                except Exception as e:
+                    messages.error(request, f"Error saving profile picture: {str(e)}")
+                    return redirect('edit_profile')
+            
+            # Update or create profile in database
+            try:
+                if existing_profile:
+                    # Update existing profile
+                    update_data = {
+                        "bio": bio,
+                        "updated_at": datetime.now()
+                    }
+                    if profile_picture_url:
+                        update_data["profile_picture"] = profile_picture_url
+                    
+                    result = Profiles.update_one(
+                        {"username": name},
+                        {"$set": update_data}
+                    )
+                    
+                    if result.modified_count == 0 and result.matched_count == 0:
+                        messages.error(request, "Failed to update profile. Please try again.")
+                        return redirect('edit_profile')
+                        
+                else:
+                    # Create new profile
+                    profile_data = {
+                        "username": name,
+                        "bio": bio,
+                        "created_at": datetime.now(),
+                        "updated_at": datetime.now()
+                    }
+                    if profile_picture_url:
+                        profile_data["profile_picture"] = profile_picture_url
+                    
+                    result = Profiles.insert_one(profile_data)
+                    
+                    if not result.inserted_id:
+                        messages.error(request, "Failed to create profile. Please try again.")
+                        return redirect('edit_profile')
+                
+                messages.success(request, "Profile updated successfully!")
+                return redirect('profile')
+                
+            except Exception as e:
+                messages.error(request, f"Database error: {str(e)}")
                 return redirect('edit_profile')
-            
-            # Validate file type
-            if not profile_picture.content_type.startswith('image/'):
-                messages.error(request, "Please upload a valid image file.")
-                return redirect('edit_profile')
-            
-            # Create uploads directory if it doesn't exist
-            upload_dir = os.path.join(settings.MEDIA_ROOT, 'profile_pictures')
-            if not os.path.exists(upload_dir):
-                os.makedirs(upload_dir)
-            
-            # Generate unique filename
-            file_extension = os.path.splitext(profile_picture.name)[1]
-            filename = f"{name}_{user}{file_extension}"
-            file_path = os.path.join(upload_dir, filename)
-            
-            # Save the file
-            with open(file_path, 'wb+') as destination:
-                for chunk in profile_picture.chunks():
-                    destination.write(chunk)
-            
-            # Store relative path for database
-            profile_picture_url = f"/media/profile_pictures/{filename}"
-        
-        # Update or create profile in database
-        existing_profile = Profiles.find_one({"username": name})
-        
-        if existing_profile:
-            # Update existing profile
-            update_data = {"bio": bio}
-            if profile_picture_url:
-                update_data["profile_picture"] = profile_picture_url
-            
-            Profiles.update_one(
-                {"username": name},
-                {"$set": update_data}
-            )
-        else:
-            # Create new profile
-            profile_data = {
-                "username": name,
-                "bio": bio
-            }
-            if profile_picture_url:
-                profile_data["profile_picture"] = profile_picture_url
-            
-            Profiles.insert_one(profile_data)
-        
-        messages.success(request, "Profile updated successfully!")
-        return redirect('profile')
+                
+        except Exception as e:
+            messages.error(request, f"An error occurred: {str(e)}")
+            return redirect('edit_profile')
     
     # GET request - show edit form
-    user_profile = Profiles.find_one({"username": name})
-    bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
-    profile_picture = user_profile.get("profile_picture", None) if user_profile else None
-    
-    return render(request, 'MainApp/edit_profile.html', {
-        "name": name,
-        "bio": bio,
-        "profile_picture": profile_picture
-    })
+    try:
+        user_profile = Profiles.find_one({"username": name})
+        bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
+        profile_picture = user_profile.get("profile_picture", None) if user_profile else None
+        
+        return render(request, 'MainApp/edit_profile.html', {
+            "name": name,
+            "bio": bio,
+            "profile_picture": profile_picture
+        })
+        
+    except Exception as e:
+        messages.error(request, f"Error loading profile: {str(e)}")
+        return redirect('profile')
 
 # Handle accepting or rejecting a date request
 def handle_date_request(request):

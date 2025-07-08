@@ -60,6 +60,30 @@
         .back-btn:hover {
             background: #0056b3;
         }
+
+        /* Color legend */
+        .color-legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
     </style>
 </head>
 <body>
@@ -80,7 +104,6 @@
     <button id="locate-btn">Locate Me</button>
     <div id="location-status"></div>
     
-    {% if not date_info %}
     <div class="search-container">
         <label for="manual-location">Set Location Manually:</label>
         <input type="text" id="manual-location" placeholder="Enter location" />
@@ -108,7 +131,6 @@
         <option value="reviews">Reviews</option>
     </select>
     <button id="search-btn">Search</button>
-    {% endif %}
     
     <div id="error-message"></div>
     <div id="map"></div>
@@ -130,6 +152,83 @@
             const placeMarkers = [];
 
             const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
+            
+            // Updated function to get marker color based on amenity type
+            // Using more distinct colors that contrast well with blue user marker
+            function getMarkerColor(amenity) {
+                const colorMap = {
+                    // Food & Dining - Orange/Red tones
+                    'restaurant': 'orange',
+                    'fast_food': 'orange',
+                    'food_court': 'orange',
+                    
+                    // Cafes & Bakeries - Yellow/Gold tones
+                    'cafe': 'yellow',
+                    'bakery': 'yellow',
+                    'ice_cream': 'yellow',
+                    
+                    // Bars & Pubs - Purple tones
+                    'bar': 'violet',
+                    'pub': 'violet',
+                    
+                    // Clubs & Nightlife - Pink/Magenta tones
+                    'club': 'red',
+                    'nightclub': 'red',
+                    
+                    // Shopping - Grey tones
+                    'shop': 'grey',
+                    'marketplace': 'grey',
+                    'shopping': 'grey',
+                    'mall': 'grey',
+                    'supermarket': 'grey',
+                    'convenience': 'grey',
+                    'department_store': 'grey',
+                    'boutique': 'grey',
+                    'pharmacy': 'grey',
+                    'bookstore': 'grey',
+                    'electronics': 'grey',
+                    'hardware': 'grey',
+                    'florist': 'grey',
+                    'jewelry': 'grey',
+                    'optician': 'grey',
+                    'shoe_store': 'grey',
+                    'clothing': 'grey',
+                    'gift_shop': 'grey'
+                };
+                return colorMap[amenity] || 'black'; // Default to black for unknown types
+            }
+
+            // Custom icon creation function for better color differentiation
+            function createColoredIcon(color) {
+                // Map color names to actual color values for better visibility
+                const colorMapping = {
+                    'orange': '#FF6B35',
+                    'yellow': '#FFBF00', 
+                    'violet': '#8E44AD',
+                    'red': '#E91E63',
+                    'grey': '#607D8B',
+                    'black': '#2C3E50'
+                };
+
+                const actualColor = colorMapping[color] || color;
+                
+                // Create a custom SVG icon with the specified color
+                const svgIcon = `
+                    <svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12.5 0C5.596 0 0 5.596 0 12.5C0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0Z" 
+                              fill="${actualColor}" stroke="white" stroke-width="2"/>
+                        <circle cx="12.5" cy="12.5" r="6" fill="white"/>
+                    </svg>
+                `;
+                
+                return L.divIcon({
+                    html: svgIcon,
+                    className: 'custom-marker',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                });
+            }
             
             // Utility: get CSRF cookie
             function getCookie(name) {
@@ -173,8 +272,162 @@
                 });
             }
 
+            // Functions for fetching & displaying places
+            function distance(lat1, lon1, lat2, lon2) {
+                const R = 6371000;
+                const toRad = x => x * Math.PI / 180;
+                const dLat = toRad(lat2 - lat1);
+                const dLon = toRad(lon2 - lon1);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c;
+            }
+
+            async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
+                const query = `
+                    [out:json][timeout:25];
+                    (
+                      node["amenity"="${tag}"](around:2000,${lat},${lon});
+                      way["amenity"="${tag}"](around:2000,${lat},${lon});
+                      relation["amenity"="${tag}"](around:2000,${lat},${lon});
+                    );
+                    out center;
+                `;
+                const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+                try {
+                    console.log('Fetching places from:', url);
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    console.log('Received data:', data);
+                    return data.elements || [];
+                } catch (error) {
+                    console.error('Error fetching places:', error);
+                    displayError("Failed to fetch nearby places.");
+                    return [];
+                }
+            }
+
+            function clearPlaceMarkers() {
+                placeMarkers.forEach(marker => map.removeLayer(marker));
+                placeMarkers.length = 0;
+                if (document.getElementById('place-details')) {
+                    document.getElementById('place-details').innerHTML = '';
+                }
+            }
+
+            function displayPlaces(places, userLat, userLon) {
+                clearPlaceMarkers();
+                const placeDetails = document.getElementById('place-details');
+                
+                if (places.length === 0) {
+                    if (placeDetails) {
+                        placeDetails.innerHTML = '<p>No places found nearby. Try a different search radius or location.</p>';
+                    }
+                    return;
+                }
+
+                console.log('Displaying', places.length, 'places');
+                
+                // Sort places by distance if user location is available
+                if (userLat && userLon) {
+                    places.sort((a, b) => {
+                        const latA = a.lat || (a.center && a.center.lat);
+                        const lonA = a.lon || (a.center && a.center.lon);
+                        const latB = b.lat || (b.center && b.center.lat);
+                        const lonB = b.lon || (b.center && b.center.lon);
+                        
+                        if (!latA || !lonA || !latB || !lonB) return 0;
+                        
+                        const distA = distance(userLat, userLon, latA, lonA);
+                        const distB = distance(userLat, userLon, latB, lonB);
+                        return distA - distB;
+                    });
+                }
+
+                places.forEach((place, index) => {
+                    const lat = place.lat || (place.center && place.center.lat);
+                    const lon = place.lon || (place.center && place.center.lon);
+                    
+                    if (!lat || !lon) return;
+                    
+                    const name = place.tags?.name || "Unnamed place";
+                    const amenity = place.tags?.amenity || "Unknown type";
+                    const cuisine = place.tags?.cuisine || "";
+                    const phone = place.tags?.phone || "";
+                    const website = place.tags?.website || "";
+                    const openingHours = place.tags?.opening_hours || "";
+                    
+                    let popupContent = `<b>${name}</b><br>`;
+                    popupContent += `<i>${amenity}</i><br>`;
+                    if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
+                    if (phone) popupContent += `Phone: ${phone}<br>`;
+                    if (website) popupContent += `<a href="${website}" target="_blank">Website</a><br>`;
+                    if (openingHours) popupContent += `Hours: ${openingHours}<br>`;
+                    
+                    if (userLat && userLon) {
+                        const dist = distance(userLat, userLon, lat, lon);
+                        popupContent += `Distance: ${(dist / 1000).toFixed(2)} km`;
+                    }
+                    
+                    // Create custom colored marker based on amenity type
+                    const markerColor = getMarkerColor(amenity);
+                    const customIcon = createColoredIcon(markerColor);
+                    
+                    const marker = L.marker([lat, lon], {
+                        icon: customIcon
+                    }).addTo(map).bindPopup(popupContent);
+                    
+                    placeMarkers.push(marker);
+                    
+                    // Add to place details list
+                    if (placeDetails) {
+                        const div = document.createElement('div');
+                        div.className = 'place-item';
+                        div.innerHTML = `
+                            <strong>${name}</strong><br>
+                            <span style="color: #666;">${amenity}</span>
+                            ${cuisine ? `<br><span style="color: #888;">Cuisine: ${cuisine}</span>` : ''}
+                            ${userLat && userLon ? `<br><span style="color: #888;">Distance: ${(distance(userLat, userLon, lat, lon) / 1000).toFixed(2)} km</span>` : ''}
+                        `;
+                        div.addEventListener('click', () => {
+                            map.setView([lat, lon], 18);
+                            marker.openPopup();
+                        });
+                        placeDetails.appendChild(div);
+                    }
+                });
+
+                console.log('Added', placeMarkers.length, 'place markers to map');
+            }
+
+            // Modified: Only search when explicitly called (no auto-search)
+            async function searchNearbyPlaces(lat, lon, tag = 'restaurant') {
+                console.log('Searching for places near:', lat, lon, 'tag:', tag);
+                const places = await fetchNearbyPlaces(lat, lon, tag);
+                displayPlaces(places, lat, lon);
+            }
+
+            function displayError(message) {
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = message;
+                    setTimeout(() => (errorMessage.textContent = ''), 5000);
+                }
+            }
+
+            function displayLocationStatus(message) {
+                const locationStatus = document.getElementById('location-status');
+                if (locationStatus) {
+                    locationStatus.textContent = message;
+                    setTimeout(() => (locationStatus.textContent = ''), 3000);
+                }
+            }
+
             if (dateInfo) {
                 // DATE MAP MODE
+                console.log('Date info mode:', dateInfo);
                 
                 const { user_lat, user_lon, partner_lat, partner_lon, partner } = dateInfo;
                 
@@ -212,34 +465,11 @@
                         draggable: false
                     }).addTo(map).bindPopup(`${partner}'s Location`);
 
-                    // Midpoint marker (green)
+                    // Calculate midpoint
                     const midLat = (user_lat + partner_lat) / 2;
                     const midLon = (user_lon + partner_lon) / 2;
 
-                    midpointMarker = L.marker([midLat, midLon], {
-                        icon: L.icon({
-                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                            iconSize: [25, 41],
-                            iconAnchor: [12, 41],
-                            popupAnchor: [1, -34],
-                            shadowSize: [41, 41]
-                        }),
-                        draggable: false
-                    }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
-
-                    // Polyline connecting them
-                    /*L.polyline([
-                        [user_lat, user_lon],
-                        [midLat, midLon],
-                        [partner_lat, partner_lon]
-                    ], {color: 'purple', weight: 3, opacity: 0.7}).addTo(map);*/
-
-                    // Fit map bounds
-                    const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
-                    map.fitBounds(group.getBounds().pad(0.1));
-
-                    // Fetch and display the most efficient route from OSRM
+                    // Try to get route first, then fall back to simple midpoint
                     fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
                         .then(res => res.json())
                         .then(geojson => {
@@ -254,9 +484,33 @@
                             // Find the midpoint along the route (by index)
                             const coords = geojson.coordinates;
                             const midpointIndex = Math.floor(coords.length / 2);
-                            const [midLon, midLat] = coords[midpointIndex];
+                            const [routeMidLon, routeMidLat] = coords[midpointIndex];
 
-                            // Add green marker at the midpoint
+                            // Add green marker at the route midpoint
+                            midpointMarker = L.marker([routeMidLat, routeMidLon], {
+                                icon: L.icon({
+                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                    iconSize: [25, 41],
+                                    iconAnchor: [12, 41],
+                                    popupAnchor: [1, -34],
+                                    shadowSize: [41, 41]
+                                }),
+                                draggable: false
+                            }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
+
+                            // Fit map bounds to route
+                            const latlngs = coords.map(coord => [coord[1], coord[0]]);
+                            map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+
+                            // Store midpoint coordinates for manual search
+                            window.routeMidLat = routeMidLat;
+                            window.routeMidLon = routeMidLon;
+                        })
+                        .catch(err => {
+                            console.error("Failed to load route:", err);
+                            
+                            // Fallback to simple midpoint
                             midpointMarker = L.marker([midLat, midLon], {
                                 icon: L.icon({
                                     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
@@ -267,24 +521,30 @@
                                     shadowSize: [41, 41]
                                 }),
                                 draggable: false
-                            }).addTo(map).bindPopup("Route Midpoint");
+                            }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
 
-                            // Fit map bounds to route
-                            const latlngs = coords.map(coord => [coord[1], coord[0]]);
-                            map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+                            // Fit map bounds
+                            const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
+                            map.fitBounds(group.getBounds().pad(0.1));
 
-                            // Optional: trigger nearby search at midpoint
-                            autoSearchNearby(midLat, midLon);
-                        })
-                        .catch(err => {
-                            console.error("Failed to load route:", err);
-                            alert("Could not load route between the two points.");
+                            // Store midpoint coordinates for manual search
+                            window.routeMidLat = midLat;
+                            window.routeMidLon = midLon;
                         });
 
-
-
-                    // Search places near midpoint
-                    autoSearchNearby(midLat, midLon);
+                    // Add search functionality for date mode
+                    const searchBtn = document.getElementById('search-btn');
+                    const tagSelect = document.getElementById('tag');
+                    
+                    if (searchBtn && tagSelect) {
+                        searchBtn.addEventListener('click', async () => {
+                            const selectedTag = tagSelect.value;
+                            const searchLat = window.routeMidLat || midLat;
+                            const searchLon = window.routeMidLon || midLon;
+                            console.log('Manual search for:', selectedTag, 'at midpoint:', searchLat, searchLon);
+                            await searchNearbyPlaces(searchLat, searchLon, selectedTag);
+                        });
+                    }
 
                 } else {
                     alert("Unable to load location data for this date. Make sure both users have set their locations.");
@@ -292,50 +552,15 @@
 
             } else {
                 // REGULAR MAP MODE
+                console.log('Regular map mode');
+                
                 const locateBtn = document.getElementById('locate-btn');
                 const manualLocationInput = document.getElementById('manual-location');
                 const searchResultsContainer = document.getElementById('search-results');
-                const errorMessage = document.getElementById('error-message');
-                const locationStatus = document.getElementById('location-status');
                 const tagSelect = document.getElementById('tag');
                 const ambianceSelect = document.getElementById('ambiance');
                 const sortSelect = document.getElementById('sort');
                 const searchBtn = document.getElementById('search-btn');
-                const placeDetails = document.getElementById('place-details');
-
-                function displayError(message) {
-                    errorMessage.textContent = message;
-                    locationStatus.textContent = '';
-                    setTimeout(() => (errorMessage.textContent = ''), 5000);
-                }
-
-                function displayLocationStatus(message) {
-                    locationStatus.textContent = message;
-                    errorMessage.textContent = '';
-                    setTimeout(() => (locationStatus.textContent = ''), 3000);
-                }
-
-                function updateLocationInDB(lat, lon, source) {
-                    fetch('/update_location/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/x-www-form-urlencoded',
-                            'X-CSRFToken': getCookie('csrftoken'),
-                        },
-                        body: `latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`
-                    })
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.status === 'success') {
-                            displayLocationStatus(`Location updated in database! (${source})`);
-                        } else {
-                            displayError(`Failed to update location: ${data.message}`);
-                        }
-                    })
-                    .catch(error => {
-                        displayError('Error updating location in database');
-                    });
-                }
 
                 function addUserMarker(lat, lon, popupText = "You are here") {
                     if (userMarker) {
@@ -366,8 +591,12 @@
                                 map.setView([lat, lon], 15);
                                 addUserMarker(lat, lon, "You are here");
                                 updateLocationInDB(lat, lon, 'GPS location');
+                                
+                                // Removed automatic search - user must click search button
+                                displayLocationStatus('Location found! Click "Search" to find places.');
                             },
                             (error) => {
+                                console.error('Geolocation error:', error);
                                 displayError("Unable to access your location.");
                                 fallbackGeoJS();
                             },
@@ -390,92 +619,43 @@
                             map.setView([lat, lon], 12);
                             addUserMarker(lat, lon, "Approx. location via IP");
                             updateLocationInDB(lat, lon, 'IP geolocation');
+                            
+                            // Removed automatic search - user must click search button
+                            displayLocationStatus('Location found! Click "Search" to find places.');
                         })
-                        .catch(() => {
+                        .catch((error) => {
+                            console.error('GeoJS error:', error);
                             displayError("Unable to fetch location from GeoJS.");
                         });
                 }
 
-                locateBtn.addEventListener('click', () => {
-                    locateUser();
-                });
-
-                setTimeout(() => {
-                    if (!userMarker) {
-                        fallbackGeoJS();
-                    }
-                }, 3000);
-
-                // Functions for fetching & displaying places (unchanged, keep your existing code here)
-                function distance(lat1, lon1, lat2, lon2) {
-                    const R = 6371000;
-                    const toRad = x => x * Math.PI / 180;
-                    const dLat = toRad(lat2 - lat1);
-                    const dLon = toRad(lon2 - lon1);
-                    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-                              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-                              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-                    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-                    return R * c;
-                }
-
-                async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
-                    const query = `
-                        [out:json][timeout:25];
-                        (
-                          node["amenity"="${tag}"](around:1000,${lat},${lon});
-                          way["amenity"="${tag}"](around:1000,${lat},${lon});
-                          relation["amenity"="${tag}"](around:1000,${lat},${lon});
-                        );
-                        out center;
-                    `;
-                    const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-                    try {
-                        const response = await fetch(url);
-                        const data = await response.json();
-                        return data.elements;
-                    } catch {
-                        displayError("Failed to fetch nearby places.");
-                        return [];
-                    }
-                }
-
-                function clearPlaceMarkers() {
-                    placeMarkers.forEach(marker => map.removeLayer(marker));
-                    placeMarkers.length = 0;
-                    placeDetails.innerHTML = '';
-                }
-
-                function displayPlaces(places, userLat, userLon) {
-                    clearPlaceMarkers();
-                    if (places.length === 0) {
-                        placeDetails.innerHTML = '<p>No places found nearby.</p>';
-                        return;
-                    }
-
-                    places.forEach(place => {
-                        const lat = place.lat || (place.center && place.center.lat);
-                        const lon = place.lon || (place.center && place.center.lon);
-                        const name = place.tags?.name || "Unnamed place";
-                        const address = place.tags?.['addr:full'] || '';
-                        const popupContent = `<b>${name}</b><br>${address}`;
-                        const marker = L.marker([lat, lon]).addTo(map).bindPopup(popupContent);
-                        placeMarkers.push(marker);
-                        const div = document.createElement('div');
-                        div.className = 'place-item';
-                        div.textContent = name;
-                        div.addEventListener('click', () => {
-                            map.setView([lat, lon], 18);
-                            marker.openPopup();
-                        });
-                        placeDetails.appendChild(div);
+                // Event listeners
+                if (locateBtn) {
+                    locateBtn.addEventListener('click', () => {
+                        locateUser();
                     });
                 }
 
-                async function autoSearchNearby(lat, lon) {
-                    const places = await fetchNearbyPlaces(lat, lon, 'restaurant');
-                    displayPlaces(places, lat, lon);
+                if (searchBtn) {
+                    searchBtn.addEventListener('click', async () => {
+                        if (userMarker) {
+                            const userPos = userMarker.getLatLng();
+                            const selectedTag = tagSelect.value;
+                            console.log('Manual search for:', selectedTag);
+                            await searchNearbyPlaces(userPos.lat, userPos.lng, selectedTag);
+                        } else {
+                            displayError("Please set your location first.");
+                        }
+                    });
                 }
+
+                // Auto-locate user after 2 seconds if no location is set (but don't search places)
+                setTimeout(() => {
+                    if (!userMarker) {
+                        console.log('Auto-locating user...');
+                        fallbackGeoJS();
+                    }
+                }, 2000);
             }
         });
     </script>
