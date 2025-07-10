@@ -11,11 +11,14 @@ from django.contrib.auth.decorators import login_required
 import json
 import requests
 import os
+import math 
 import uuid
 from datetime import datetime
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
+import logging
+logger = logging.getLogger(__name__)
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
@@ -33,18 +36,33 @@ Profiles = db['Profiles']  # New collection for storing profile info
 def update_location(request):
     userinfo(request)
     if request.method == 'POST':
-        lat = request.POST.get('latitude')
-        lon = request.POST.get('longitude')
-        if lat and lon:
-            existing = Location.find_one({'name': name})
-            if existing:
-                Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
-            else:
-                Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
-            return JsonResponse({'status': 'success'})
-        return JsonResponse({'status': 'error', 'message': 'Missing coordinates'})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'})
+        lat = None
+        lon = None
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
 
+        if lat is None or lon is None:
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+        try:
+            lat = float(lat)
+            lon = float(lon)
+        except ValueError:
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        existing = Location.find_one({'name': name})
+        if existing:
+            Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
+        else:
+            Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
+        return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
@@ -620,17 +638,13 @@ def handle_date_request(request):
 
     return redirect('profile')
 
-
 def map_view(request):
     return render(request,'MainApp/Map.html')
-
-
 @csrf_exempt
 def update_preferences(request):
     userinfo(request)
     if request.method == 'POST':
         selected_preferences = request.POST.get('selected_preferences', '')
-
         # Convert the comma-separated string into a list
         preferences = selected_preferences.split(',')
         # Find the user in the database or create a new record
@@ -654,8 +668,6 @@ def update_preferences(request):
  #   if request.method == 'POST':
   #      data = json.loads(request.body)
    #     preferences = data.get('preferences', [])
-
-
         # Save preferences to the user model or a related model
     #    user = request.user
      #   user.preferences.set(preferences)  # Assuming you have a preferences field
@@ -663,13 +675,164 @@ def update_preferences(request):
 @csrf_exempt
 def get_places(request):
     places = list(places.objects.all().values())
-
     return JsonResponse(places, safe=False)
-
-
       #  return JsonResponse({"message": "Preferences saved successfully"})
-
    # return JsonResponse({"error": "Invalid request"}, status=400)
+
+def get_combined_preferences(user1_name, user2_name):
+    """Get combined preferences for both users"""
+    user1_prefs = Preference.find_one({'name': user1_name})
+    user2_prefs = Preference.find_one({'name': user2_name})
+    
+    # Get preferences lists, default to empty if not found
+    user1_list = user1_prefs.get('preferences', []) if user1_prefs else []
+    user2_list = user2_prefs.get('preferences', []) if user2_prefs else []
+    
+    # Find common preferences (intersection)
+    common_prefs = list(set(user1_list) & set(user2_list))
+    
+    # If no common preferences, include all preferences from both users
+    if not common_prefs:
+        all_prefs = list(set(user1_list + user2_list))
+        return all_prefs
+    
+    return common_prefs
+
+# Also add debugging to your get_preferred_places view
+@csrf_exempt
+def get_preferred_places(request):
+    """Get places filtered by user preferences for date mode - with debugging"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    # Get parameters
+    try:
+        lat = float(request.GET.get('lat', 0))
+        lon = float(request.GET.get('lon', 0))
+        partner_name = request.GET.get('partner', '')
+        
+        logger.info(f"Getting preferred places for {name} and {partner_name} at {lat}, {lon}")
+        
+        if not lat or not lon or not partner_name:
+            logger.error(f"Missing parameters: lat={lat}, lon={lon}, partner={partner_name}")
+            return JsonResponse({'status': 'error', 'message': 'Missing required parameters'}, status=400)
+        
+        # Get combined preferences for both users
+        preferred_tags = get_combined_preferences(name, partner_name)
+        logger.info(f"Combined preferences: {preferred_tags}")
+        
+        # If no preferences found, default to all available options
+        if not preferred_tags:
+            preferred_tags = ['restaurant', 'cafe', 'bar', 'club', 'shop']
+            logger.info("No preferences found, using default tags")
+        
+        # Map preferences to amenity tags
+        preference_to_amenity = {
+            'restaurant': 'restaurant',
+            'cafe': 'cafe', 
+            'bar': 'bar',
+            'club': 'club',
+            'shop': 'shop'
+        }
+        
+        # Convert preferences to amenity tags
+        amenity_tags = []
+        for pref in preferred_tags:
+            if pref in preference_to_amenity:
+                amenity_tags.append(preference_to_amenity[pref])
+        
+        logger.info(f"Amenity tags to search: {amenity_tags}")
+        
+        # If no valid amenity tags, default to restaurant
+        if not amenity_tags:
+            amenity_tags = ['restaurant']
+            logger.warning("No valid amenity tags, defaulting to restaurant")
+        
+        # Fetch places for each preferred amenity type
+        all_places = []
+        for tag in amenity_tags:
+            logger.info(f"Fetching places for tag: {tag}")
+            places = fetch_overpass_places(lat, lon, tag)
+            logger.info(f"Found {len(places)} places for {tag}")
+            all_places.extend(places)
+        
+        logger.info(f"Total places found: {len(all_places)}")
+        
+        # Remove duplicates based on coordinates
+        seen_coords = set()
+        unique_places = []
+        for place in all_places:
+            place_lat = place.get('lat') or (place.get('center', {}).get('lat'))
+            place_lon = place.get('lon') or (place.get('center', {}).get('lon'))
+            
+            if place_lat and place_lon:
+                coord_key = f"{place_lat:.6f},{place_lon:.6f}"
+                if coord_key not in seen_coords:
+                    seen_coords.add(coord_key)
+                    unique_places.append(place)
+        
+        logger.info(f"Unique places after deduplication: {len(unique_places)}")
+        
+        return JsonResponse({
+            'status': 'success',
+            'places': unique_places,
+            'preferred_tags': preferred_tags,
+            'debug': {
+                'total_found': len(all_places),
+                'unique_found': len(unique_places),
+                'searched_tags': amenity_tags
+            }
+        })
+        
+    except ValueError as e:
+        logger.error(f"Value error: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Invalid parameters'}, status=400)
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+
+def fetch_overpass_places(lat, lon, amenity_type, radius=2000):
+    """Fetch places from Overpass API with enhanced debugging"""
+    
+    # Add coordinate validation
+    if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
+        logger.error(f"Invalid coordinates: lat={lat}, lon={lon}")
+        return []
+    
+    query = f"""
+    [out:json][timeout:25];
+    (
+      node["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+      way["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+      relation["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+    );
+    out center;
+    """
+    url = 'https://overpass-api.de/api/interpreter'
+    try:
+        logger.info(f"Querying Overpass API for {amenity_type} at {lat}, {lon}")
+        logger.debug(f"Query: {query}")
+        response = requests.post(url, data={'data': query}, timeout=30)
+        response.raise_for_status()
+        data = response.json()
+        elements = data.get('elements', [])
+        logger.info(f"Found {len(elements)} places for {amenity_type}")
+        # Log first few results for debugging
+        for i, element in enumerate(elements[:3]):
+            logger.debug(f"Place {i+1}: {element.get('tags', {}).get('name', 'Unnamed')} at {element.get('lat', 'N/A')}, {element.get('lon', 'N/A')}")
+        return elements
+        
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Network error fetching places for {amenity_type}: {e}")
+        return []
+    except json.JSONDecodeError as e:
+        logger.error(f"JSON decode error for {amenity_type}: {e}")
+        return []
+    except Exception as e:
+        logger.error(f"Unexpected error fetching places for {amenity_type}: {e}")
+        return []
 
 # Profile view to show user preferences
 def profile_view(request):
@@ -716,23 +879,19 @@ def update_location(request):
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
         return redirect('login')
-    
     userinfo(request)
-    
     # Fetch the specific date request
     date_request = DateReq.find_one({"_id": ObjectId(request_id)})
-    
     if not date_request:
         messages.error(request, "Date not found.")
         return redirect('area')
-    
     # Get partner info
     partner = date_request["To"] if date_request["From"] == name else date_request["From"]
-    
     # Get both users' locations
     user_location = Location.find_one({'name': name})
     partner_location = Location.find_one({'name': partner})
-    
+    # Get combined preferences for context
+    preferred_tags = get_combined_preferences(name, partner)
     # Prepare date info
     date_info_dict = {
         'date': date_request.get('date', ''),
@@ -742,14 +901,14 @@ def date_map_view(request, request_id):
         'user_lon': float(user_location['lon']) if user_location else None,
         'partner_lat': float(partner_location['lat']) if partner_location else None,
         'partner_lon': float(partner_location['lon']) if partner_location else None,
+        'preferred_tags': preferred_tags,
     }
-    
     context = {
         'date_info': date_info_dict,
         'date_info_json': json.dumps(date_info_dict),  # Add JSON serialized version
     }
-    
     return render(request, 'MainApp/Map.html', context)
+
 
 def get_osrm_route(request):
     # Example values — in real case, use session data or MongoDB query
@@ -759,7 +918,6 @@ def get_osrm_route(request):
     partner_lon = float(request.GET.get("partner_lon"))
 
     url = f"http://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
-
     try:
         response = requests.get(url)
         data = response.json()
@@ -767,5 +925,3 @@ def get_osrm_route(request):
         return JsonResponse(geometry)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-
-   

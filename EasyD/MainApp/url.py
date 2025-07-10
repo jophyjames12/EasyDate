@@ -28,7 +28,8 @@ urlpatterns=[
     path('update-preferences/', views.update_preferences, name='update_preferences'),
     path('update_location/', views.update_location, name='update_location'),
     path('date-map/<str:request_id>/', views.date_map_view, name='date_map'),
-    path("get-route/", views.get_osrm_route, name="get_osrm_route"),
+    path('get-route/', views.get_osrm_route, name='get_osrm_route'),
     path('edit_profile/', views.edit_profile, name='edit_profile'),
-
+    path('get_preferred_places/', views.get_preferred_places, name='get_preferred_places'),
+    #get-route
 ]
