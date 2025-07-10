@@ -909,7 +909,6 @@ def date_map_view(request, request_id):
     }
     return render(request, 'MainApp/Map.html', context)
 
-
 def get_osrm_route(request):
     # Example values — in real case, use session data or MongoDB query
     user_lat = float(request.GET.get("user_lat"))

@@ -159,8 +159,8 @@
                 const colorMap = {
                     // Food & Dining - Orange/Red tones
                     'restaurant': 'orange',
-                    'fast_food': 'orange',
                     'food_court': 'orange',
+                    'fast_food': 'orange',
                     
                     // Cafes & Bakeries - Yellow/Gold tones
                     'cafe': 'yellow',
@@ -562,7 +562,7 @@
                             window.routeMidLon = midLon;
                         });
 
-                    // FIXED: Add search functionality for date mode using preferences
+                    // FIXED: Add search functionality for date mode - now uses selected tag
                     const searchBtn = document.getElementById('search-btn');
                     const tagSelect = document.getElementById('tag');
                     
@@ -570,23 +570,14 @@
                         searchBtn.addEventListener('click', async () => {
                             const searchLat = window.routeMidLat || midLat;
                             const searchLon = window.routeMidLon || midLon;
-                            console.log('Searching for preferred places at midpoint:', searchLat, searchLon, 'with partner:', partner);
+                            const selectedTag = tagSelect.value; // Get selected tag from dropdown
                             
-                            // Use the preference-based search instead of manual tag search
-                            await searchPreferredPlaces(searchLat, searchLon, partner);
+                            console.log('Searching for places at midpoint:', searchLat, searchLon, 'tag:', selectedTag);
+                            
+                            // Use the regular search function with selected tag instead of preference-based search
+                            await searchNearbyPlaces(searchLat, searchLon, selectedTag);
                         });
                     }
-
-                    // OPTIONAL: Auto-search preferred places when map loads
-                    // Uncomment the lines below if you want to automatically show preferred places
-                    /*
-                    setTimeout(async () => {
-                        const searchLat = window.routeMidLat || midLat;
-                        const searchLon = window.routeMidLon || midLon;
-                        console.log('Auto-searching for preferred places...');
-                        await searchPreferredPlaces(searchLat, searchLon, partner);
-                    }, 3000);
-                    */
 
                 } else {
                     alert("Unable to load location data for this date. Make sure both users have set their locations.");
@@ -688,7 +679,6 @@
                         }
                     });
                 }
-
                 // Manual location search functionality
                 if (manualLocationInput) {
                     let searchTimeout;
@@ -696,110 +686,79 @@
                     manualLocationInput.addEventListener('input', (e) => {
                         clearTimeout(searchTimeout);
                         const query = e.target.value.trim();
-                        
-                        if (query.length < 3) {
-                            if (searchResultsContainer) {
-                                searchResultsContainer.innerHTML = '';
-                                searchResultsContainer.style.display = 'none';
-                            }
-                            return;
+                        if (query.length > 2) {
+                            searchTimeout = setTimeout(async () => {
+                                try {
+                                    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+                                    const results = await response.json();
+                                    
+                                    searchResultsContainer.innerHTML = '';
+                                    
+                                    if (results.length > 0) {
+                                        results.forEach(result => {
+                                            const div = document.createElement('div');
+                                            div.className = 'search-result';
+                                            div.textContent = result.display_name;
+                                            div.addEventListener('click', () => {
+                                                const lat = parseFloat(result.lat);
+                                                const lon = parseFloat(result.lon);
+                                                map.setView([lat, lon], 15);
+                                                addUserMarker(lat, lon, result.display_name);
+                                                updateLocationInDB(lat, lon, 'manual search');
+                                                manualLocationInput.value = result.display_name;
+                                                searchResultsContainer.innerHTML = '';
+                                            });
+                                            searchResultsContainer.appendChild(div);
+                                        });
+                                    } else {
+                                        searchResultsContainer.innerHTML = '<div class="search-result">No results found</div>';
+                                    }
+                                } catch (error) {
+                                    console.error('Location search error:', error);
+                                    searchResultsContainer.innerHTML = '<div class="search-result">Search failed</div>';
+                                }
+                            }, 300);
+                        } else {
+                            searchResultsContainer.innerHTML = '';
                         }
-                        
-                        searchTimeout = setTimeout(() => {
-                            searchLocation(query);
-                        }, 300);
+                    });
+
+                    // Hide search results when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!manualLocationInput.contains(e.target) && !searchResultsContainer.contains(e.target)) {
+                            searchResultsContainer.innerHTML = '';
+                        }
                     });
                 }
 
-                async function searchLocation(query) {
-                    try {
-                        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
-                        const results = await response.json();
-                        
-                        if (searchResultsContainer) {
-                            searchResultsContainer.innerHTML = '';
-                            
-                            if (results.length > 0) {
-                                searchResultsContainer.style.display = 'block';
-                                
-                                results.forEach(result => {
-                                    const div = document.createElement('div');
-                                    div.className = 'search-result';
-                                    div.textContent = result.display_name;
-                                    
-                                    div.addEventListener('click', () => {
-                                        const lat = parseFloat(result.lat);
-                                        const lon = parseFloat(result.lon);
-                                        
-                                        map.setView([lat, lon], 15);
-                                        addUserMarker(lat, lon, result.display_name);
-                                        updateLocationInDB(lat, lon, 'manual search');
-                                        
-                                        manualLocationInput.value = result.display_name;
-                                        searchResultsContainer.innerHTML = '';
-                                        searchResultsContainer.style.display = 'none';
-                                        
-                                        displayLocationStatus('Location set! Click "Search" to find places.');
-                                    });
-                                    
-                                    searchResultsContainer.appendChild(div);
-                                });
-                            } else {
-                                searchResultsContainer.innerHTML = '<div class="search-result">No results found</div>';
-                                searchResultsContainer.style.display = 'block';
-                            }
-                        }
-                    } catch (error) {
-                        console.error('Location search error:', error);
-                        displayError('Failed to search for location');
-                    }
-                }
-
-                // Hide search results when clicking outside
-                document.addEventListener('click', (e) => {
-                    if (searchResultsContainer && !manualLocationInput.contains(e.target) && !searchResultsContainer.contains(e.target)) {
-                        searchResultsContainer.style.display = 'none';
-                    }
-                });
+                // Create color legend
+                const colorLegend = document.createElement('div');
+                colorLegend.className = 'color-legend';
+                colorLegend.innerHTML = `
+                    <strong>Place Types:</strong><br>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FF6B35;"></div>
+                        <span>Restaurants & Fast Food</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FFBF00;"></div>
+                        <span>Cafes & Bakeries</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8E44AD;"></div>
+                        <span>Bars & Pubs</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #E91E63;"></div>
+                        <span>Clubs & Nightlife</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #607D8B;"></div>
+                        <span>Shopping</span>
+                    </div>
+                `;
+                document.body.appendChild(colorLegend);
             }
-
-            // Add color legend to the map
-            function addColorLegend() {
-                const legend = L.control({ position: 'bottomright' });
-                
-                legend.onAdd = function (map) {
-                    const div = L.DomUtil.create('div', 'color-legend');
-                    div.innerHTML = `
-                        <h4>Place Types</h4>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background-color: #FF6B35;"></div>
-                            <span>Restaurants</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background-color: #FFBF00;"></div>
-                            <span>Cafes</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background-color: #8E44AD;"></div>
-                            <span>Bars</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background-color: #E91E63;"></div>
-                            <span>Clubs</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color" style="background-color: #607D8B;"></div>
-                            <span>Shops</span>
-                        </div>
-                    `;
-                    return div;
-                };
-                
-                legend.addTo(map);
-            }
-
-            // Add the color legend to the map
-            addColorLegend();
         });
     </script>
 </body>
