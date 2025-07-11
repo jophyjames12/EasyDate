@@ -160,3 +160,4 @@ searchForm.addEventListener('submit', function (event) {
         searchForm.submit();
     }
 });
+
