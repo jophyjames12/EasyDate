@@ -74,6 +74,9 @@ function searchPlaces() {
     const userLat = userMarker.getLatLng().lat;
     const userLon = userMarker.getLatLng().lng;
 
+    let midpointRouteLayer = null; // Store the midpoint route separately
+    let midpointRouteData = null; // Store midpoint route data for restoration
+    
     // Build the Overpass API query
     let query = `https://overpass-api.de/api/interpreter?data=[out:json];node["amenity"="${tag}"]`;
     if (ambiance !== "any") {

@@ -84,6 +84,97 @@
             margin-right: 8px;
             border: 1px solid #ccc;
         }
+
+        /* NEW: Route control styles */
+        .route-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 250px;
+        }
+
+        .route-controls h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+
+        .route-controls button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+
+        .route-controls button:hover {
+            background: #c82333;
+        }
+
+        /* Enhanced popup styles */
+        .leaflet-popup-content {
+            margin: 8px 12px;
+            line-height: 1.4;
+        }
+
+        .popup-directions-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .popup-directions-btn:hover {
+            background: #218838;
+        }
+
+        .popup-directions-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .route-controls button.restore-btn {
+            background: #28a745;
+        }
+
+        .route-controls button.restore-btn:hover {
+            background: #218838;
+        }
+
+        /* Route legend */
+        .route-legend {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 11px;
+        }
+
+        .route-legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+
+        .route-legend-line {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+            border-radius: 1px;
+        }
     </style>
 </head>
 <body>
@@ -100,6 +191,14 @@
     {% else %}
     <h1>Search Places and Rate</h1>
     {% endif %}
+    
+    <!-- NEW: Route Controls -->
+    <div class="route-controls" id="route-controls" style="display: none;">
+        <h4>Active Routes</h4>
+        <div id="route-list"></div>
+        <button onclick="clearAllRoutes()">Clear All Routes</button>
+        <button class="restore-btn" onclick="restoreMidpointRoute()" id="restore-midpoint-btn" style="display: none;">Restore Midpoint Route</button>
+    </div>
     
     <button id="locate-btn">Locate Me</button>
     <div id="location-status"></div>
@@ -150,32 +249,26 @@
             let partnerMarker = null;
             let midpointMarker = null;
             const placeMarkers = [];
+            
+            // NEW: Route management
+            const activeRoutes = new Map(); // Store active routes with IDs
+            let routeIdCounter = 0;
 
             const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
             
             // Updated function to get marker color based on amenity type
-            // Using more distinct colors that contrast well with blue user marker
             function getMarkerColor(amenity) {
                 const colorMap = {
-                    // Food & Dining - Orange/Red tones
                     'restaurant': 'orange',
                     'food_court': 'orange',
                     'fast_food': 'orange',
-                    
-                    // Cafes & Bakeries - Yellow/Gold tones
                     'cafe': 'yellow',
                     'bakery': 'yellow',
                     'ice_cream': 'yellow',
-                    
-                    // Bars & Pubs - Purple tones
                     'bar': 'violet',
                     'pub': 'violet',
-                    
-                    // Clubs & Nightlife - Pink/Magenta tones
                     'club': 'red',
                     'nightclub': 'red',
-                    
-                    // Shopping - Grey tones
                     'shop': 'grey',
                     'marketplace': 'grey',
                     'shopping': 'grey',
@@ -195,12 +288,11 @@
                     'clothing': 'grey',
                     'gift_shop': 'grey'
                 };
-                return colorMap[amenity] || 'black'; // Default to black for unknown types
+                return colorMap[amenity] || 'black';
             }
 
-            // Custom icon creation function for better color differentiation
+            // Custom icon creation function
             function createColoredIcon(color) {
-                // Map color names to actual color values for better visibility
                 const colorMapping = {
                     'orange': '#FF6B35',
                     'yellow': '#FFBF00', 
@@ -212,7 +304,6 @@
 
                 const actualColor = colorMapping[color] || color;
                 
-                // Create a custom SVG icon with the specified color
                 const svgIcon = `
                     <svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">
                         <path d="M12.5 0C5.596 0 0 5.596 0 12.5C0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0Z" 
@@ -228,6 +319,181 @@
                     iconAnchor: [12, 41],
                     popupAnchor: [1, -34]
                 });
+            }
+
+            // NEW: Route functions
+            async function getRoute(startLat, startLon, endLat, endLon) {
+                try {
+                    // Using OSRM public API for routing
+                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.routes && data.routes.length > 0) {
+                        return {
+                            geometry: data.routes[0].geometry,
+                            distance: data.routes[0].distance,
+                            duration: data.routes[0].duration
+                        };
+                    }
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching route:', error);
+                    return null;
+                }
+            }
+
+            async function showDirections(destLat, destLon, placeName) {
+                const routeList = document.getElementById('route-list');
+                const routeControls = document.getElementById('route-controls');
+                const restoreBtn = document.getElementById('restore-midpoint-btn');
+                
+                // FIRST: Hide midpoint route if it exists
+                if (midpointRouteLayer) {
+                    map.removeLayer(midpointRouteLayer);
+                    restoreBtn.style.display = 'inline-block'; // Show restore button
+                }
+                
+                // Clear existing destination routes
+                activeRoutes.forEach(route => map.removeLayer(route.layer));
+                activeRoutes.clear();
+                
+                // Show route controls
+                routeControls.style.display = 'block';
+                
+                // Get routes from both users (if available)
+                const routes = [];
+                
+                // Route from user 1
+                if (userMarker) {
+                    const userPos = userMarker.getLatLng();
+                    const userRoute = await getRoute(userPos.lat, userPos.lng, destLat, destLon);
+                    if (userRoute) {
+                        routes.push({
+                            id: ++routeIdCounter,
+                            name: 'Your Route',
+                            color: '#007bff', // Blue for user
+                            route: userRoute,
+                            from: 'You',
+                            to: placeName
+                        });
+                    }
+                }
+                
+                // Route from user 2 (partner) - only in date mode
+                if (partnerMarker && dateInfo) {
+                    const partnerPos = partnerMarker.getLatLng();
+                    const partnerRoute = await getRoute(partnerPos.lat, partnerPos.lng, destLat, destLon);
+                    if (partnerRoute) {
+                        routes.push({
+                            id: ++routeIdCounter,
+                            name: `${dateInfo.partner}'s Route`,
+                            color: '#dc3545', // Red for partner
+                            route: partnerRoute,
+                            from: dateInfo.partner,
+                            to: placeName
+                        });
+                    }
+                }
+                
+                // Add routes to map
+                routes.forEach(routeData => {
+                    const routeLayer = L.geoJSON(routeData.route.geometry, {
+                        style: {
+                            color: routeData.color,
+                            weight: 4,
+                            opacity: 0.8,
+                            dashArray: routeData.name.includes('Your') ? null : '10, 10' // Dashed line for partner
+                        }
+                    }).addTo(map);
+                    
+                    // Store route reference
+                    activeRoutes.set(routeData.id, {
+                        layer: routeLayer,
+                        data: routeData
+                    });
+                });
+                
+                // Update route controls
+                updateRouteControls();
+                
+                // Fit map to show all routes
+                if (routes.length > 0) {
+                    const group = new L.featureGroup(Array.from(activeRoutes.values()).map(r => r.layer));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+
+            // NEW: Function to restore midpoint route
+            window.restoreMidpointRoute = function() {
+                if (midpointRouteData && midpointRouteLayer) {
+                    // Re-add the midpoint route to the map
+                    midpointRouteLayer.addTo(map);
+                    
+                    // Hide the restore button
+                    document.getElementById('restore-midpoint-btn').style.display = 'none';
+                    
+                    // Fit map to show midpoint route
+                    map.fitBounds(midpointRouteLayer.getBounds().pad(0.1));
+                }
+            };
+
+            // NEW: Function to store midpoint route
+            function storeMidpointRoute(routeLayer, routeData) {
+                midpointRouteLayer = routeLayer;
+                midpointRouteData = routeData;
+            }
+
+            // NEW: Route management functions
+            window.removeRoute = function(routeId) {
+                if (activeRoutes.has(routeId)) {
+                    const route = activeRoutes.get(routeId);
+                    map.removeLayer(route.layer);
+                    activeRoutes.delete(routeId);
+                    updateRouteControls();
+                }
+            };
+
+            window.clearAllRoutes = function() {
+                activeRoutes.forEach(route => map.removeLayer(route.layer));
+                activeRoutes.clear();
+                
+                // Restore midpoint route when clearing all routes
+                if (midpointRouteData && midpointRouteLayer) {
+                    midpointRouteLayer.addTo(map);
+                    document.getElementById('restore-midpoint-btn').style.display = 'none';
+                    
+                    // Fit map to show midpoint route
+                    map.fitBounds(midpointRouteLayer.getBounds().pad(0.1));
+                }
+                
+                updateRouteControls();
+            };
+
+            function updateRouteControls() {
+                const routeList = document.getElementById('route-list');
+                const routeControls = document.getElementById('route-controls');
+                
+                routeList.innerHTML = '';
+                
+                if (activeRoutes.size === 0) {
+                    routeControls.style.display = 'none';
+                } else {
+                    // Rebuild route list
+                    activeRoutes.forEach(route => {
+                        const routeInfo = document.createElement('div');
+                        routeInfo.innerHTML = `
+                            <div style="margin-bottom: 8px; font-size: 11px;">
+                                <strong>${route.data.name}</strong><br>
+                                <span style="color: ${route.data.color};">● ${route.data.from} → ${route.data.to}</span><br>
+                                Distance: ${(route.data.route.distance / 1000).toFixed(1)} km<br>
+                                Duration: ${Math.round(route.data.route.duration / 60)} min
+                                <button onclick="removeRoute(${route.data.id})" style="margin-left: 5px; padding: 2px 5px; font-size: 10px;">×</button>
+                            </div>
+                        `;
+                        routeList.appendChild(routeInfo);
+                    });
+                }
             }
             
             // Utility: get CSRF cookie
@@ -246,7 +512,7 @@
                 return cookieValue;
             }
 
-            // Helper to update location in DB (form encoded with CSRF)
+            // Helper to update location in DB
             function updateLocationInDB(lat, lon, source) {
                 fetch('/update_location/', {
                     method: 'POST',
@@ -309,7 +575,6 @@
                 }
             }
 
-            // NEW: Function to fetch preferred places for date mode
             async function fetchPreferredPlaces(lat, lon, partnerName) {
                 try {
                     const url = `/get_preferred_places/?lat=${lat}&lon=${lon}&partner=${encodeURIComponent(partnerName)}`;
@@ -340,6 +605,7 @@
                 }
             }
 
+            // UPDATED: Enhanced displayPlaces function with directions button
             function displayPlaces(places, userLat, userLon) {
                 clearPlaceMarkers();
                 const placeDetails = document.getElementById('place-details');
@@ -382,7 +648,8 @@
                     const website = place.tags?.website || "";
                     const openingHours = place.tags?.opening_hours || "";
                     
-                    let popupContent = `<b>${name}</b><br>`;
+                    // UPDATED: Enhanced popup with directions button
+                    let popupContent = `<div><b>${name}</b><br>`;
                     popupContent += `<i>${amenity}</i><br>`;
                     if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
                     if (phone) popupContent += `Phone: ${phone}<br>`;
@@ -391,8 +658,16 @@
                     
                     if (userLat && userLon) {
                         const dist = distance(userLat, userLon, lat, lon);
-                        popupContent += `Distance: ${(dist / 1000).toFixed(2)} km`;
+                        popupContent += `Distance: ${(dist / 1000).toFixed(2)} km<br>`;
                     }
+                    
+                    // Add directions button
+                    const canShowDirections = userMarker || partnerMarker;
+                    popupContent += `<button class="popup-directions-btn" 
+                        onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
+                        ${!canShowDirections ? 'disabled' : ''}>
+                        🗺️ Get Directions
+                    </button></div>`;
                     
                     // Create custom colored marker based on amenity type
                     const markerColor = getMarkerColor(amenity);
@@ -404,7 +679,7 @@
                     
                     placeMarkers.push(marker);
                     
-                    // Add to place details list
+                    // UPDATED: Enhanced place details list with directions button
                     if (placeDetails) {
                         const div = document.createElement('div');
                         div.className = 'place-item';
@@ -413,10 +688,19 @@
                             <span style="color: #666;">${amenity}</span>
                             ${cuisine ? `<br><span style="color: #888;">Cuisine: ${cuisine}</span>` : ''}
                             ${userLat && userLon ? `<br><span style="color: #888;">Distance: ${(distance(userLat, userLon, lat, lon) / 1000).toFixed(2)} km</span>` : ''}
+                            <br><button class="popup-directions-btn" 
+                                onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
+                                ${!canShowDirections ? 'disabled' : ''}
+                                style="margin-top: 5px; width: auto; padding: 5px 10px; font-size: 11px;">
+                                🗺️ Get Directions
+                            </button>
                         `;
-                        div.addEventListener('click', () => {
-                            map.setView([lat, lon], 18);
-                            marker.openPopup();
+                        div.addEventListener('click', (e) => {
+                            // Only zoom to location if not clicking the button
+                            if (!e.target.classList.contains('popup-directions-btn')) {
+                                map.setView([lat, lon], 18);
+                                marker.openPopup();
+                            }
                         });
                         placeDetails.appendChild(div);
                     }
@@ -425,14 +709,16 @@
                 console.log('Added', placeMarkers.length, 'place markers to map');
             }
 
-            // Modified: Only search when explicitly called (no auto-search)
+            // Make showDirections available globally
+            window.showDirections = showDirections;
+
+            // Rest of your existing code remains the same...
             async function searchNearbyPlaces(lat, lon, tag = 'restaurant') {
                 console.log('Searching for places near:', lat, lon, 'tag:', tag);
                 const places = await fetchNearbyPlaces(lat, lon, tag);
                 displayPlaces(places, lat, lon);
             }
 
-            // NEW: Search function for date mode using preferences
             async function searchPreferredPlaces(lat, lon, partnerName) {
                 console.log('Searching for preferred places near:', lat, lon, 'partner:', partnerName);
                 const places = await fetchPreferredPlaces(lat, lon, partnerName);
@@ -455,6 +741,7 @@
                 }
             }
 
+            // Rest of your existing initialization code...
             if (dateInfo) {
                 // DATE MAP MODE
                 console.log('Date info mode:', dateInfo);
@@ -462,7 +749,7 @@
                 const { user_lat, user_lon, partner_lat, partner_lon, partner } = dateInfo;
                 
                 if (user_lat && user_lon && partner_lat && partner_lon) {
-                    // Draggable user marker (blue)
+                    // User marker (blue)
                     userMarker = L.marker([user_lat, user_lon], {
                         icon: L.icon({
                             iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
@@ -475,7 +762,6 @@
                         draggable: true
                     }).addTo(map).bindPopup("Your Location").openPopup();
 
-                    // Add dragend handler to update location
                     userMarker.on('dragend', e => {
                         const { lat, lng } = e.target.getLatLng();
                         updateLocationInDB(lat, lng, 'marker drag');
@@ -500,16 +786,21 @@
                     const midLon = (user_lon + partner_lon) / 2;
 
                     // Try to get route first, then fall back to simple midpoint
+                    // Try to get route first, then fall back to simple midpoint
                     fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
                         .then(res => res.json())
                         .then(geojson => {
                             const routeLine = L.geoJSON(geojson, {
                                 style: {
-                                    color: 'blue',
+                                    color: '#28a745', // Green for midpoint route
                                     weight: 4,
-                                    opacity: 0.8
+                                    opacity: 0.8,
+                                    dashArray: '5, 5' // Dashed line for midpoint
                                 }
                             }).addTo(map);
+
+                            // UPDATED: Store the midpoint route for later restoration
+                            storeMidpointRoute(routeLine, geojson);
 
                             // Find the midpoint along the route (by index)
                             const coords = geojson.coordinates;
@@ -540,7 +831,7 @@
                         .catch(err => {
                             console.error("Failed to load route:", err);
                             
-                            // Fallback to simple midpoint
+                            // Fallback to simple midpoint (no route line to store)
                             midpointMarker = L.marker([midLat, midLon], {
                                 icon: L.icon({
                                     iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
