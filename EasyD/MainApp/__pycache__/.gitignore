@@ -5,3 +5,4 @@ EasyD/MainApp/_pycache_/
 # Virtual environment
 .venv/
 venv/
+.env
