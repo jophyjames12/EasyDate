@@ -33,6 +33,122 @@ Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
 
 @csrf_exempt
+def get_place_reviews(request):
+    """
+    Fetch reviews for a place using Google Places API
+    """
+    if request.method == 'GET':
+        try:
+            # Get parameters from request
+            place_name = request.GET.get('name', '')
+            lat = request.GET.get('lat', '')
+            lon = request.GET.get('lon', '')
+            
+            if not all([place_name, lat, lon]):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing required parameters: name, lat, lon'
+                })
+            
+            # Check if API key is configured
+            if not settings.GOOGLE_PLACES_API_KEY:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Places API key not configured'
+                })
+            
+            # Step 1: Find the place using Places API Text Search
+            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+            search_params = {
+                'query': f"{place_name}",
+                'location': f"{lat},{lon}",
+                'radius': 500,  # 500 meters radius
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            search_response = requests.get(search_url, params=search_params)
+            search_data = search_response.json()
+            
+            if search_data.get('status') != 'OK' or not search_data.get('results'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place not found in Google Places'
+                })
+            
+            # Get the first result (most relevant)
+            place = search_data['results'][0]
+            place_id = place.get('place_id')
+            
+            if not place_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place ID not found'
+                })
+            
+            # Step 2: Get place details including reviews
+            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+            details_params = {
+                'place_id': place_id,
+                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            details_response = requests.get(details_url, params=details_params)
+            details_data = details_response.json()
+            
+            if details_data.get('status') != 'OK':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to fetch place details'
+                })
+            
+            place_details = details_data.get('result', {})
+            
+            # Extract relevant information
+            reviews_data = {
+                'status': 'success',
+                'place_name': place_details.get('name', place_name),
+                'rating': place_details.get('rating', 0),
+                'total_ratings': place_details.get('user_ratings_total', 0),
+                'address': place_details.get('formatted_address', ''),
+                'phone': place_details.get('formatted_phone_number', ''),
+                'website': place_details.get('website', ''),
+                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
+                'reviews': []
+            }
+            
+            # Process reviews
+            reviews = place_details.get('reviews', [])
+            for review in reviews[:5]:  # Limit to 5 reviews
+                review_data = {
+                    'author_name': review.get('author_name', 'Anonymous'),
+                    'rating': review.get('rating', 0),
+                    'text': review.get('text', ''),
+                    'time': review.get('relative_time_description', ''),
+                    'profile_photo_url': review.get('profile_photo_url', '')
+                }
+                reviews_data['reviews'].append(review_data)
+            
+            return JsonResponse(reviews_data)
+            
+        except requests.RequestException as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'API request failed: {str(e)}'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Server error: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only GET method allowed'
+    })
+
+
+@csrf_exempt
 def update_location(request):
     userinfo(request)
     if request.method == 'POST':
