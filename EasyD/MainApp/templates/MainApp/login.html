@@ -4,12 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    {% load static %}  <!-- Load the static template tag library -->
+    {% load static %}
     <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
+
+    <!-- Google Sign-In meta -->
+    <meta name="google-signin-client_id" content="YOUR_CLIENT_ID.apps.googleusercontent.com">
 </head>
 <body>
     <div class="auth-container">
         <h2>Login</h2>
+
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
@@ -17,6 +21,7 @@
                 {% endfor %}
             </div>
         {% endif %}
+
         <form method="post">
             {% csrf_token %}
             <label for="username">Username</label>
@@ -27,10 +32,43 @@
 
             <button onclick="location.href='/area/'" type="submit">Login</button>
         </form>
+
         <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
+
+        <!-- Google Sign-In Button -->
+        <div style="margin-top: 20px;">
+            <div id="my-signin2"></div>
+        </div>
     </div>
 
-    <!-- Include the JavaScript file just before the closing </body> tag -->
+    <!-- Your JS -->
     <script src="{% static 'MainApp/file.js' %}"></script>
+
+    <!-- Google Sign-In Script -->
+    <script>
+        function onSuccess(googleUser) {
+            console.log('Logged in as: ' + googleUser.getBasicProfile().getName());
+            // You can also send the ID token to your backend:
+            // const id_token = googleUser.getAuthResponse().id_token;
+        }
+
+        function onFailure(error) {
+            console.log(error);
+        }
+
+        function renderButton() {
+            gapi.signin2.render('my-signin2', {
+                'scope': 'profile email',
+                'width': 240,
+                'height': 50,
+                'longtitle': true,
+                'theme': 'dark',
+                'onsuccess': onSuccess,
+                'onfailure': onFailure
+            });
+        }
+    </script>
+
+    <script src="https://apis.google.com/js/platform.js?onload=renderButton" async defer></script>
 </body>
 </html>
