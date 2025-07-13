@@ -32,5 +32,5 @@ urlpatterns=[
     path('edit_profile/', views.edit_profile, name='edit_profile'),
     path('get_preferred_places/', views.get_preferred_places, name='get_preferred_places'),
     path('get_reviews/', views.get_place_reviews, name='get_place_reviews'),
-    #get-route
+    path('old-dates/', views.old_dates_view, name='old_dates'),
 ]

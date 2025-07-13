@@ -13,7 +13,7 @@ import requests
 import os
 import math 
 import uuid
-from datetime import datetime
+from datetime import datetime,date
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -27,6 +27,7 @@ users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
 Friendlist = db['FriendList']
 DateReq = db['DateRequests']  # New collection for date requests
+OldDates = db['OldDates']  # New collection for old dates
 Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
@@ -263,6 +264,8 @@ def area_view(request):
         return redirect('login')
     # Get user info
     userinfo(request)
+    # Move old dates to separate collection
+    move_old_dates()
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -270,37 +273,58 @@ def area_view(request):
     # Clear session flags after displaying
     if 'account_created' in request.session:
         del request.session['account_created']
-    
     if 'login_success' in request.session:
         del request.session['login_success']
     
-    # Fetch accepted dates for the current user
-    accepted_dates = list(DateReq.find({
+    # Fetch upcoming accepted dates for the current user
+    upcoming_dates = list(DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
         ]
     }))
+    # Fetch old dates for the current user (last 10 for reference)
+    old_dates = list(OldDates.find({
+        "$or": [
+            {"From": name, "status": "accepted"},
+            {"To": name, "status": "accepted"}
+        ]
+    }).sort("moved_at", -1).limit(10))
 
-    # Process dates to get partner info
-    processed_dates = []
-    for date_req in accepted_dates:
+    # Process upcoming dates to get partner info
+    processed_upcoming_dates = []
+    for date_req in upcoming_dates:
         partner = date_req["To"] if date_req["From"] == name else date_req["From"]
-        processed_dates.append({
+        processed_upcoming_dates.append({
             'date': date_req.get('date', ''),
             'time': date_req.get('time', ''),
             'partner': partner,
-            'request_id': str(date_req['_id'])
+            'request_id': str(date_req['_id']),
+            'status': 'upcoming'
         })
-
-    # Pass success messages and accepted dates to the template
+    
+    # Process old dates to get partner info
+    processed_old_dates = []
+    for date_req in old_dates:
+        partner = date_req["To"] if date_req["From"] == name else date_req["From"]
+        processed_old_dates.append({
+            'date': date_req.get('date', ''),
+            'time': date_req.get('time', ''),
+            'partner': partner,
+            'request_id': str(date_req.get('original_id', date_req['_id'])),
+            'status': 'past'
+        })
+    # Sort upcoming dates by date
+    processed_upcoming_dates.sort(key=lambda x: x['date'] if x['date'] else '')
+    # Pass success messages and dates to the template
     return render(request, 'MainApp/area.html', {
         'account_created': account_created, 
         'login_success': login_success,
-        'accepted_dates': processed_dates
+        'upcoming_dates': processed_upcoming_dates,
+        'old_dates': processed_old_dates,
+        'accepted_dates': processed_upcoming_dates  # Keep for backward compatibility
     })
 
-# Logout view to end the user's session
 def logout_view(request):
     if 'user_id' in request.session:
         # Remove user ID from session to log the user out
@@ -434,13 +458,12 @@ def accept_request(request):
                 {"$addToSet": {"friends": sender}},
                 upsert=True
             )
-            # Delete the accepted friend request
-            FriendReq.delete_one({"From": friendname, "To": name})
+            
+            FriendReq.delete_one({"From": friendname, "To": name}) # Delete the accepted friend request
             messages.success(request, f"You are now friends with {friendname}.")
     return redirect("search_user")
 
-# Reject friend request by removing it from the database
-def reject_request(request):
+def reject_request(request): # Reject friend request by removing it from the database
     if request.method == "POST":
         # Get the sender's username from the form data
         friendname = request.POST.get('friend_id')
@@ -449,10 +472,6 @@ def reject_request(request):
         messages.success(request, f"Friend request from {friendname} rejected!")
     return redirect("search_user")
 
-# Profile view to display the user's profile information
-# --- New Features Below ---
-
-# Send a date request to a friend with date and time input
 def send_date_request(request):
     userinfo(request)
     if request.method == "POST":
@@ -500,22 +519,15 @@ def send_date_request(request):
         messages.success(request, f"Date request sent to {friendname}.")
         return redirect("search_user")
 
-# View pending date requests and show them on the profile page
-# Profile view to display the user's profile information
-# --- New Features Below ---
-# View for displaying pending date requests and allowing the receiver to edit them
 def profile(request):
     userinfo(request)
-
     # Fetch user profile information
     user_profile = Profiles.find_one({"username": name})
     bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
     profile_picture = user_profile.get("profile_picture", None) if user_profile else None
-
     # Fetch the pending date requests for the user
     sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
-    
     # Get the user's friend count
     user_friendlist = Friendlist.find_one({"username": name})
     friend_count = len(user_friendlist.get("friends", [])) if user_friendlist else 0
@@ -531,7 +543,6 @@ def profile(request):
         }
         for req in received_requests
     ]
-    
     return render(request, 'MainApp/profile.html', {
         "sent_from": sent_from,
         "received_from": received_from,
@@ -776,17 +787,6 @@ def update_preferences(request):
         return redirect("area")
     else:
         return JsonResponse({"status": "error", "message": "Invalid request method."})
-
-# View to handle saving preferences
-#@csrf_exempt  # Temporarily exempt CSRF for testing, use CSRF middleware properly
-#@login_required
-#def save_preferences(request):
- #   if request.method == 'POST':
-  #      data = json.loads(request.body)
-   #     preferences = data.get('preferences', [])
-        # Save preferences to the user model or a related model
-    #    user = request.user
-     #   user.preferences.set(preferences)  # Assuming you have a preferences field
 
 @csrf_exempt
 def get_places(request):
@@ -1040,3 +1040,84 @@ def get_osrm_route(request):
         return JsonResponse(geometry)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
+    
+def move_old_dates():
+    """Move dates that have passed their due date to OldDates collection"""
+    try:
+        today = date.today()
+        old_dates = DateReq.find({  # Find all accepted dates that have passed
+            "status": "accepted",
+            "date": {"$exists": True, "$ne": ""}
+        })
+        moved_count = 0
+        for date_req in old_dates:
+            try:
+                # Parse the date string (assuming format YYYY-MM-DD)
+                date_str = date_req.get('date', '')
+                if date_str:
+                    # Handle different date formats
+                    try:
+                        date_obj = datetime.strptime(date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            date_obj = datetime.strptime(date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            try:
+                                date_obj = datetime.strptime(date_str, '%d/%m/%Y').date()
+                            except ValueError:
+                                continue  # Skip if date format is not recognized
+                    
+                    # Check if date has passed
+                    if date_obj < today:
+                        # Add to OldDates collection
+                        old_date_doc = dict(date_req)
+                        old_date_doc['moved_at'] = datetime.now()
+                        old_date_doc['original_id'] = date_req['_id']
+                        # Insert into OldDates
+                        OldDates.insert_one(old_date_doc)
+                        # Remove from DateReq
+                        DateReq.delete_one({"_id": date_req['_id']})
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing date {date_req.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} old dates to OldDates collection")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_old_dates: {e}")
+        return 0
+    
+def old_dates_view(request):
+    """View to display all old dates for the user"""
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    # Fetch all old dates for the current user
+    old_dates = list(OldDates.find({
+        "$or": [
+            {"From": name, "status": "accepted"},
+            {"To": name, "status": "accepted"}
+        ]
+    }).sort("moved_at", -1))
+    
+    # Process old dates to get partner info
+    processed_old_dates = []
+    for date_req in old_dates:
+        partner = date_req["To"] if date_req["From"] == name else date_req["From"]
+        processed_old_dates.append({
+            'date': date_req.get('date', ''),
+            'time': date_req.get('time', ''),
+            'partner': partner,
+            'request_id': str(date_req.get('original_id', date_req['_id'])),
+            'moved_at': date_req.get('moved_at', ''),
+            'status': 'past'
+        })
+    return render(request, 'MainApp/old_dates.html', {
+        'old_dates': processed_old_dates,
+        'name': name
+    })
+

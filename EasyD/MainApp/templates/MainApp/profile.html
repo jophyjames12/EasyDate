@@ -319,8 +319,12 @@
                             <div class="stat-label">friends</div>
                         </div>
                     </div>
+                    <!-- Navigation Links -->
+                    <div class="profile-actions" style="margin-top: 20px; display: flex; gap: 10px;">
+                        <a href="{% url 'edit_profile' %}" class="edit-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
+                        <a href="{% url 'old_dates' %}" class="edit-btn" style="text-decoration: none; display: inline-block; background: #6c757d;">View Date History</a>
+                    </div>
                 </div>
-                <a href="{% url 'edit_profile' %}" class="edit-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
             </div>
         </div>
 

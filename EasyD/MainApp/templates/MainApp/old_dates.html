@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Old Dates History</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            color: #212529;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #6c757d;
+            font-size: 16px;
+        }
+
+        .back-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 15px;
+        }
+
+        .back-btn:hover {
+            background: #0056b3;
+        }
+
+        .dates-section {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }
+
+        .section-title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #212529;
+            margin-bottom: 25px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '📅';
+            font-size: 20px;
+        }
+
+        .date-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            gap: 20px;
+        }
+
+        .date-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 15px;
+            padding: 25px;
+            color: white;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .date-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+        }
+
+        .date-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(135deg, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 100%);
+            pointer-events: none;
+        }
+
+        .date-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .partner-name {
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+        }
+
+        .status-badge {
+            background: rgba(255, 255, 255, 0.2);
+            color: white;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            backdrop-filter: blur(10px);
+        }
+
+        .date-info {
+            margin-bottom: 15px;
+        }
+
+        .date-detail {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            color: rgba(255, 255, 255, 0.9);
+        }
+
+        .date-detail i {
+            width: 16px;
+            text-align: center;
+        }
+
+        .moved-at {
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.7);
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+            padding-top: 10px;
+            margin-top: 15px;
+        }
+
+        .no-dates {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 60px;
+            background: #f8f9fa;
+            border-radius: 15px;
+            border: 2px dashed #ddd;
+        }
+
+        .no-dates::before {
+            content: '🗓️';
+            font-size: 64px;
+            display: block;
+            margin-bottom: 20px;
+        }
+
+        .no-dates h3 {
+            font-size: 24px;
+            margin-bottom: 10px;
+            color: #495057;
+        }
+
+        .no-dates p {
+            font-size: 16px;
+            color: #6c757d;
+        }
+
+        .stats-bar {
+            background: #e9ecef;
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+
+        .stats-item {
+            display: inline-block;
+            margin: 0 20px;
+        }
+
+        .stats-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #495057;
+        }
+
+        .stats-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+        }
+
+        @media (max-width: 768px) {
+            .date-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .stats-item {
+                display: block;
+                margin: 10px 0;
+            }
+            
+            .container {
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <h1>Your Date History</h1>
+            <p>A collection of all your past dates and memories</p>
+            <a href="{% url 'profile' %}" class="back-btn">← Back to Profile</a>
+        </div>
+
+        <!-- Stats -->
+        {% if old_dates %}
+        <div class="stats-bar">
+            <div class="stats-item">
+                <div class="stats-number">{{ old_dates|length }}</div>
+                <div class="stats-label">Total Past Dates</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <!-- Old Dates Section -->
+        <div class="dates-section">
+            <h2 class="section-title">Past Dates</h2>
+            
+            {% if old_dates %}
+                <div class="date-grid">
+                    {% for date in old_dates %}
+                        <div class="date-card">
+                            <div class="date-header">
+                                <div class="partner-name">{{ date.partner }}</div>
+                                <div class="status-badge">{{ date.status|title }}</div>
+                            </div>
+                            
+                            <div class="date-info">
+                                <div class="date-detail">
+                                    <i>📅</i>
+                                    <span>{{ date.date|default:"Date not specified" }}</span>
+                                </div>
+                                <div class="date-detail">
+                                    <i>⏰</i>
+                                    <span>{{ date.time|default:"Time not specified" }}</span>
+                                </div>
+                            </div>
+                            
+                            {% if date.moved_at %}
+                                <div class="moved-at">
+                                    Archived: {{ date.moved_at|date:"M j, Y g:i A" }}
+                                </div>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-dates">
+                    <h3>No Past Dates Yet</h3>
+                    <p>Your dating history will appear here once you've had some dates!</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>
