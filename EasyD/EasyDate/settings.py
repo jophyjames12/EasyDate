@@ -14,7 +14,12 @@ from pathlib import Path
 import os
 from django.contrib.messages import constants as messages
 from decouple import config
+from dotenv import load_dotenv
 
+load_dotenv()
+
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
 GOOGLE_PLACES_API_KEY = config('GOOGLE_PLACES_API_KEY', default='')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.

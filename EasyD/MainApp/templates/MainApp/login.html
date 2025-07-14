@@ -4,8 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    {% load static %}  <!-- Load the static template tag library -->
+    {% load static %}
     <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div class="auth-container">
@@ -17,6 +18,7 @@
                 {% endfor %}
             </div>
         {% endif %}
+
         <form method="post">
             {% csrf_token %}
             <label for="username">Username</label>
@@ -25,12 +27,61 @@
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required>
 
-            <button onclick="location.href='/area/'" type="submit">Login</button>
+            <button type="submit">Login</button>
         </form>
+
+        <div style="margin-top: 20px;">
+            <!-- Google Sign-In button -->
+            <div id="g_id_onload"
+                 data-client_id="{{ google_client_id }}"
+                 data-auto_prompt="false">
+            </div>
+
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-size="large"
+                 data-theme="outline"
+                 data-text="sign_in_with"
+                 data-shape="rectangular"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+
         <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
     </div>
 
-    <!-- Include the JavaScript file just before the closing </body> tag -->
+    <script>
+        function handleCredentialResponse(response) {
+            fetch("{% url 'google_auth' %}", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ credential: response.credential })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    window.location.href = '/area/';
+                } else {
+                    alert("Google sign-in failed: " + data.message);
+                }
+            });
+        }
+
+        window.onload = function () {
+            google.accounts.id.initialize({
+                client_id: "{{ google_client_id }}",
+                callback: handleCredentialResponse
+            });
+            google.accounts.id.renderButton(
+                document.querySelector(".g_id_signin"),
+                { theme: "outline", size: "large" }
+            );
+        };
+    </script>
+
     <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>

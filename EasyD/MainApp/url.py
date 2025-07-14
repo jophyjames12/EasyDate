@@ -1,6 +1,7 @@
 from django.contrib import admin
 from django.urls import path
 from MainApp import views
+from .views import  google_auth_view
 
 urlpatterns=[
     path("",views.login_view, name="home"),
@@ -22,6 +23,7 @@ urlpatterns=[
     path("profile/", views.profile, name="profile"),  # Profile URL
     path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
     path('profile/', views.profile_view, name='profile'),
+    path('google-auth/', google_auth_view, name='google_auth'),
     #path('rate_place/', views.rate_place, name='rate_place'),
     #path('api/places/', views.get_places, name='get_places'),
     #path("sort_places_by_reviews/", views.sort_places_by_reviews, name="sort_places_by_reviews"),

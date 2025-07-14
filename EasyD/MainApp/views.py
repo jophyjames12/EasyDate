@@ -3,6 +3,8 @@ from tkinter import Place
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import render, redirect
 from django.contrib import messages
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
@@ -32,6 +34,60 @@ Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
+
+
+client_id = settings.GOOGLE_CLIENT_ID
+
+@csrf_exempt
+def google_auth_view(request):
+    if request.method == 'POST':
+        try:
+            # Parse token
+            body = json.loads(request.body.decode())
+            token = body.get("credential")
+
+            if not token:
+                return JsonResponse({'status': 'error', 'message': 'Missing token'}, status=400)
+
+            # Verify token
+            idinfo = id_token.verify_oauth2_token(
+                token,
+                google_requests.Request(),
+                settings.GOOGLE_CLIENT_ID
+            )
+
+            email = idinfo['email']
+            name = idinfo.get('name', '')
+
+            # Check if user exists in MongoDB
+            user = users_collection.find_one({"username": email})
+
+            if not user:
+                # Create a new user
+                new_user = {
+                    "username": email,
+                    "email": email,
+                    "name": name,
+                    "password": "",  # Not applicable for Google login
+                    "google_auth": True
+                }
+                inserted = users_collection.insert_one(new_user)
+                user_id = inserted.inserted_id
+            else:
+                user_id = user['_id']
+
+            # Set session manually
+            request.session['user_id'] = str(user_id)
+            request.session['login_success'] = True
+
+            return JsonResponse({'status': 'success'})
+
+        except ValueError as ve:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token'}, status=401)
+        except Exception as e:
+            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
+
+    return JsonResponse({'status': 'error', 'message': 'Only POST allowed'}, status=405)
 
 @csrf_exempt
 def get_place_reviews(request):
@@ -221,42 +277,41 @@ def login_view(request):
     return render(request, 'MainApp/login.html')
 
 # Signup view to handle user registration
+from django.conf import settings
+
 def signup_view(request):
     # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
-        # Retrieve form data for user registration
         username = request.POST['username']
         email = request.POST['email']
         password = request.POST['password']
         confirm_password = request.POST['confirm_password']
 
-        # Check if passwords match
         if password == confirm_password:
-            # Check if username or email already exists in MongoDB
             if users_collection.find_one({"username": username}):
                 messages.error(request, "Username already exists")
             elif users_collection.find_one({"email": email}):
                 messages.error(request, "Email already registered")
             else:
-                # Hash the password and save the new user in MongoDB
                 hashed_password = pbkdf2_sha256.hash(password)
                 new_user = {
                     "username": username,
                     "email": email,
                     "password": hashed_password
                 }
-                users_collection.insert_one(new_user)
-                # Start session for the newly registered user
-                request.session['user_id'] = str(new_user['_id'])
+                inserted_user = users_collection.insert_one(new_user)
+                request.session['user_id'] = str(inserted_user.inserted_id)
                 request.session['account_created'] = True
                 return redirect('area')
         else:
-            # Display error if passwords do not match
             messages.error(request, "Passwords do not match")
-    return render(request, 'MainApp/signup.html')
+
+    return render(request, 'MainApp/signup.html', {
+        'google_client_id': settings.GOOGLE_CLIENT_ID
+    })
 
 # Area view to display main content for logged-in users
 def area_view(request):
