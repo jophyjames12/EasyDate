@@ -74,6 +74,7 @@
       <div id="dropdown" class="dropdown-content">
         <a href="map">map</a>
         <!-- Update Profile link to go to the profile page -->
+        <a href="{% url 'events' %}">Events</a>
         <a href="{% url 'profile' %}">Profile</a>  <!-- Link to profile page -->
         <a href="logout/">Logout</a>
         <a href="search_user">Friends</a> <!-- Link to Friends feature -->
@@ -97,6 +98,42 @@
         </div>
       {% endif %}
     </div>
+  </section>
+
+  <!-- Community Events Section - ADD THIS ENTIRE SECTION -->
+  <section class="community-events">
+    <div class="events-header">
+      <h2>Community Events</h2>
+      <a href="{% url 'events' %}" class="view-all-btn">View All Events</a>
+    </div>
+    
+    {% if recent_events %}
+      <div class="events-grid">
+        {% for event in recent_events %}
+          <div class="event-card">
+            {% if event.image %}
+              <img src="{{ event.image }}" alt="{{ event.name }}" class="event-thumbnail">
+            {% else %}
+              <div class="event-thumbnail-placeholder">
+                <span>📅</span>
+              </div>
+            {% endif %}
+            
+            <div class="event-info">
+              <h3 class="event-name">{{ event.name }}</h3>
+              <p class="event-date">{{ event.event_date }}</p>
+              {% if event.location %}
+                <p class="event-location">📍 {{ event.location|truncatechars:30 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="no-events-message">
+        <p>No community events yet. <a href="{% url 'events' %}">Be the first to create one!</a></p>
+      </div>
+    {% endif %}
   </section>
 
   <!-- Auto-sliding Event Design Section -->
