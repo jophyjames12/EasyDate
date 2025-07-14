@@ -7,8 +7,8 @@
     {% load static %}
     <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
 
-    <!-- Google Sign-In meta -->
-    <meta name="google-signin-client_id" content="YOUR_CLIENT_ID.apps.googleusercontent.com">
+    <!-- Google Sign-In meta with injected client ID -->
+    <meta name="google-signin-client_id" content="{{ google_client_id }}">
 </head>
 <body>
     <div class="auth-container">
@@ -30,7 +30,7 @@
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required>
 
-            <button onclick="location.href='/area/'" type="submit">Login</button>
+            <button type="submit">Login</button>
         </form>
 
         <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
@@ -48,8 +48,6 @@
     <script>
         function onSuccess(googleUser) {
             console.log('Logged in as: ' + googleUser.getBasicProfile().getName());
-            // You can also send the ID token to your backend:
-            // const id_token = googleUser.getAuthResponse().id_token;
         }
 
         function onFailure(error) {

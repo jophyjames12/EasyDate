@@ -11,6 +11,7 @@ from django.contrib.auth.decorators import login_required
 import json
 import requests
 import os
+from dotenv import load_dotenv
 import math 
 import uuid
 from datetime import datetime
@@ -31,7 +32,8 @@ Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
-
+load_dotenv()
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
 @csrf_exempt
 def get_place_reviews(request):
     """
@@ -198,26 +200,29 @@ def home(request):
 
 # Login view to handle user authentication
 def login_view(request):
-    # If user is already logged in, redirect to the main area page
+    # If user is already logged in, redirect to area page
     if request.session.get('user_id'):
-        return render(request, 'MainApp/area.html')
+        return redirect('area_view')
 
     if request.method == 'POST':
-        # Retrieve submitted username and password from form
-        username = request.POST['username']
-        password = request.POST['password']
+        # Retrieve submitted credentials
+        username = request.POST.get('username')
+        password = request.POST.get('password')
 
-        # Fetch the user record from MongoDB by username
+        # Fetch the user from MongoDB by username
         user = users_collection.find_one({"username": username})
-        if user and pbkdf2_sha256.verify(password, user['password']):
-            # If user exists and password is correct, create session and redirect
+        if user and user.get('password') and pbkdf2_sha256.verify(password, user['password']):
+            # Create session on successful authentication
             request.session['user_id'] = str(user['_id'])
             request.session['login_success'] = True
             return redirect('area')
         else:
-            # Display error if login details are invalid
             messages.error(request, "Invalid username or password")
-    return render(request, 'MainApp/login.html')
+
+    # Always pass the Google Client ID to the template
+    return render(request, 'MainApp/login.html', {
+        'google_client_id': GOOGLE_CLIENT_ID
+    })
 
 # Signup view to handle user registration
 def signup_view(request):
