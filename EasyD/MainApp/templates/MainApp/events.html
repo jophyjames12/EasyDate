@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Events</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <style>
+        .events-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .events-header {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #333;
+        }
+
+        .events-tabs {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 15px 30px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            font-size: 16px;
+            font-weight: 500;
+            color: #666;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            color: #007bff;
+            border-bottom: 3px solid #007bff;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Event Registration Form */
+        .event-form {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input,
+        .form-group textarea,
+        .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #007bff;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        .file-upload {
+            border: 2px dashed #007bff;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .file-upload:hover {
+            background-color: #f8f9fa;
+        }
+
+        .file-upload input[type="file"] {
+            display: none;
+        }
+
+        .map-container {
+            height: 300px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-top: 10px;
+            position: relative;
+        }
+
+        .map-controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 1000;
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 12px;
+        }
+
+        .location-search {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+
+        .search-results {
+            max-height: 150px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-top: none;
+            background: white;
+            position: absolute;
+            width: 100%;
+            z-index: 1001;
+            display: none;
+        }
+
+        .search-result-item {
+            padding: 8px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            font-size: 12px;
+        }
+
+        .search-result-item:hover {
+            background-color: #f5f5f5;
+        }
+
+        .search-result-item:last-child {
+            border-bottom: none;
+        }
+
+        .location-info {
+            background: #f8f9fa;
+            padding: 8px;
+            border-radius: 4px;
+            margin-top: 10px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .submit-btn {
+            background: linear-gradient(45deg, #007bff, #0056b3);
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 25px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
+        }
+
+        /* Events Grid */
+        .events-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+
+        .event-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .event-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .event-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+
+        .event-content {
+            padding: 20px;
+        }
+
+        .event-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .event-description {
+            color: #666;
+            margin-bottom: 15px;
+            line-height: 1.5;
+        }
+
+        .event-details {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .event-date {
+            background: #007bff;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .event-location {
+            color: #28a745;
+            font-weight: 500;
+        }
+
+        .pending-badge {
+            background: #ffc107;
+            color: #333;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .approved-badge {
+            background: #28a745;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .no-events {
+            text-align: center;
+            color: #666;
+            font-style: italic;
+            padding: 40px;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        /* Admin Section */
+        .admin-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .approve-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .reject-btn {
+            background: #dc3545;
+            color: white;
+            padding: 8px 15px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Top Menu Section -->
+    <header>
+        <h1>Events</h1>
+        <div class="menu">
+            <button onclick="toggleMenu()">☰ Menu</button>
+            <div id="dropdown" class="dropdown-content">
+                <a href="{% url 'area' %}">Home</a>
+                <a href="map">Map</a>
+                <a href="{% url 'profile' %}">Profile</a>
+                <a href="logout/">Logout</a>
+                <a href="search_user">Friends</a>
+            </div>
+        </div>
+    </header>
+
+    <div class="events-container">
+        <div class="events-header">
+            <h2>Community Events</h2>
+            <p>Discover and create amazing events for the community</p>
+        </div>
+
+        <!-- Events Tabs -->
+        <div class="events-tabs">
+            <button class="tab active" onclick="showTab('approved-events')">Approved Events</button>
+            <button class="tab" onclick="showTab('create-event')">Create Event</button>
+            <button class="tab" onclick="showTab('my-events')">My Events</button>
+            {% if is_admin %}
+            <button class="tab" onclick="showTab('admin-panel')">Admin Panel</button>
+            {% endif %}
+        </div>
+
+        <!-- Approved Events Tab -->
+        <div id="approved-events" class="tab-content active">
+            <div class="events-grid">
+                {% if approved_events %}
+                    {% for event in approved_events %}
+                        <div class="event-card">
+                            {% if event.image %}
+                                <img src="{{ event.image }}" alt="{{ event.name }}" class="event-image">
+                            {% else %}
+                                <div class="event-image" style="background: linear-gradient(45deg, #007bff, #0056b3); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                                    📅
+                                </div>
+                            {% endif %}
+                            <div class="event-content">
+                                <div class="event-title">{{ event.name }}</div>
+                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                <div class="event-details">
+                                    <span class="event-date">{{ event.event_date }}</span>
+                                    <span class="approved-badge">Approved</span>
+                                </div>
+                                {% if event.location %}
+                                    <div class="event-location">📍 {{ event.location }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-events">
+                        No approved events yet. Be the first to create one!
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Create Event Tab -->
+        <div id="create-event" class="tab-content">
+            <form class="event-form" method="POST" action="{% url 'create_event' %}" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label for="event_name">Event Name *</label>
+                    <input type="text" id="event_name" name="event_name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="event_description">Description *</label>
+                    <textarea id="event_description" name="event_description" placeholder="Describe your event..." required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="event_date">Event Date *</label>
+                    <input type="date" id="event_date" name="event_date" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="event_time">Event Time</label>
+                    <input type="time" id="event_time" name="event_time">
+                </div>
+
+                <div class="form-group">
+                    <label>Event Images</label>
+                    <div class="file-upload" onclick="document.getElementById('event_images').click()">
+                        <input type="file" id="event_images" name="event_images" multiple accept="image/*">
+                        <p>📷 Click to upload images</p>
+                        <p style="font-size: 12px; color: #666;">You can select multiple images</p>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="event_location">Location (Optional)</label>
+                    <div style="position: relative;">
+                        <input type="text" id="location_search" class="location-search" placeholder="Search for a location...">
+                        <div id="search_results" class="search-results"></div>
+                    </div>
+                    <input type="text" id="event_location" name="event_location" placeholder="Event location will appear here" readonly>
+                    <div id="event_map" class="map-container">
+                        <div class="map-controls">
+                            <div>📍 Click on map to set location</div>
+                        </div>
+                    </div>
+                    <div id="location_info" class="location-info" style="display: none;">
+                        <strong>Selected Location:</strong>
+                        <div id="selected_address">No location selected</div>
+                        <div style="margin-top: 5px; font-size: 11px;">
+                            Coordinates: <span id="selected_coords">-</span>
+                        </div>
+                    </div>
+                    <input type="hidden" id="event_lat" name="event_lat">
+                    <input type="hidden" id="event_lon" name="event_lon">
+                </div>
+
+                <button type="submit" class="submit-btn">Submit for Approval</button>
+            </form>
+        </div>
+
+        <!-- My Events Tab -->
+        <div id="my-events" class="tab-content">
+            <div class="events-grid">
+                {% if user_events %}
+                    {% for event in user_events %}
+                        <div class="event-card">
+                            {% if event.image %}
+                                <img src="{{ event.image }}" alt="{{ event.name }}" class="event-image">
+                            {% else %}
+                                <div class="event-image" style="background: linear-gradient(45deg, #6c757d, #495057); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                                    📅
+                                </div>
+                            {% endif %}
+                            <div class="event-content">
+                                <div class="event-title">{{ event.name }}</div>
+                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                <div class="event-details">
+                                    <span class="event-date">{{ event.event_date }}</span>
+                                    {% if event.status == 'pending' %}
+                                        <span class="pending-badge">Pending Approval</span>
+                                    {% elif event.status == 'approved' %}
+                                        <span class="approved-badge">Approved</span>
+                                    {% elif event.status == 'rejected' %}
+                                        <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">Rejected</span>
+                                    {% endif %}
+                                </div>
+                                {% if event.location %}
+                                    <div class="event-location">📍 {{ event.location }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-events">
+                        You haven't created any events yet.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Admin Panel Tab -->
+        {% if is_admin %}
+        <div id="admin-panel" class="tab-content">
+            <div class="events-grid">
+                {% if pending_events %}
+                    {% for event in pending_events %}
+                        <div class="event-card">
+                            {% if event.image %}
+                                <img src="{{ event.image }}" alt="{{ event.name }}" class="event-image">
+                            {% else %}
+                                <div class="event-image" style="background: linear-gradient(45deg, #ffc107, #e0a800); display: flex; align-items: center; justify-content: center; color: white; font-size: 24px;">
+                                    ⏳
+                                </div>
+                            {% endif %}
+                            <div class="event-content">
+                                <div class="event-title">{{ event.name }}</div>
+                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                <div class="event-details">
+                                    <span class="event-date">{{ event.event_date }}</span>
+                                    <span class="pending-badge">Pending</span>
+                                </div>
+                                {% if event.location %}
+                                    <div class="event-location">📍 {{ event.location }}</div>
+                                {% endif %}
+                                <p style="font-size: 12px; color: #666; margin-top: 10px;">Created by: {{ event.created_by }}</p>
+                                <div class="admin-actions">
+                                    <form method="POST" action="{% url 'approve_event' %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="event_id" value="{{ event.id }}">
+                                        <button type="submit" class="approve-btn">Approve</button>
+                                    </form>
+                                    <form method="POST" action="{% url 'reject_event' %}" style="display: inline;">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="event_id" value="{{ event.id }}">
+                                        <button type="submit" class="reject-btn">Reject</button>
+                                    </form>
+                                </div>
+                            </div>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="no-events">
+                        No pending events to review.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="{% static 'MainApp/file.js' %}"></script>
+    <script>
+        // Tab functionality
+        function showTab(tabName) {
+            // Hide all tab contents
+            const tabContents = document.querySelectorAll('.tab-content');
+            tabContents.forEach(tab => tab.classList.remove('active'));
+            
+            // Remove active class from all tabs
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => tab.classList.remove('active'));
+            
+            // Show selected tab content
+            document.getElementById(tabName).classList.add('active');
+            
+            // Add active class to clicked tab
+            event.target.classList.add('active');
+        }
+
+        // File upload preview
+        document.getElementById('event_images').addEventListener('change', function(e) {
+            const files = e.target.files;
+            const uploadDiv = e.target.parentElement;
+            
+            if (files.length > 0) {
+                uploadDiv.innerHTML = `
+                    <input type="file" id="event_images" name="event_images" multiple accept="image/*">
+                    <p>📷 ${files.length} image(s) selected</p>
+                    <p style="font-size: 12px; color: #666;">Click to change selection</p>
+                `;
+                uploadDiv.onclick = () => document.getElementById('event_images').click();
+            }
+        });
+
+        // OpenStreetMap functionality for event location
+        let eventMap;
+        let eventMarker;
+        let searchTimeout;
+        
+        function initEventMap() {
+            // Default to Dammam, Saudi Arabia (your location)
+            const defaultLat = 26.4207;
+            const defaultLng = 50.0888;
+            
+            // Initialize the map
+            eventMap = L.map('event_map').setView([defaultLat, defaultLng], 13);
+            
+            // Add OpenStreetMap tiles
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(eventMap);
+
+            // Add initial marker
+            eventMarker = L.marker([defaultLat, defaultLng], {
+                draggable: true
+            }).addTo(eventMap);
+
+            // Update coordinates when marker is dragged
+            eventMarker.on('dragend', function() {
+                const position = eventMarker.getLatLng();
+                updateEventLocation(position.lat, position.lng, 'marker drag');
+            });
+
+            // Click to place marker
+            eventMap.on('click', function(e) {
+                const lat = e.latlng.lat;
+                const lng = e.latlng.lng;
+                eventMarker.setLatLng([lat, lng]);
+                updateEventLocation(lat, lng, 'map click');
+            });
+
+            // Set initial values
+            document.getElementById('event_lat').value = defaultLat;
+            document.getElementById('event_lon').value = defaultLng;
+            
+            // Get initial address
+            reverseGeocode(defaultLat, defaultLng);
+        }
+
+        // Function to update event location
+        async function updateEventLocation(lat, lng, source) {
+            document.getElementById('event_lat').value = lat;
+            document.getElementById('event_lon').value = lng;
+            
+            // Update coordinates display
+            document.getElementById('selected_coords').textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+            
+            // Get address for the location
+            await reverseGeocode(lat, lng);
+            
+            // Show location info
+            document.getElementById('location_info').style.display = 'block';
+            
+            console.log(`Event location updated via ${source}: ${lat}, ${lng}`);
+        }
+
+        // Function to get address from coordinates
+        async function reverseGeocode(lat, lng) {
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+                const data = await response.json();
+                
+                if (data && data.display_name) {
+                    document.getElementById('event_location').value = data.display_name;
+                    document.getElementById('selected_address').textContent = data.display_name;
+                } else {
+                    document.getElementById('event_location').value = `Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                    document.getElementById('selected_address').textContent = 'Address not found';
+                }
+            } catch (error) {
+                console.error('Error getting address:', error);
+                document.getElementById('event_location').value = `Location: ${lat.toFixed(6)}, ${lng.toFixed(6)}`;
+                document.getElementById('selected_address').textContent = 'Address lookup failed';
+            }
+        }
+
+        // Location search functionality
+        function setupLocationSearch() {
+            const searchInput = document.getElementById('location_search');
+            const searchResults = document.getElementById('search_results');
+
+            searchInput.addEventListener('input', function(e) {
+                clearTimeout(searchTimeout);
+                const query = e.target.value.trim();
+                
+                if (query.length > 2) {
+                    searchTimeout = setTimeout(async () => {
+                        try {
+                            const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&countrycodes=sa&addressdetails=1`);
+                            const results = await response.json();
+                            
+                            displaySearchResults(results);
+                        } catch (error) {
+                            console.error('Search error:', error);
+                            searchResults.innerHTML = '<div class="search-result-item">Search failed</div>';
+                            searchResults.style.display = 'block';
+                        }
+                    }, 300);
+                } else {
+                    searchResults.style.display = 'none';
+                }
+            });
+
+            // Hide search results when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!searchInput.contains(e.target) && !searchResults.contains(e.target)) {
+                    searchResults.style.display = 'none';
+                }
+            });
+        }
+
+        function displaySearchResults(results) {
+            const searchResults = document.getElementById('search_results');
+            searchResults.innerHTML = '';
+            
+            if (results.length > 0) {
+                results.forEach(result => {
+                    const div = document.createElement('div');
+                    div.className = 'search-result-item';
+                    div.textContent = result.display_name;
+                    div.addEventListener('click', () => {
+                        const lat = parseFloat(result.lat);
+                        const lng = parseFloat(result.lon);
+                        
+                        // Update map view and marker
+                        eventMap.setView([lat, lng], 15);
+                        eventMarker.setLatLng([lat, lng]);
+                        
+                        // Update location
+                        updateEventLocation(lat, lng, 'search selection');
+                        
+                        // Clear search
+                        document.getElementById('location_search').value = '';
+                        searchResults.style.display = 'none';
+                    });
+                    searchResults.appendChild(div);
+                });
+                searchResults.style.display = 'block';
+            } else {
+                searchResults.innerHTML = '<div class="search-result-item">No results found</div>';
+                searchResults.style.display = 'block';
+            }
+        }
+
+        // Initialize map when the page loads
+        window.onload = function() {
+            initEventMap();
+            setupLocationSearch();
+        };
+    </script>
+    
+    <!-- Leaflet CSS and JS for OpenStreetMap -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+</body>
+</html>
