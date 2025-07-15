@@ -33,4 +33,9 @@ urlpatterns=[
     path('get_preferred_places/', views.get_preferred_places, name='get_preferred_places'),
     path('get_reviews/', views.get_place_reviews, name='get_place_reviews'),
     path('old-dates/', views.old_dates_view, name='old_dates'),
+    path('save_date_location/', views.save_date_location, name='save_date_location'),
+    path('get_date_location/', views.get_date_location, name='get_date_location'),
+    path('remove_date_location/', views.remove_date_location, name='remove_date_location'),
+    path('get_upcoming_dates/', views.get_user_upcoming_dates, name='get_upcoming_dates'),
+    path('select-date-location/<str:request_id>/', views.date_location_selection_view, name='select_date_location'),
 ]

@@ -471,6 +471,50 @@
             background: #e0a800;
         }
 
+        /* NEW: Location Selection Styles */
+        .location-selection-instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .location-selection-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+
+        .location-selection-instructions p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        .popup-location-btn {
+            background: #9c27b0;
+            color: white;
+        }
+
+        .popup-location-btn:hover {
+            background: #7b1fa2;
+        }
+
+        .selected-location-marker {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
         /* Responsive Design */
         @media (max-width: 768px) {
             .reviews-modal-content {
@@ -512,6 +556,11 @@
             .popup-btn {
                 width: 100%;
             }
+
+            .location-selection-instructions {
+                margin: 5px;
+                padding: 10px;
+            }
         }
     </style>
 </head>
@@ -522,10 +571,14 @@
         <h2>Date with {{ date_info.partner }}</h2>
         <p><strong>Date:</strong> {{ date_info.date }}</p>
         <p><strong>Time:</strong> {{ date_info.time }}</p>
-        <p>Map shows both your locations and the midpoint</p>
+        {% if location_selection_mode %}
+            <p>📍 Select a meeting location from the places below</p>
+        {% else %}
+            <p>Map shows both your locations and the midpoint</p>
+        {% endif %}
     </div>
     
-    <button class="back-btn" onclick="window.history.back()">← Back to Schedule</button>
+    <button class="back-btn" onclick="window.history.back()">← Back to {% if location_selection_mode %}Profile{% else %}Schedule{% endif %}</button>
     {% else %}
     <h1>Search Places and Rate</h1>
     {% endif %}
@@ -590,6 +643,13 @@
 
             // Global variable to store reviews modal
             let reviewsModal = null;
+
+            // NEW: Global variables for location selection mode
+            let locationSelectionMode = false;
+            let currentRequestId = null;
+            let selectedLocationMarker = null;
+            let midpointRouteLayer = null;
+            let midpointRouteData = null;
 
             // Function to create reviews modal
             function createReviewsModal() {
@@ -791,6 +851,190 @@
             let routeIdCounter = 0;
 
             const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
+            
+            // NEW: Initialize location selection mode if enabled
+            if (dateInfo && dateInfo.mode === 'location_selection') {
+                locationSelectionMode = true;
+                currentRequestId = dateInfo.request_id;
+                
+                // Update page title and add instructions
+                document.title = `Select Date Location - ${dateInfo.partner}`;
+                
+                // Add location selection instructions
+                const instructionsDiv = document.createElement('div');
+                instructionsDiv.className = 'location-selection-instructions';
+                instructionsDiv.innerHTML = `
+                    <h4>📍 Select Date Location</h4>
+                    <p>Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.</p>
+                    ${dateInfo.current_location ? `<p style="margin: 5px 0 0 0; color: #666;"><strong>Current location:</strong> ${dateInfo.current_location.name}</p>` : ''}
+                `;
+                document.body.insertBefore(instructionsDiv, document.getElementById('map'));
+                
+                // Show current location if exists
+                if (dateInfo.current_location) {
+                    showCurrentDateLocation(dateInfo.current_location);
+                }
+            }
+
+            // NEW: Function to show current date location
+            function showCurrentDateLocation(location) {
+                if (!location || !location.lat || !location.lon) return;
+                
+                // Create a special marker for current date location
+                const currentLocationIcon = L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                });
+                
+                selectedLocationMarker = L.marker([location.lat, location.lon], {
+                    icon: currentLocationIcon
+                }).addTo(map);
+                
+                const popupContent = `
+                    <div>
+                        <b>📍 Current Date Location</b><br>
+                        <strong>${location.name}</strong><br>
+                        ${location.address ? `${location.address}<br>` : ''}
+                        <div style="margin-top: 10px;">
+                            <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
+                                Remove Location
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                selectedLocationMarker.bindPopup(popupContent).openPopup();
+            }
+
+            // NEW: Function to set date location
+            async function setDateLocation(requestId, placeName, lat, lon, address, placeType) {
+                try {
+                    const response = await fetch('/save_date_location/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                        body: JSON.stringify({
+                            request_id: requestId,
+                            place_name: placeName,
+                            place_lat: lat,
+                            place_lon: lon,
+                            place_address: address,
+                            place_type: placeType
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // Remove existing selected location marker
+                        if (selectedLocationMarker) {
+                            map.removeLayer(selectedLocationMarker);
+                        }
+                        
+                        // Create new marker for selected location
+                        const selectedIcon = L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        });
+                        
+                        selectedLocationMarker = L.marker([lat, lon], {
+                            icon: selectedIcon
+                        }).addTo(map);
+                        
+                        const popupContent = `
+                            <div>
+                                <b>📍 Selected Date Location</b><br>
+                                <strong>${placeName}</strong><br>
+                                ${address ? `${address}<br>` : ''}
+                                <div style="margin-top: 10px;">
+                                    <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
+                                        Remove Location
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        selectedLocationMarker.bindPopup(popupContent).openPopup();
+                        
+                        // Show success message
+                        alert(`Date location set to ${placeName}!`);
+                        
+                        // Update instructions
+                        const instructions = document.querySelector('.location-selection-instructions p');
+                        if (instructions) {
+                            instructions.innerHTML = `Date location set to <strong>${placeName}</strong>. You can select a different location or go back to your profile.`;
+                        }
+                        
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error setting date location:', error);
+                    alert('Failed to set date location. Please try again.');
+                }
+            }
+
+            // NEW: Function to remove date location
+            async function removeDateLocation() {
+                if (!currentRequestId) return;
+                
+                if (!confirm('Are you sure you want to remove the date location?')) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/remove_date_location/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                        body: JSON.stringify({
+                            request_id: currentRequestId
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // Remove the selected location marker
+                        if (selectedLocationMarker) {
+                            map.removeLayer(selectedLocationMarker);
+                            selectedLocationMarker = null;
+                        }
+                        
+                        alert('Date location removed successfully!');
+                        
+                        // Update instructions
+                        const instructions = document.querySelector('.location-selection-instructions p');
+                        if (instructions) {
+                            instructions.innerHTML = `Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.`;
+                        }
+                        
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error removing date location:', error);
+                    alert('Failed to remove date location. Please try again.');
+                }
+            }
+
+            // Make functions globally available
+            window.setDateLocation = setDateLocation;
+            window.removeDateLocation = removeDateLocation;
             
             // Updated function to get marker color based on amenity type
             function getMarkerColor(amenity) {
@@ -1141,7 +1385,7 @@
                 }
             }
 
-            // UPDATED: Enhanced displayPlaces function with directions button
+            // UPDATED: Enhanced displayPlaces function with location selection
             function displayPlaces(places, userLat, userLon) {
                 clearPlaceMarkers();
                 const placeDetails = document.getElementById('place-details');
@@ -1184,7 +1428,7 @@
                     const website = place.tags?.website || "";
                     const openingHours = place.tags?.opening_hours || "";
                     
-                    // UPDATED: Enhanced popup with directions button
+                    // UPDATED: Enhanced popup with location selection button
                     let popupContent = `<div><b>${name}</b><br>`;
                     popupContent += `<i>${amenity}</i><br>`;
                     if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
@@ -1208,6 +1452,20 @@
                         🗺️ Directions
                     </button>`;
 
+                    // Add location selection button if in location selection mode
+                    if (locationSelectionMode && currentRequestId) {
+                        const address = [
+                            place.tags?.['addr:street'],
+                            place.tags?.['addr:city'],
+                            place.tags?.['addr:postcode']
+                        ].filter(Boolean).join(', ');
+                        
+                        popupContent += `<button class="popup-btn popup-location-btn" 
+                            onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
+                            📍 Set as Date Location
+                        </button>`;
+                    }
+
                     // Add reviews button (only for restaurants and cafes)
                     if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
                         popupContent += `<button class="popup-btn popup-reviews-btn" 
@@ -1228,7 +1486,7 @@
                     
                     placeMarkers.push(marker);
                     
-                    // UPDATED: Enhanced place details list with directions AND reviews buttons
+                    // UPDATED: Enhanced place details list with location selection button
                     if (placeDetails) {
                         const div = document.createElement('div');
                         div.className = 'place-item';
@@ -1245,6 +1503,20 @@
                                     🗺️ Directions
                                 </button>
                         `;
+                        
+                        // Add location selection button if in location selection mode
+                        if (locationSelectionMode && currentRequestId) {
+                            const address = [
+                                place.tags?.['addr:street'],
+                                place.tags?.['addr:city'],
+                                place.tags?.['addr:postcode']
+                            ].filter(Boolean).join(', ');
+                            
+                            placeHTML += `<button class="popup-btn popup-location-btn" 
+                                onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
+                                📍 Set as Date Location
+                            </button>`;
+                        }
                         
                         // Add reviews button for restaurants/cafes
                         if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
@@ -1347,7 +1619,6 @@
                     const midLat = (user_lat + partner_lat) / 2;
                     const midLon = (user_lon + partner_lon) / 2;
 
-                    // Try to get route first, then fall back to simple midpoint
                     // Try to get route first, then fall back to simple midpoint
                     fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
                         .then(res => res.json())
