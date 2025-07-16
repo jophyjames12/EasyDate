@@ -38,471 +38,56 @@ Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
 
-# Events view - main events page
-def events_view(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin (Faisal or Jophy)
-    is_admin = name in ['Faisal', 'Jophy']
-    
-    # Get approved events for everyone to see
-    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
-    
-    # Get user's own events
-    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
-    
-    # Get pending events for admin
-    pending_events = []
-    if is_admin:
-        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
-    
-    # Process events to add image URLs
-    for event in approved_events + user_events + pending_events:
-        event['id'] = str(event['_id'])
-        # Get first image for display
-        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
-        first_image = next(event_images, None)
-        event['image'] = first_image['image_url'] if first_image else None
-    
-    context = {
-        'approved_events': approved_events,
-        'user_events': user_events,
-        'pending_events': pending_events,
-        'is_admin': is_admin,
-        'name': name
-    }
-    
-    return render(request, 'MainApp/events.html', context)
-
-# Create event view
+GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
 @csrf_exempt
-def create_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    if request.method == 'POST':
-        try:
-            # Get form data
-            event_name = request.POST.get('event_name', '').strip()
-            event_description = request.POST.get('event_description', '').strip()
-            event_date = request.POST.get('event_date', '').strip()
-            event_time = request.POST.get('event_time', '').strip()
-            event_location = request.POST.get('event_location', '').strip()
-            event_lat = request.POST.get('event_lat', '')
-            event_lon = request.POST.get('event_lon', '')
-            
-            # Validate required fields
-            if not event_name or not event_description or not event_date:
-                messages.error(request, "Event name, description, and date are required.")
-                return redirect('events')
-            
-            # Create event document
-            event_data = {
-                'name': event_name,
-                'description': event_description,
-                'event_date': event_date,
-                'event_time': event_time,
-                'location': event_location,
-                'created_by': name,
-                'status': 'pending',  # All events start as pending
-                'created_at': datetime.now(),
-                'updated_at': datetime.now()
-            }
-            
-            # Add location coordinates if provided
-            if event_lat and event_lon:
-                try:
-                    event_data['lat'] = float(event_lat)
-                    event_data['lon'] = float(event_lon)
-                except ValueError:
-                    pass  # Skip if coordinates are invalid
-            
-            # Insert event into database
-            result = Events.insert_one(event_data)
-            event_id = str(result.inserted_id)
-            
-            # Handle image uploads
-            uploaded_files = request.FILES.getlist('event_images')
-            image_count = 0
-            
-            for uploaded_file in uploaded_files:
-                if uploaded_file and image_count < 5:  # Limit to 5 images
-                    try:
-                        # Validate file type
-                        if not uploaded_file.content_type.startswith('image/'):
-                            continue
-                        
-                        # Validate file size (5MB limit)
-                        if uploaded_file.size > 5 * 1024 * 1024:
-                            continue
-                        
-                        # Create upload directory
-                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
-                        if not os.path.exists(upload_dir):
-                            os.makedirs(upload_dir, mode=0o755)
-                        
-                        # Generate unique filename
-                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        unique_id = str(uuid.uuid4())[:8]
-                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
-                        file_path = os.path.join(upload_dir, filename)
-                        
-                        # Save file
-                        with open(file_path, 'wb+') as destination:
-                            for chunk in uploaded_file.chunks():
-                                destination.write(chunk)
-                        
-                        # Store image info in database
-                        image_url = f"/media/event_images/{filename}"
-                        EventImages.insert_one({
-                            'event_id': event_id,
-                            'image_url': image_url,
-                            'filename': filename,
-                            'uploaded_at': datetime.now()
-                        })
-                        
-                        image_count += 1
-                        
-                    except Exception as e:
-                        logger.error(f"Error uploading image: {e}")
-                        continue
-            
-            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
-            return redirect('events')
-            
-        except Exception as e:
-            logger.error(f"Error creating event: {e}")
-            messages.error(request, "An error occurred while creating the event. Please try again.")
-            return redirect('events')
-    
-    return redirect('events')
+def google_auth_view(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
 
-# Approve event view (admin only)
-@csrf_exempt
-def approve_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin
-    if name not in ['Faisal', 'Jophy']:
-        messages.error(request, "You don't have permission to approve events.")
-        return redirect('events')
-    
-    if request.method == 'POST':
-        event_id = request.POST.get('event_id')
-        
-        try:
-            # Update event status to approved
-            result = Events.update_one(
-                {'_id': ObjectId(event_id)},
-                {
-                    '$set': {
-                        'status': 'approved',
-                        'approved_by': name,
-                        'approved_at': datetime.now(),
-                        'updated_at': datetime.now()
-                    }
-                }
-            )
-            
-            if result.modified_count > 0:
-                messages.success(request, "Event has been approved successfully!")
-            else:
-                messages.error(request, "Event not found or already processed.")
-                
-        except Exception as e:
-            logger.error(f"Error approving event: {e}")
-            messages.error(request, "An error occurred while approving the event.")
-    
-    return redirect('events')
-
-# Reject event view (admin only)
-@csrf_exempt
-def reject_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin
-    if name not in ['Faisal', 'Jophy']:
-        messages.error(request, "You don't have permission to reject events.")
-        return redirect('events')
-    
-    if request.method == 'POST':
-        event_id = request.POST.get('event_id')
-        
-        try:
-            # Update event status to rejected
-            result = Events.update_one(
-                {'_id': ObjectId(event_id)},
-                {
-                    '$set': {
-                        'status': 'rejected',
-                        'rejected_by': name,
-                        'rejected_at': datetime.now(),
-                        'updated_at': datetime.now()
-                    }
-                }
-            )
-            
-            if result.modified_count > 0:
-                # Optionally delete associated images
-                EventImages.delete_many({'event_id': event_id})
-                messages.success(request, "Event has been rejected.")
-            else:
-                messages.error(request, "Event not found or already processed.")
-                
-        except Exception as e:
-            logger.error(f"Error rejecting event: {e}")
-            messages.error(request, "An error occurred while rejecting the event.")
-    
-    return redirect('events')
-
-# Get event details (for AJAX calls)
-@csrf_exempt
-def get_event_details(request, event_id):
-    if not request.session.get('user_id'):
-        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
-    
     try:
-        event = Events.find_one({'_id': ObjectId(event_id)})
-        
-        if not event:
-            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
-        
-        # Get event images
-        images = list(EventImages.find({'event_id': event_id}))
-        image_urls = [img['image_url'] for img in images]
-        
-        event_data = {
-            'id': str(event['_id']),
-            'name': event.get('name', ''),
-            'description': event.get('description', ''),
-            'event_date': event.get('event_date', ''),
-            'event_time': event.get('event_time', ''),
-            'location': event.get('location', ''),
-            'lat': event.get('lat'),
-            'lon': event.get('lon'),
-            'created_by': event.get('created_by', ''),
-            'status': event.get('status', ''),
-            'images': image_urls,
-            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
-        }
-        
-        return JsonResponse({'status': 'success', 'event': event_data})
-        
+        data = json.loads(request.body)
+        credential = data.get('credential')
+
+        if not credential:
+            return JsonResponse({'success': False, 'error': 'Missing credential'})
+
+        # Verify token with Google
+        token_info = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}').json()
+
+        if token_info.get('aud') != GOOGLE_CLIENT_ID:
+            return JsonResponse({'success': False, 'error': 'Token audience mismatch'}, status=400)
+
+        email = token_info.get('email')
+        name = token_info.get('name')
+
+        if not email:
+            return JsonResponse({'success': False, 'error': 'Email not found in token'}, status=400)
+
+        # Check if user exists in MongoDB
+        user = users_collection.find_one({"email": email})
+
+        if not user:
+            # New user from Google Sign-In
+            user_data = {
+            "username": name,  # Full name from Google
+            "email": email,
+            "password": None,  # No password because it's Google Sign-In
+            "login_method": "google"
+            }
+            inserted = users_collection.insert_one(user_data)
+            user_id = str(inserted.inserted_id)
+        else:
+            user_id = str(user["_id"])
+
+        # Set Django session
+        request.session['user_id'] = user_id
+        request.session['login_success'] = True
+
+        return JsonResponse({'success': True})
+
     except Exception as e:
-        logger.error(f"Error getting event details: {e}")
-        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
-    
-    
-@csrf_exempt
-def get_place_reviews(request):
-    """
-    Fetch reviews for a place using Google Places API
-    """
-    if request.method == 'GET':
-        try:
-            # Get parameters from request
-            place_name = request.GET.get('name', '')
-            lat = request.GET.get('lat', '')
-            lon = request.GET.get('lon', '')
-            
-            if not all([place_name, lat, lon]):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Missing required parameters: name, lat, lon'
-                })
-            
-            # Check if API key is configured
-            if not settings.GOOGLE_PLACES_API_KEY:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Google Places API key not configured'
-                })
-            
-            # Step 1: Find the place using Places API Text Search
-            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-            search_params = {
-                'query': f"{place_name}",
-                'location': f"{lat},{lon}",
-                'radius': 500,  # 500 meters radius
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            search_response = requests.get(search_url, params=search_params)
-            search_data = search_response.json()
-            
-            if search_data.get('status') != 'OK' or not search_data.get('results'):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place not found in Google Places'
-                })
-            
-            # Get the first result (most relevant)
-            place = search_data['results'][0]
-            place_id = place.get('place_id')
-            
-            if not place_id:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place ID not found'
-                })
-            
-            # Step 2: Get place details including reviews
-            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
-            details_params = {
-                'place_id': place_id,
-                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            details_response = requests.get(details_url, params=details_params)
-            details_data = details_response.json()
-            
-            if details_data.get('status') != 'OK':
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Failed to fetch place details'
-                })
-            
-            place_details = details_data.get('result', {})
-            
-            # Extract relevant information
-            reviews_data = {
-                'status': 'success',
-                'place_name': place_details.get('name', place_name),
-                'rating': place_details.get('rating', 0),
-                'total_ratings': place_details.get('user_ratings_total', 0),
-                'address': place_details.get('formatted_address', ''),
-                'phone': place_details.get('formatted_phone_number', ''),
-                'website': place_details.get('website', ''),
-                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
-                'reviews': []
-            }
-            
-            # Process reviews
-            reviews = place_details.get('reviews', [])
-            for review in reviews[:5]:  # Limit to 5 reviews
-                review_data = {
-                    'author_name': review.get('author_name', 'Anonymous'),
-                    'rating': review.get('rating', 0),
-                    'text': review.get('text', ''),
-                    'time': review.get('relative_time_description', ''),
-                    'profile_photo_url': review.get('profile_photo_url', '')
-                }
-                reviews_data['reviews'].append(review_data)
-            
-            return JsonResponse(reviews_data)
-            
-        except requests.RequestException as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'API request failed: {str(e)}'
-            })
-        except Exception as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'Server error: {str(e)}'
-            })
-    
-    return JsonResponse({
-        'status': 'error',
-        'message': 'Only GET method allowed'
-    })
-
-@csrf_exempt
-def update_location(request):
-    userinfo(request)
-    if request.method == 'POST':
-        lat = None
-        lon = None
-        
-        # Try to parse JSON first
-        try:
-            data = json.loads(request.body)
-            lat = data.get('latitude')
-            lon = data.get('longitude')
-        except (json.JSONDecodeError, TypeError):
-            # Fallback to form data
-            lat = request.POST.get('latitude')
-            lon = request.POST.get('longitude')
-
-        # Debug logging
-        print(f"DEBUG - Received coordinates: lat={lat}, lon={lon}")
-        print(f"DEBUG - User: {name}")
-
-        if lat is None or lon is None:
-            print("DEBUG - Missing latitude or longitude")
-            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
-        
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            print(f"DEBUG - Converted to floats: lat={lat}, lon={lon}")
-        except ValueError as e:
-            print(f"DEBUG - Conversion error: {e}")
-            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
-
-        # Validate coordinate ranges
-        if not (-90 <= lat <= 90):
-            print(f"DEBUG - Invalid latitude range: {lat}")
-            return JsonResponse({'status': 'error', 'message': 'Latitude must be between -90 and 90'}, status=400)
-            
-        if not (-180 <= lon <= 180):
-            print(f"DEBUG - Invalid longitude range: {lon}")
-            return JsonResponse({'status': 'error', 'message': 'Longitude must be between -180 and 180'}, status=400)
-
-        # Check for null island (0,0) which is often a default value
-        if lat == 0 and lon == 0:
-            print("DEBUG - Warning: Coordinates are at 0,0 (Null Island)")
-            return JsonResponse({'status': 'error', 'message': 'Invalid coordinates: 0,0 is not a valid location'}, status=400)
-
-        try:
-            existing = Location.find_one({'name': name})
-            if existing:
-                print(f"DEBUG - Updating existing location for {name}")
-                result = Location.update_one(
-                    {'_id': existing['_id']}, 
-                    {'$set': {'lat': lat, 'lon': lon, 'updated_at': datetime.now()}}
-                )
-                print(f"DEBUG - Update result: {result.modified_count} modified")
-            else:
-                print(f"DEBUG - Creating new location for {name}")
-                result = Location.insert_one({
-                    'name': name, 
-                    'lat': lat, 
-                    'lon': lon, 
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now()
-                })
-                print(f"DEBUG - Insert result: {result.inserted_id}")
-            
-            # Verify the save
-            saved_location = Location.find_one({'name': name})
-            print(f"DEBUG - Saved location: {saved_location}")
-            
-            return JsonResponse({
-                'status': 'success', 
-                'message': 'Location updated successfully',
-                'coordinates': {'lat': lat, 'lon': lon}
-            })
-            
-        except Exception as e:
-            print(f"DEBUG - Database error: {e}")
-            return JsonResponse({'status': 'error', 'message': f'Database error: {str(e)}'}, status=500)
-    
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+# Events view - main events page
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
@@ -566,11 +151,13 @@ def signup_view(request):
                 # Hash the password and save the new user in MongoDB
                 hashed_password = pbkdf2_sha256.hash(password)
                 new_user = {
-                    "username": username,
-                    "email": email,
-                    "password": hashed_password
+                "username": username,
+                "email": email,
+                "password": hashed_password,
+                "login_method": "password"
                 }
                 users_collection.insert_one(new_user)
+
                 # Start session for the newly registered user
                 request.session['user_id'] = str(new_user['_id'])
                 request.session['account_created'] = True
@@ -1968,3 +1555,468 @@ def remove_date_location(request):
         'status': 'error',
         'message': 'Only POST method allowed'
     }, status=405)
+
+def events_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin (Faisal or Jophy)
+    is_admin = name in ['Faisal', 'Jophy']
+    
+    # Get approved events for everyone to see
+    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get user's own events
+    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    
+    # Get pending events for admin
+    pending_events = []
+    if is_admin:
+        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
+    
+    # Process events to add image URLs
+    for event in approved_events + user_events + pending_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    context = {
+        'approved_events': approved_events,
+        'user_events': user_events,
+        'pending_events': pending_events,
+        'is_admin': is_admin,
+        'name': name
+    }
+    
+    return render(request, 'MainApp/events.html', context)
+
+# Create event view
+@csrf_exempt
+def create_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            event_name = request.POST.get('event_name', '').strip()
+            event_description = request.POST.get('event_description', '').strip()
+            event_date = request.POST.get('event_date', '').strip()
+            event_time = request.POST.get('event_time', '').strip()
+            event_location = request.POST.get('event_location', '').strip()
+            event_lat = request.POST.get('event_lat', '')
+            event_lon = request.POST.get('event_lon', '')
+            
+            # Validate required fields
+            if not event_name or not event_description or not event_date:
+                messages.error(request, "Event name, description, and date are required.")
+                return redirect('events')
+            
+            # Create event document
+            event_data = {
+                'name': event_name,
+                'description': event_description,
+                'event_date': event_date,
+                'event_time': event_time,
+                'location': event_location,
+                'created_by': name,
+                'status': 'pending',  # All events start as pending
+                'created_at': datetime.now(),
+                'updated_at': datetime.now()
+            }
+            
+            # Add location coordinates if provided
+            if event_lat and event_lon:
+                try:
+                    event_data['lat'] = float(event_lat)
+                    event_data['lon'] = float(event_lon)
+                except ValueError:
+                    pass  # Skip if coordinates are invalid
+            
+            # Insert event into database
+            result = Events.insert_one(event_data)
+            event_id = str(result.inserted_id)
+            
+            # Handle image uploads
+            uploaded_files = request.FILES.getlist('event_images')
+            image_count = 0
+            
+            for uploaded_file in uploaded_files:
+                if uploaded_file and image_count < 5:  # Limit to 5 images
+                    try:
+                        # Validate file type
+                        if not uploaded_file.content_type.startswith('image/'):
+                            continue
+                        
+                        # Validate file size (5MB limit)
+                        if uploaded_file.size > 5 * 1024 * 1024:
+                            continue
+                        
+                        # Create upload directory
+                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
+                        if not os.path.exists(upload_dir):
+                            os.makedirs(upload_dir, mode=0o755)
+                        
+                        # Generate unique filename
+                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        unique_id = str(uuid.uuid4())[:8]
+                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
+                        file_path = os.path.join(upload_dir, filename)
+                        
+                        # Save file
+                        with open(file_path, 'wb+') as destination:
+                            for chunk in uploaded_file.chunks():
+                                destination.write(chunk)
+                        
+                        # Store image info in database
+                        image_url = f"/media/event_images/{filename}"
+                        EventImages.insert_one({
+                            'event_id': event_id,
+                            'image_url': image_url,
+                            'filename': filename,
+                            'uploaded_at': datetime.now()
+                        })
+                        
+                        image_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error uploading image: {e}")
+                        continue
+            
+            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
+            return redirect('events')
+            
+        except Exception as e:
+            logger.error(f"Error creating event: {e}")
+            messages.error(request, "An error occurred while creating the event. Please try again.")
+            return redirect('events')
+    
+    return redirect('events')
+
+# Approve event view (admin only)
+@csrf_exempt
+def approve_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to approve events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to approved
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'approved',
+                        'approved_by': name,
+                        'approved_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                messages.success(request, "Event has been approved successfully!")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error approving event: {e}")
+            messages.error(request, "An error occurred while approving the event.")
+    
+    return redirect('events')
+
+# Reject event view (admin only)
+@csrf_exempt
+def reject_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to reject events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to rejected
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'rejected',
+                        'rejected_by': name,
+                        'rejected_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                # Optionally delete associated images
+                EventImages.delete_many({'event_id': event_id})
+                messages.success(request, "Event has been rejected.")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error rejecting event: {e}")
+            messages.error(request, "An error occurred while rejecting the event.")
+    
+    return redirect('events')
+
+# Get event details (for AJAX calls)
+@csrf_exempt
+def get_event_details(request, event_id):
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    try:
+        event = Events.find_one({'_id': ObjectId(event_id)})
+        
+        if not event:
+            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
+        
+        # Get event images
+        images = list(EventImages.find({'event_id': event_id}))
+        image_urls = [img['image_url'] for img in images]
+        
+        event_data = {
+            'id': str(event['_id']),
+            'name': event.get('name', ''),
+            'description': event.get('description', ''),
+            'event_date': event.get('event_date', ''),
+            'event_time': event.get('event_time', ''),
+            'location': event.get('location', ''),
+            'lat': event.get('lat'),
+            'lon': event.get('lon'),
+            'created_by': event.get('created_by', ''),
+            'status': event.get('status', ''),
+            'images': image_urls,
+            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
+        }
+        
+        return JsonResponse({'status': 'success', 'event': event_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting event details: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    
+    
+@csrf_exempt
+def get_place_reviews(request):
+    """
+    Fetch reviews for a place using Google Places API
+    """
+    if request.method == 'GET':
+        try:
+            # Get parameters from request
+            place_name = request.GET.get('name', '')
+            lat = request.GET.get('lat', '')
+            lon = request.GET.get('lon', '')
+            
+            if not all([place_name, lat, lon]):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing required parameters: name, lat, lon'
+                })
+            
+            # Check if API key is configured
+            if not settings.GOOGLE_PLACES_API_KEY:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Places API key not configured'
+                })
+            
+            # Step 1: Find the place using Places API Text Search
+            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+            search_params = {
+                'query': f"{place_name}",
+                'location': f"{lat},{lon}",
+                'radius': 500,  # 500 meters radius
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            search_response = requests.get(search_url, params=search_params)
+            search_data = search_response.json()
+            
+            if search_data.get('status') != 'OK' or not search_data.get('results'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place not found in Google Places'
+                })
+            
+            # Get the first result (most relevant)
+            place = search_data['results'][0]
+            place_id = place.get('place_id')
+            
+            if not place_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place ID not found'
+                })
+            
+            # Step 2: Get place details including reviews
+            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+            details_params = {
+                'place_id': place_id,
+                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            details_response = requests.get(details_url, params=details_params)
+            details_data = details_response.json()
+            
+            if details_data.get('status') != 'OK':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to fetch place details'
+                })
+            
+            place_details = details_data.get('result', {})
+            
+            # Extract relevant information
+            reviews_data = {
+                'status': 'success',
+                'place_name': place_details.get('name', place_name),
+                'rating': place_details.get('rating', 0),
+                'total_ratings': place_details.get('user_ratings_total', 0),
+                'address': place_details.get('formatted_address', ''),
+                'phone': place_details.get('formatted_phone_number', ''),
+                'website': place_details.get('website', ''),
+                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
+                'reviews': []
+            }
+            
+            # Process reviews
+            reviews = place_details.get('reviews', [])
+            for review in reviews[:5]:  # Limit to 5 reviews
+                review_data = {
+                    'author_name': review.get('author_name', 'Anonymous'),
+                    'rating': review.get('rating', 0),
+                    'text': review.get('text', ''),
+                    'time': review.get('relative_time_description', ''),
+                    'profile_photo_url': review.get('profile_photo_url', '')
+                }
+                reviews_data['reviews'].append(review_data)
+            
+            return JsonResponse(reviews_data)
+            
+        except requests.RequestException as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'API request failed: {str(e)}'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Server error: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only GET method allowed'
+    })
+
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = None
+        lon = None
+        
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
+
+        # Debug logging
+        print(f"DEBUG - Received coordinates: lat={lat}, lon={lon}")
+        print(f"DEBUG - User: {name}")
+
+        if lat is None or lon is None:
+            print("DEBUG - Missing latitude or longitude")
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+        
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            print(f"DEBUG - Converted to floats: lat={lat}, lon={lon}")
+        except ValueError as e:
+            print(f"DEBUG - Conversion error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        # Validate coordinate ranges
+        if not (-90 <= lat <= 90):
+            print(f"DEBUG - Invalid latitude range: {lat}")
+            return JsonResponse({'status': 'error', 'message': 'Latitude must be between -90 and 90'}, status=400)
+            
+        if not (-180 <= lon <= 180):
+            print(f"DEBUG - Invalid longitude range: {lon}")
+            return JsonResponse({'status': 'error', 'message': 'Longitude must be between -180 and 180'}, status=400)
+
+        # Check for null island (0,0) which is often a default value
+        if lat == 0 and lon == 0:
+            print("DEBUG - Warning: Coordinates are at 0,0 (Null Island)")
+            return JsonResponse({'status': 'error', 'message': 'Invalid coordinates: 0,0 is not a valid location'}, status=400)
+
+        try:
+            existing = Location.find_one({'name': name})
+            if existing:
+                print(f"DEBUG - Updating existing location for {name}")
+                result = Location.update_one(
+                    {'_id': existing['_id']}, 
+                    {'$set': {'lat': lat, 'lon': lon, 'updated_at': datetime.now()}}
+                )
+                print(f"DEBUG - Update result: {result.modified_count} modified")
+            else:
+                print(f"DEBUG - Creating new location for {name}")
+                result = Location.insert_one({
+                    'name': name, 
+                    'lat': lat, 
+                    'lon': lon, 
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now()
+                })
+                print(f"DEBUG - Insert result: {result.inserted_id}")
+            
+            # Verify the save
+            saved_location = Location.find_one({'name': name})
+            print(f"DEBUG - Saved location: {saved_location}")
+            
+            return JsonResponse({
+                'status': 'success', 
+                'message': 'Location updated successfully',
+                'coordinates': {'lat': lat, 'lon': lon}
+            })
+            
+        except Exception as e:
+            print(f"DEBUG - Database error: {e}")
+            return JsonResponse({'status': 'error', 'message': f'Database error: {str(e)}'}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
