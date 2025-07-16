@@ -601,12 +601,13 @@ def area_view(request):
     if 'login_success' in request.session:
         del request.session['login_success']
     
-    # Fetch upcoming accepted dates for the current user
+    # UPDATED: Fetch upcoming accepted dates that have a location set
     upcoming_dates = list(DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
-        ]
+        ],
+        "date_location": {"$exists": True, "$ne": None}  # Only include dates with location set
     }))
     
     # Fetch old dates for the current user (last 10 for reference)
@@ -1419,7 +1420,10 @@ def date_map_view(request, request_id):
         current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
         current_location = current_location_copy
     
-    # Prepare date info with validated coordinates
+    # NEW: Check if there's a date location set
+    has_date_location = current_location is not None
+    
+     # Prepare date info with validated coordinates
     date_info_dict = {
         'date': date_request.get('date', ''),
         'time': date_request.get('time', ''),
@@ -1429,7 +1433,10 @@ def date_map_view(request, request_id):
         'partner_lat': partner_lat,
         'partner_lon': partner_lon,
         'preferred_tags': preferred_tags,
-        'current_location': current_location
+        'current_location': current_location,
+        'has_date_location': has_date_location,
+        'show_routes_to_location': has_date_location,
+        'auto_search_places': False  # NEW: Disable auto-search for regular date mode too
     }
     
     # Debug - log the final data being sent to template
@@ -1732,9 +1739,48 @@ def date_location_selection_view(request, request_id):
     # Get partner info
     partner = date_request["To"] if date_request["From"] == name else date_request["From"]
     
-    # Get both users' locations
+    # Get both users' locations with detailed error checking
     user_location = Location.find_one({'name': name})
     partner_location = Location.find_one({'name': partner})
+    
+    # Validate user location
+    if not user_location:
+        messages.error(request, f"Your location is not set. Please update your location in your profile.")
+        return redirect('profile')
+    
+    if not user_location.get('lat') or not user_location.get('lon'):
+        messages.error(request, f"Your location coordinates are incomplete. Please update your location.")
+        return redirect('profile')
+    
+    # Validate partner location  
+    if not partner_location:
+        messages.error(request, f"{partner}'s location is not set. They need to update their location.")
+        return redirect('profile')
+    
+    if not partner_location.get('lat') or not partner_location.get('lon'):
+        messages.error(request, f"{partner}'s location coordinates are incomplete.")
+        return redirect('profile')
+    
+    # Convert coordinates to float with error handling
+    try:
+        user_lat = float(user_location['lat'])
+        user_lon = float(user_location['lon'])
+        partner_lat = float(partner_location['lat'])
+        partner_lon = float(partner_location['lon'])
+        
+        # Validate coordinate ranges
+        if not (-90 <= user_lat <= 90) or not (-180 <= user_lon <= 180):
+            messages.error(request, "Your location coordinates are invalid.")
+            return redirect('profile')
+            
+        if not (-90 <= partner_lat <= 90) or not (-180 <= partner_lon <= 180):
+            messages.error(request, f"{partner}'s location coordinates are invalid.")
+            return redirect('profile')
+            
+    except (ValueError, TypeError) as e:
+        messages.error(request, "Location coordinates are not in valid format.")
+        print(f"DEBUG - Coordinate conversion error: {e}")
+        return redirect('profile')
     
     # Get combined preferences for context
     preferred_tags = get_combined_preferences(name, partner)
@@ -1747,6 +1793,35 @@ def date_location_selection_view(request, request_id):
         current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
         current_location = current_location_copy
     
+    # NEW: Get route midpoint (not just coordinate midpoint)
+    route_midpoint_lat = None
+    route_midpoint_lon = None
+    
+    # Try to get actual route midpoint
+    try:
+        import requests
+        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if route.get('geometry') and route['geometry'].get('coordinates'):
+                    coords = route['geometry']['coordinates']
+                    # Get the actual midpoint of the route
+                    midpoint_index = len(coords) // 2
+                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                    logger.info(f"Route midpoint found: {route_midpoint_lat}, {route_midpoint_lon}")
+    except Exception as e:
+        logger.warning(f"Failed to get route midpoint: {e}")
+    
+    # Fallback to coordinate midpoint if route fails
+    if route_midpoint_lat is None or route_midpoint_lon is None:
+        route_midpoint_lat = (user_lat + partner_lat) / 2
+        route_midpoint_lon = (user_lon + partner_lon) / 2
+        logger.info(f"Using coordinate midpoint fallback: {route_midpoint_lat}, {route_midpoint_lon}")
+    
     # Prepare date info with location selection mode
     date_info_dict = {
         'request_id': str(date_request['_id']),
@@ -1754,13 +1829,17 @@ def date_location_selection_view(request, request_id):
         'time': date_request.get('time', ''),
         'partner': partner,
         'status': date_request.get('status', ''),
-        'user_lat': float(user_location['lat']) if user_location else None,
-        'user_lon': float(user_location['lon']) if user_location else None,
-        'partner_lat': float(partner_location['lat']) if partner_location else None,
-        'partner_lon': float(partner_location['lon']) if partner_location else None,
+        'user_lat': user_lat,
+        'user_lon': user_lon,
+        'partner_lat': partner_lat,
+        'partner_lon': partner_lon,
+        'route_midpoint_lat': route_midpoint_lat,  # NEW: Actual route midpoint
+        'route_midpoint_lon': route_midpoint_lon,  # NEW: Actual route midpoint
         'preferred_tags': preferred_tags,
         'mode': 'location_selection',  # Special mode for location selection
-        'current_location': current_location
+        'current_location': current_location,
+        'is_sender': is_sender,  # NEW: Add sender flag
+        'show_midpoint_route': not current_location  # NEW: Show midpoint route only if no location set
     }
     
     context = {

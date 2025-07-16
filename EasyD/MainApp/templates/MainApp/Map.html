@@ -616,7 +616,10 @@
         </h2>
         <p><strong>Date:</strong> {{ date_info.date }}</p>
         <p><strong>Time:</strong> {{ date_info.time }}</p>
-        {% if location_selection_mode %}
+        {% if date_info.current_location %}
+            <p><strong>📍 Meeting at:</strong> {{ date_info.current_location.name }}</p>
+            <p>Routes shown from both locations to your date spot!</p>
+        {% elif location_selection_mode %}
             {% if date_info.current_location %}
                 <p>🔄 Choose a different meeting location from the places below</p>
             {% else %}
@@ -903,12 +906,12 @@
 
             const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
             
-            // UPDATED: Initialize location selection mode if enabled with enhanced role tracking
+            // UPDATED: Initialize location selection mode if enabled with enhanced role tracking and route midpoint
             if (dateInfo && dateInfo.mode === 'location_selection') {
                 locationSelectionMode = true;
                 currentRequestId = dateInfo.request_id;
                 hasExistingLocation = !!dateInfo.current_location;
-                isUserSender = !hasExistingLocation; // If no existing location, user must be sender
+                isUserSender = dateInfo.is_sender;
                 
                 // Update page title and add enhanced instructions
                 if (hasExistingLocation) {
@@ -920,19 +923,20 @@
                 // UPDATED: Add enhanced location selection instructions with role-based styling
                 const instructionsDiv = document.createElement('div');
                 instructionsDiv.className = `location-selection-instructions ${hasExistingLocation ? 'receiver-mode' : 'sender-mode'}`;
-                
+
                 let instructionHTML = '';
                 if (hasExistingLocation) {
                     instructionHTML = `
                         <h4>🔄 Change Date Location</h4>
                         <p>You can select a different meeting location if you prefer somewhere else than <strong>${dateInfo.current_location.name}</strong>.</p>
-                        <p>Click on any place marker or use the "Set as Date Location" button to choose a new location.</p>
+                        <p>Use the search button to find places, then click on any place marker to choose a new location.</p>
                     `;
                 } else {
                     instructionHTML = `
                         <h4>📍 Select Date Location</h4>
                         <p>Choose where you'd like to meet ${dateInfo.partner} for your date.</p>
-                        <p>Click on any place marker or use the "Set as Date Location" button to choose your meeting location.</p>
+                        <p>The map shows the route between you and ${dateInfo.partner}, with the route midpoint marked in green.</p>
+                        <p>Use the search button to find places near the route, then click on any place marker to set it as your meeting location.</p>
                     `;
                 }
                 
@@ -942,6 +946,11 @@
                 // Show current location if exists
                 if (dateInfo.current_location) {
                     showCurrentDateLocation(dateInfo.current_location);
+                }
+                
+                // NEW: Setup midpoint route and markers for first-time selection
+                if (!hasExistingLocation && dateInfo.show_midpoint_route) {
+                    setupFirstTimeLocationSelection(dateInfo);
                 }
             }
 
@@ -981,6 +990,131 @@
                 `;
                 
                 selectedLocationMarker.bindPopup(popupContent).openPopup();
+            }
+
+            // NEW: Function to setup first-time location selection with ROUTE midpoint
+            async function setupFirstTimeLocationSelection(dateInfo) {
+                const { user_lat, user_lon, partner_lat, partner_lon, route_midpoint_lat, route_midpoint_lon, partner } = dateInfo;
+                
+                // Add user marker (blue)
+                userMarker = L.marker([user_lat, user_lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    }),
+                    draggable: true
+                }).addTo(map).bindPopup("Your Location");
+
+                userMarker.on('dragend', e => {
+                    const { lat, lng } = e.target.getLatLng();
+                    updateLocationInDB(lat, lng, 'marker drag');
+                    userMarker.setPopupContent("Location updated by dragging!").openPopup();
+                });
+
+                // Add partner marker (red)
+                partnerMarker = L.marker([partner_lat, partner_lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    }),
+                    draggable: false
+                }).addTo(map).bindPopup(`${partner}'s Location`);
+
+                // Get and display the actual route
+                try {
+                    const response = await fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`);
+                    const geojson = await response.json();
+                    
+                    if (geojson && geojson.coordinates) {
+                        // Show the route line
+                        const routeLine = L.geoJSON(geojson, {
+                            style: {
+                                color: '#28a745',
+                                weight: 4,
+                                opacity: 0.8,
+                                dashArray: '5, 5'
+                            }
+                        }).addTo(map);
+
+                        // Store as midpoint route for restoration
+                        storeMidpointRoute(routeLine, geojson);
+
+                        // Use the ACTUAL route midpoint calculated on the backend
+                        const actualMidLat = route_midpoint_lat;
+                        const actualMidLon = route_midpoint_lon;
+
+                        // Add midpoint marker at the ACTUAL route midpoint
+                        midpointMarker = L.marker([actualMidLat, actualMidLon], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowSize: [41, 41]
+                            }),
+                            draggable: false
+                        }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
+
+                        // Fit map to show all markers and route
+                        const latlngs = geojson.coordinates.map(coord => [coord[1], coord[0]]);
+                        latlngs.push([user_lat, user_lon], [partner_lat, partner_lon], [actualMidLat, actualMidLon]);
+                        map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+
+                        // Store the ACTUAL route midpoint coordinates for search
+                        window.routeMidLat = actualMidLat;
+                        window.routeMidLon = actualMidLon;
+                        
+                        console.log(`Route midpoint set to: ${actualMidLat}, ${actualMidLon}`);
+                        
+                    } else {
+                        throw new Error("No route data received");
+                    }
+                    
+                } catch (err) {
+                    console.error("Failed to load route, using backend-calculated midpoint:", err);
+                    
+                    // Use the backend-calculated midpoint (which could be route or coordinate midpoint)
+                    midpointMarker = L.marker([route_midpoint_lat, route_midpoint_lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        }),
+                        draggable: false
+                    }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
+
+                    // Fit map to show all markers
+                    const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
+                    map.fitBounds(group.getBounds().pad(0.1));
+
+                    // Store coordinates for search
+                    window.routeMidLat = route_midpoint_lat;
+                    window.routeMidLon = route_midpoint_lon;
+                }
+                
+                // Auto-search for places at the ACTUAL route midpoint
+                console.log(`Searching for places at route midpoint: ${window.routeMidLat}, ${window.routeMidLon}`);
+                
+                if (dateInfo.preferred_tags && dateInfo.preferred_tags.length > 0) {
+                    // Search using preferred places at route midpoint
+                    const places = await fetchPreferredPlaces(window.routeMidLat, window.routeMidLon, partner);
+                    displayPlaces(places, user_lat, user_lon);
+                } else {
+                    // Fallback to restaurant search at route midpoint
+                    await searchNearbyPlaces(window.routeMidLat, window.routeMidLon, 'restaurant');
+                }
             }
 
             // UPDATED: Function to set date location with enhanced success messaging
@@ -1216,6 +1350,77 @@
                 } catch (error) {
                     console.error('Error fetching route:', error);
                     return null;
+                }
+            }
+
+            // NEW: Function to show routes from both users to the date location
+            async function showRoutesToDateLocation(userLat, userLon, partnerLat, partnerLon, dateLat, dateLon, locationName, partnerName) {
+                try {
+                    // Get route from user to date location
+                    const userRoute = await getRoute(userLat, userLon, dateLat, dateLon);
+                    
+                    // Get route from partner to date location
+                    const partnerRoute = await getRoute(partnerLat, partnerLon, dateLat, dateLon);
+                    
+                    if (userRoute) {
+                        const userRouteLine = L.geoJSON(userRoute.geometry, {
+                            style: {
+                                color: '#007bff', // Blue for user
+                                weight: 4,
+                                opacity: 0.8
+                            }
+                        }).addTo(map);
+                        
+                        // Store as midpoint route for restoration
+                        storeMidpointRoute(userRouteLine, userRoute);
+                        
+                        // Add route info to controls
+                        const routeData = {
+                            id: ++routeIdCounter,
+                            name: 'Your Route to Date',
+                            color: '#007bff',
+                            route: userRoute,
+                            from: 'You',
+                            to: locationName
+                        };
+                        
+                        activeRoutes.set(routeData.id, {
+                            layer: userRouteLine,
+                            data: routeData
+                        });
+                    }
+                    
+                    if (partnerRoute) {
+                        const partnerRouteLine = L.geoJSON(partnerRoute.geometry, {
+                            style: {
+                                color: '#dc3545', // Red for partner
+                                weight: 4,
+                                opacity: 0.8,
+                                dashArray: '10, 10' // Dashed line for partner
+                            }
+                        }).addTo(map);
+                        
+                        const routeData = {
+                            id: ++routeIdCounter,
+                            name: `${partnerName}'s Route to Date`,
+                            color: '#dc3545',
+                            route: partnerRoute,
+                            from: partnerName,
+                            to: locationName
+                        };
+                        
+                        activeRoutes.set(routeData.id, {
+                            layer: partnerRouteLine,
+                            data: routeData
+                        });
+                    }
+                    
+                    // Show route controls
+                    document.getElementById('route-controls').style.display = 'block';
+                    updateRouteControls();
+                    
+                } catch (error) {
+                    console.error('Error showing routes to date location:', error);
                 }
             }
 
@@ -1675,12 +1880,12 @@
                 }
             }
 
-            // Rest of your existing initialization code...
+            // UPDATED: Enhanced date mode initialization (without auto-search)
             if (dateInfo) {
                 // DATE MAP MODE
                 console.log('Date info mode:', dateInfo);
                 
-                const { user_lat, user_lon, partner_lat, partner_lon, partner } = dateInfo;
+                const { user_lat, user_lon, partner_lat, partner_lon, partner, has_date_location, current_location } = dateInfo;
                 
                 if (user_lat && user_lon && partner_lat && partner_lon) {
                     // User marker (blue)
@@ -1715,90 +1920,113 @@
                         draggable: false
                     }).addTo(map).bindPopup(`${partner}'s Location`);
 
-                    // Calculate midpoint
-                    const midLat = (user_lat + partner_lat) / 2;
-                    const midLon = (user_lon + partner_lon) / 2;
+                    // NEW: Check if there's a date location set
+                    if (has_date_location && current_location) {
+                        // Show the date location marker
+                        const dateLocationMarker = L.marker([current_location.lat, current_location.lon], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowSize: [41, 41]
+                            }),
+                            draggable: false
+                        }).addTo(map).bindPopup(`📍 Date Location: ${current_location.name}`);
 
-                    // Try to get route first, then fall back to simple midpoint
-                    fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
-                        .then(res => res.json())
-                        .then(geojson => {
-                            const routeLine = L.geoJSON(geojson, {
-                                style: {
-                                    color: '#28a745', // Green for midpoint route
-                                    weight: 4,
-                                    opacity: 0.8,
-                                    dashArray: '5, 5' // Dashed line for midpoint
-                                }
-                            }).addTo(map);
+                        // Show routes from both users to the date location
+                        showRoutesToDateLocation(user_lat, user_lon, partner_lat, partner_lon, current_location.lat, current_location.lon, current_location.name, partner);
+                        
+                        // Fit map to show all markers
+                        const group = new L.featureGroup([userMarker, partnerMarker, dateLocationMarker]);
+                        map.fitBounds(group.getBounds().pad(0.1));
+                        
+                        // Store location coordinates for search
+                        window.routeMidLat = current_location.lat;
+                        window.routeMidLon = current_location.lon;
+                    } else {
+                        // No date location set, show midpoint route (existing behavior without auto-search)
+                        const midLat = (user_lat + partner_lat) / 2;
+                        const midLon = (user_lon + partner_lon) / 2;
 
-                            // UPDATED: Store the midpoint route for later restoration
-                            storeMidpointRoute(routeLine, geojson);
+                        // Try to get route first, then fall back to simple midpoint
+                        fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
+                            .then(res => res.json())
+                            .then(geojson => {
+                                const routeLine = L.geoJSON(geojson, {
+                                    style: {
+                                        color: '#28a745',
+                                        weight: 4,
+                                        opacity: 0.8,
+                                        dashArray: '5, 5'
+                                    }
+                                }).addTo(map);
 
-                            // Find the midpoint along the route (by index)
-                            const coords = geojson.coordinates;
-                            const midpointIndex = Math.floor(coords.length / 2);
-                            const [routeMidLon, routeMidLat] = coords[midpointIndex];
+                                storeMidpointRoute(routeLine, geojson);
 
-                            // Add green marker at the route midpoint
-                            midpointMarker = L.marker([routeMidLat, routeMidLon], {
-                                icon: L.icon({
-                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                                    iconSize: [25, 41],
-                                    iconAnchor: [12, 41],
-                                    popupAnchor: [1, -34],
-                                    shadowSize: [41, 41]
-                                }),
-                                draggable: false
-                            }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
+                                const coords = geojson.coordinates;
+                                const midpointIndex = Math.floor(coords.length / 2);
+                                const [routeMidLon, routeMidLat] = coords[midpointIndex];
 
-                            // Fit map bounds to route
-                            const latlngs = coords.map(coord => [coord[1], coord[0]]);
-                            map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+                                midpointMarker = L.marker([routeMidLat, routeMidLon], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                        iconSize: [25, 41],
+                                        iconAnchor: [12, 41],
+                                        popupAnchor: [1, -34],
+                                        shadowSize: [41, 41]
+                                    }),
+                                    draggable: false
+                                }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
 
-                            // Store midpoint coordinates for manual search
-                            window.routeMidLat = routeMidLat;
-                            window.routeMidLon = routeMidLon;
-                        })
-                        .catch(err => {
-                            console.error("Failed to load route:", err);
-                            
-                            // Fallback to simple midpoint (no route line to store)
-                            midpointMarker = L.marker([midLat, midLon], {
-                                icon: L.icon({
-                                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
-                                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-                                    iconSize: [25, 41],
-                                    iconAnchor: [12, 41],
-                                    popupAnchor: [1, -34],
-                                    shadowSize: [41, 41]
-                                }),
-                                draggable: false
-                            }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
+                                const latlngs = coords.map(coord => [coord[1], coord[0]]);
+                                map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
 
-                            // Fit map bounds
-                            const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
-                            map.fitBounds(group.getBounds().pad(0.1));
+                                window.routeMidLat = routeMidLat;
+                                window.routeMidLon = routeMidLon;
+                                
+                                // REMOVED: Auto-search functionality - user must click search button
+                                console.log("Route loaded. Click search to find places.");
+                            })
+                            .catch(err => {
+                                console.error("Failed to load route:", err);
+                                
+                                midpointMarker = L.marker([midLat, midLon], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                        iconSize: [25, 41],
+                                        iconAnchor: [12, 41],
+                                        popupAnchor: [1, -34],
+                                        shadowSize: [41, 41]
+                                    }),
+                                    draggable: false
+                                }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
 
-                            // Store midpoint coordinates for manual search
-                            window.routeMidLat = midLat;
-                            window.routeMidLon = midLon;
-                        });
+                                const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
+                                map.fitBounds(group.getBounds().pad(0.1));
 
-                    // FIXED: Add search functionality for date mode - now uses selected tag
+                                window.routeMidLat = midLat;
+                                window.routeMidLon = midLon;
+                                
+                                // REMOVED: Auto-search functionality - user must click search button
+                                console.log("Coordinate midpoint loaded. Click search to find places.");
+                            });
+                    }
+
+                    // Add search functionality for date mode (manual search only)
                     const searchBtn = document.getElementById('search-btn');
                     const tagSelect = document.getElementById('tag');
                     
                     if (searchBtn) {
                         searchBtn.addEventListener('click', async () => {
-                            const searchLat = window.routeMidLat || midLat;
-                            const searchLon = window.routeMidLon || midLon;
-                            const selectedTag = tagSelect.value; // Get selected tag from dropdown
+                            const searchLat = window.routeMidLat || (user_lat + partner_lat) / 2;
+                            const searchLon = window.routeMidLon || (user_lon + partner_lon) / 2;
+                            const selectedTag = tagSelect.value;
                             
-                            console.log('Searching for places at midpoint:', searchLat, searchLon, 'tag:', selectedTag);
-                            
-                            // Use the regular search function with selected tag instead of preference-based search
+                            console.log('Searching for places:', searchLat, searchLon, 'tag:', selectedTag);
                             await searchNearbyPlaces(searchLat, searchLon, selectedTag);
                         });
                     }
@@ -1806,7 +2034,6 @@
                 } else {
                     alert("Unable to load location data for this date. Make sure both users have set their locations.");
                 }
-
             } else {
                 // REGULAR MAP MODE
                 console.log('Regular map mode');
@@ -1892,17 +2119,47 @@
                         locateUser();
                     });
                 }
+                
+                // UPDATED: Search button event listener for location selection mode
                 if (searchBtn) {
                     searchBtn.addEventListener('click', async () => {
-                        if (userMarker) {
-                            const userPos = userMarker.getLatLng();
+                        if (dateInfo && dateInfo.mode === 'location_selection') {
+                            // In location selection mode, search around ROUTE midpoint
+                            const searchLat = window.routeMidLat || dateInfo.route_midpoint_lat;
+                            const searchLon = window.routeMidLon || dateInfo.route_midpoint_lon;
                             const selectedTag = tagSelect.value;
-                            await searchNearbyPlaces(userPos.lat, userPos.lng, selectedTag);
+                            
+                            console.log('Location selection search at ROUTE midpoint:', searchLat, searchLon, 'tag:', selectedTag);
+                            
+                            if (dateInfo.preferred_tags && dateInfo.preferred_tags.length > 0) {
+                                // Use preferred places if available
+                                const places = await fetchPreferredPlaces(searchLat, searchLon, dateInfo.partner);
+                                displayPlaces(places, dateInfo.user_lat, dateInfo.user_lon);
+                            } else {
+                                // Fallback to regular search
+                                await searchNearbyPlaces(searchLat, searchLon, selectedTag);
+                            }
+                        } else if (dateInfo) {
+                            // Regular date mode - also use route midpoint if available
+                            const searchLat = window.routeMidLat || (dateInfo.user_lat + dateInfo.partner_lat) / 2;
+                            const searchLon = window.routeMidLon || (dateInfo.user_lon + dateInfo.partner_lon) / 2;
+                            const selectedTag = tagSelect.value;
+                            
+                            console.log('Date mode search:', searchLat, searchLon, 'tag:', selectedTag);
+                            await searchNearbyPlaces(searchLat, searchLon, selectedTag);
                         } else {
-                            displayError("Please set your location first.");
+                            // Regular map mode
+                            if (userMarker) {
+                                const userPos = userMarker.getLatLng();
+                                const selectedTag = tagSelect.value;
+                                await searchNearbyPlaces(userPos.lat, userPos.lng, selectedTag);
+                            } else {
+                                displayError("Please set your location first.");
+                            }
                         }
                     });
                 }
+                
                 // Manual location search functionality
                 if (manualLocationInput) {
                     let searchTimeout;

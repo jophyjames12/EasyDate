@@ -521,11 +521,6 @@
                         </div>
                         
                         <div class="action-buttons">
-                            <!-- Map view button - always available -->
-                            <a href="{% url 'date_map' date_item.request_id %}" class="btn btn-map">
-                                🗺️ View Map
-                            </a>
-                            
                             {% if date_item.can_set_location %}
                                 <!-- Location selection button - shows based on updated permission logic -->
                                 <a href="{% url 'select_date_location' date_item.request_id %}" class="btn {% if date_item.date_location %}btn-change-location{% else %}btn-location{% endif %}">
