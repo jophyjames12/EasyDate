@@ -18,6 +18,9 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import logging
+from PIL import Image
+from django.core.files.storage import FileSystemStorage
+
 logger = logging.getLogger(__name__)
 
 # MongoDB connection
@@ -32,7 +35,276 @@ Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
+Events = db['Events']  # New collection for events
+EventImages = db['EventImages']  # New collection for event images
 
+# Events view - main events page
+def events_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin (Faisal or Jophy)
+    is_admin = name in ['Faisal', 'Jophy']
+    
+    # Get approved events for everyone to see
+    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get user's own events
+    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    
+    # Get pending events for admin
+    pending_events = []
+    if is_admin:
+        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
+    
+    # Process events to add image URLs
+    for event in approved_events + user_events + pending_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    context = {
+        'approved_events': approved_events,
+        'user_events': user_events,
+        'pending_events': pending_events,
+        'is_admin': is_admin,
+        'name': name
+    }
+    
+    return render(request, 'MainApp/events.html', context)
+
+# Create event view
+@csrf_exempt
+def create_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            event_name = request.POST.get('event_name', '').strip()
+            event_description = request.POST.get('event_description', '').strip()
+            event_date = request.POST.get('event_date', '').strip()
+            event_time = request.POST.get('event_time', '').strip()
+            event_location = request.POST.get('event_location', '').strip()
+            event_lat = request.POST.get('event_lat', '')
+            event_lon = request.POST.get('event_lon', '')
+            
+            # Validate required fields
+            if not event_name or not event_description or not event_date:
+                messages.error(request, "Event name, description, and date are required.")
+                return redirect('events')
+            
+            # Create event document
+            event_data = {
+                'name': event_name,
+                'description': event_description,
+                'event_date': event_date,
+                'event_time': event_time,
+                'location': event_location,
+                'created_by': name,
+                'status': 'pending',  # All events start as pending
+                'created_at': datetime.now(),
+                'updated_at': datetime.now()
+            }
+            
+            # Add location coordinates if provided
+            if event_lat and event_lon:
+                try:
+                    event_data['lat'] = float(event_lat)
+                    event_data['lon'] = float(event_lon)
+                except ValueError:
+                    pass  # Skip if coordinates are invalid
+            
+            # Insert event into database
+            result = Events.insert_one(event_data)
+            event_id = str(result.inserted_id)
+            
+            # Handle image uploads
+            uploaded_files = request.FILES.getlist('event_images')
+            image_count = 0
+            
+            for uploaded_file in uploaded_files:
+                if uploaded_file and image_count < 5:  # Limit to 5 images
+                    try:
+                        # Validate file type
+                        if not uploaded_file.content_type.startswith('image/'):
+                            continue
+                        
+                        # Validate file size (5MB limit)
+                        if uploaded_file.size > 5 * 1024 * 1024:
+                            continue
+                        
+                        # Create upload directory
+                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
+                        if not os.path.exists(upload_dir):
+                            os.makedirs(upload_dir, mode=0o755)
+                        
+                        # Generate unique filename
+                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        unique_id = str(uuid.uuid4())[:8]
+                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
+                        file_path = os.path.join(upload_dir, filename)
+                        
+                        # Save file
+                        with open(file_path, 'wb+') as destination:
+                            for chunk in uploaded_file.chunks():
+                                destination.write(chunk)
+                        
+                        # Store image info in database
+                        image_url = f"/media/event_images/{filename}"
+                        EventImages.insert_one({
+                            'event_id': event_id,
+                            'image_url': image_url,
+                            'filename': filename,
+                            'uploaded_at': datetime.now()
+                        })
+                        
+                        image_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error uploading image: {e}")
+                        continue
+            
+            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
+            return redirect('events')
+            
+        except Exception as e:
+            logger.error(f"Error creating event: {e}")
+            messages.error(request, "An error occurred while creating the event. Please try again.")
+            return redirect('events')
+    
+    return redirect('events')
+
+# Approve event view (admin only)
+@csrf_exempt
+def approve_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to approve events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to approved
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'approved',
+                        'approved_by': name,
+                        'approved_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                messages.success(request, "Event has been approved successfully!")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error approving event: {e}")
+            messages.error(request, "An error occurred while approving the event.")
+    
+    return redirect('events')
+
+# Reject event view (admin only)
+@csrf_exempt
+def reject_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to reject events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to rejected
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'rejected',
+                        'rejected_by': name,
+                        'rejected_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                # Optionally delete associated images
+                EventImages.delete_many({'event_id': event_id})
+                messages.success(request, "Event has been rejected.")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error rejecting event: {e}")
+            messages.error(request, "An error occurred while rejecting the event.")
+    
+    return redirect('events')
+
+# Get event details (for AJAX calls)
+@csrf_exempt
+def get_event_details(request, event_id):
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    try:
+        event = Events.find_one({'_id': ObjectId(event_id)})
+        
+        if not event:
+            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
+        
+        # Get event images
+        images = list(EventImages.find({'event_id': event_id}))
+        image_urls = [img['image_url'] for img in images]
+        
+        event_data = {
+            'id': str(event['_id']),
+            'name': event.get('name', ''),
+            'description': event.get('description', ''),
+            'event_date': event.get('event_date', ''),
+            'event_time': event.get('event_time', ''),
+            'location': event.get('location', ''),
+            'lat': event.get('lat'),
+            'lon': event.get('lon'),
+            'created_by': event.get('created_by', ''),
+            'status': event.get('status', ''),
+            'images': image_urls,
+            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
+        }
+        
+        return JsonResponse({'status': 'success', 'event': event_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting event details: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    
+    
 @csrf_exempt
 def get_place_reviews(request):
     """
@@ -312,10 +584,13 @@ def signup_view(request):
 def area_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
+    
     # Get user info
     userinfo(request)
+    
     # Move old dates to separate collection
     move_old_dates()
+    
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -333,6 +608,7 @@ def area_view(request):
             {"To": name, "status": "accepted"}
         ]
     }))
+    
     # Fetch old dates for the current user (last 10 for reference)
     old_dates = list(OldDates.find({
         "$or": [
@@ -340,6 +616,17 @@ def area_view(request):
             {"To": name, "status": "accepted"}
         ]
     }).sort("moved_at", -1).limit(10))
+
+    # NEW: Fetch recent approved events (last 3 for homepage display)
+    recent_events = list(Events.find({'status': 'approved'}).sort('created_at', -1).limit(3))
+    
+    # Process recent events to add image URLs
+    for event in recent_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
 
     # Process upcoming dates to get partner info
     processed_upcoming_dates = []
@@ -364,15 +651,18 @@ def area_view(request):
             'request_id': str(date_req.get('original_id', date_req['_id'])),
             'status': 'past'
         })
+    
     # Sort upcoming dates by date
     processed_upcoming_dates.sort(key=lambda x: x['date'] if x['date'] else '')
-    # Pass success messages and dates to the template
+    
+    # Pass success messages, dates, and events to the template
     return render(request, 'MainApp/area.html', {
         'account_created': account_created, 
         'login_success': login_success,
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
-        'accepted_dates': processed_upcoming_dates  # Keep for backward compatibility
+        'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
+        'recent_events': recent_events,  # NEW: Add recent events
     })
 
 def logout_view(request):

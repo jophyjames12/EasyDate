@@ -1,6 +1,8 @@
 from django.contrib import admin
 from django.urls import path
 from MainApp import views
+from django.conf import settings
+from django.conf.urls.static import static
 
 urlpatterns=[
     path("",views.login_view, name="home"),
@@ -38,4 +40,9 @@ urlpatterns=[
     path('remove_date_location/', views.remove_date_location, name='remove_date_location'),
     path('get_upcoming_dates/', views.get_user_upcoming_dates, name='get_upcoming_dates'),
     path('select-date-location/<str:request_id>/', views.date_location_selection_view, name='select_date_location'),
+    path('events/', views.events_view, name='events'),
+    path('create_event/', views.create_event, name='create_event'),
+    path('approve_event/', views.approve_event, name='approve_event'),
+    path('reject_event/', views.reject_event, name='reject_event'),
+    path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
 ]
