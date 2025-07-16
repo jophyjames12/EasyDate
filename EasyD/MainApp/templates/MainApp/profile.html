@@ -384,6 +384,34 @@
             padding: 8px 15px;
         }
 
+        /* UPDATED: Enhanced styles for new permission system */
+        .location-permission-info {
+            background: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #2196f3;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+
+        .location-permission-info.sender-info {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+            color: #2e7d32;
+        }
+
+        .location-permission-info.receiver-info {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+            color: #ef6c00;
+        }
+
+        .location-permission-info.can-change {
+            background: #f3e5f5;
+            border-left-color: #9c27b0;
+            color: #7b1fa2;
+        }
+
         @media (max-width: 768px) {
             .profile-content {
                 flex-direction: column;
@@ -473,6 +501,23 @@
                                     <p>📍 No meeting location set yet</p>
                                 </div>
                             {% endif %}
+
+                            <!-- UPDATED: Enhanced permission info with clearer messaging -->
+                            {% if date_item.is_sender %}
+                                <div class="location-permission-info sender-info">
+                                    💡 You can {% if date_item.date_location %}change the{% else %}set the{% endif %} meeting location for this date.
+                                </div>
+                            {% else %}
+                                {% if date_item.date_location %}
+                                    <div class="location-permission-info can-change">
+                                        🔄 You can change the location chosen by {{ date_item.partner }} if you prefer somewhere else.
+                                    </div>
+                                {% else %}
+                                    <div class="location-permission-info receiver-info">
+                                        ⏳ {{ date_item.partner }} can set the initial meeting location, then you can change it if needed.
+                                    </div>
+                                {% endif %}
+                            {% endif %}
                         </div>
                         
                         <div class="action-buttons">
@@ -482,41 +527,24 @@
                             </a>
                             
                             {% if date_item.can_set_location %}
-                                <!-- Location selection button - for sender -->
-                                <a href="{% url 'select_date_location' date_item.request_id %}" class="btn btn-location">
-                                    📍 {% if date_item.date_location %}Change{% else %}Set{% endif %} Location
+                                <!-- Location selection button - shows based on updated permission logic -->
+                                <a href="{% url 'select_date_location' date_item.request_id %}" class="btn {% if date_item.date_location %}btn-change-location{% else %}btn-location{% endif %}">
+                                    {% if date_item.date_location %}
+                                        {% if date_item.is_sender %}
+                                            📍 Change Location
+                                        {% else %}
+                                            🔄 Choose Different Location
+                                        {% endif %}
+                                    {% else %}
+                                        📍 Set Location
+                                    {% endif %}
                                 </a>
                                 
                                 {% if date_item.date_location %}
-                                    <!-- Remove location button - only if location is set and user is sender -->
+                                    <!-- Remove location button - available for both sender and receiver -->
                                     <button onclick="removeLocationFromProfile('{{ date_item.request_id }}')" class="btn btn-remove">
                                         🗑️ Remove Location
                                     </button>
-                                {% endif %}
-                            {% else %}
-                                <!-- Enhanced location management for receiver -->
-                                {% if date_item.date_location %}
-                                    <div class="location-management">
-                                        <p class="location-help-text">
-                                            💡 You can change this location if you prefer somewhere else
-                                        </p>
-                                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                            <a href="{% url 'select_date_location' date_item.request_id %}" class="btn btn-change-location">
-                                                📍 Change Location
-                                            </a>
-                                            <button onclick="removeLocationFromProfile('{{ date_item.request_id }}')" class="btn btn-remove">
-                                                🗑️ Remove Location
-                                            </button>
-                                        </div>
-                                    </div>
-                                {% else %}
-                                    <div class="permission-note">
-                                        {% if date_item.is_sender %}
-                                            You can set the meeting location
-                                        {% else %}
-                                            {{ date_item.partner }} can set the initial location, then you can change it
-                                        {% endif %}
-                                    </div>
                                 {% endif %}
                             {% endif %}
                         </div>
@@ -555,11 +583,16 @@
                                     <p>📍 No location proposed yet</p>
                                 </div>
                             {% endif %}
+
+                            <!-- UPDATED: Enhanced permission info for sent requests -->
+                            <div class="location-permission-info sender-info">
+                                💡 You can {% if request.date_location %}change the{% else %}set a{% endif %} proposed meeting location. {{ request.username }} can modify it after accepting.
+                            </div>
                         </div>
                         
                         <div class="action-buttons">
                             <!-- Location selection button for pending requests -->
-                            <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-location">
+                            <a href="{% url 'select_date_location' request.request_id %}" class="btn {% if request.date_location %}btn-change-location{% else %}btn-location{% endif %}">
                                 📍 {% if request.date_location %}Change{% else %}Set{% endif %} Location
                             </a>
                             
@@ -602,26 +635,32 @@
                                         <p class="location-meta">Selected by: {{ request.date_location.selected_by }}</p>
                                     </div>
                                     
-                                    <!-- Location management for receivers when location exists -->
-                                    <div class="location-management">
-                                        <p class="location-help-text">
-                                            💡 You can change this location if you prefer somewhere else
-                                        </p>
-                                        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                            <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-change-location">
-                                                📍 Change Location
-                                            </a>
-                                            <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
-                                                🗑️ Remove Location
-                                            </button>
-                                        </div>
+                                    <!-- UPDATED: Enhanced location management for receivers with clearer messaging -->
+                                    <div class="location-permission-info can-change">
+                                        🔄 You can change this location when you accept the date request if you prefer somewhere else.
                                     </div>
+                                    
+                                    <!-- Location management for receivers when location exists -->
+                                    {% if request.can_set_location %}
+                                        <div class="location-management">
+                                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                                <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-change-location">
+                                                    🔄 Change Location
+                                                </a>
+                                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
+                                                    🗑️ Remove Location
+                                                </button>
+                                            </div>
+                                        </div>
+                                    {% endif %}
                                 {% else %}
                                     <div class="location-info no-location">
                                         <p>📍 No location proposed yet</p>
-                                        <p class="location-help-text">
-                                            {{ request.username }} can set a location, then you can change it if needed
-                                        </p>
+                                    </div>
+                                    
+                                    <!-- UPDATED: Enhanced messaging for no location scenario -->
+                                    <div class="location-permission-info receiver-info">
+                                        ⏳ {{ request.username }} can set a meeting location. Once set, you can change it if needed.
                                     </div>
                                 {% endif %}
                             </div>

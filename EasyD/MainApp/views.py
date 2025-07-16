@@ -613,7 +613,7 @@ def profile(request):
             "date": req.get("date", ""),
             "time": req.get("time", ""),
             "date_location": req.get("date_location", None),
-            "can_set_location": False  # Receiver cannot set location
+            "can_set_location": req.get("date_location") is not None  # Receiver can change existing location
         }
         received_from.append(req_data)
     
@@ -629,7 +629,7 @@ def profile(request):
             "date": req.get("date", ""),
             "time": req.get("time", ""),
             "date_location": req.get("date_location", None),
-            "can_set_location": is_sender,
+            "can_set_location": is_sender or (not is_sender and req.get("date_location") is not None),  # Updated permission logic
             "is_sender": is_sender
         }
         upcoming_dates_list.append(date_data)
@@ -1121,6 +1121,14 @@ def date_map_view(request, request_id):
     # Get combined preferences for context
     preferred_tags = get_combined_preferences(name, partner)
     
+    # Prepare current location data for JSON serialization (if it exists)
+    current_location = date_request.get('date_location', None)
+    if current_location and 'selected_at' in current_location:
+        # Convert datetime to string for JSON serialization
+        current_location_copy = current_location.copy()
+        current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
+        current_location = current_location_copy
+    
     # Prepare date info with validated coordinates
     date_info_dict = {
         'date': date_request.get('date', ''),
@@ -1131,6 +1139,7 @@ def date_map_view(request, request_id):
         'partner_lat': partner_lat,
         'partner_lon': partner_lon,
         'preferred_tags': preferred_tags,
+        'current_location': current_location
     }
     
     # Debug - log the final data being sent to template
@@ -1288,11 +1297,22 @@ def save_date_location(request):
                     'message': 'Date request not found'
                 }, status=404)
             
-            # Check if user is the sender of the date request
-            if date_request.get('From') != name:
+            # Updated permission check: sender can always set/change, receiver can only change existing location
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+            existing_location = date_request.get('date_location')
+
+            if not (is_sender or is_receiver):
                 return JsonResponse({
                     'status': 'error', 
-                    'message': 'Only the sender can set the date location'
+                    'message': 'Access denied'
+                }, status=403)
+
+            # Receiver can only change existing location, not set initial location
+            if is_receiver and not existing_location:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Only the sender can set the initial date location'
                 }, status=403)
             
             # Prepare location data
@@ -1373,7 +1393,7 @@ def get_user_upcoming_dates(request):
                 'partner': partner,
                 'status': date_req.get('status', ''),
                 'is_sender': is_sender,
-                'can_set_location': is_sender,  # Only sender can set location
+                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),  # Updated permission logic
                 'date_location': date_req.get('date_location', None)
             }
             processed_dates.append(date_info)
@@ -1406,13 +1426,21 @@ def date_location_selection_view(request, request_id):
         messages.error(request, "Date request not found.")
         return redirect('area')
     
-    # Check if user is the sender
-    if date_request.get('From') != name:
-        messages.error(request, "Only the sender can select the date location.")
+    # Updated permission check: sender can always select, receiver can only change existing location
+    is_sender = date_request.get('From') == name
+    is_receiver = date_request.get('To') == name
+    existing_location = date_request.get('date_location')
+
+    if not (is_sender or is_receiver):
+        messages.error(request, "Access denied.")
+        return redirect('area')
+
+    if is_receiver and not existing_location:
+        messages.error(request, "Only the sender can set the initial date location.")
         return redirect('area')
     
     # Get partner info
-    partner = date_request["To"]
+    partner = date_request["To"] if date_request["From"] == name else date_request["From"]
     
     # Get both users' locations
     user_location = Location.find_one({'name': name})
@@ -1420,6 +1448,14 @@ def date_location_selection_view(request, request_id):
     
     # Get combined preferences for context
     preferred_tags = get_combined_preferences(name, partner)
+    
+    # Prepare current location data for JSON serialization
+    current_location = date_request.get('date_location', None)
+    if current_location and 'selected_at' in current_location:
+        # Convert datetime to string for JSON serialization
+        current_location_copy = current_location.copy()
+        current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
+        current_location = current_location_copy
     
     # Prepare date info with location selection mode
     date_info_dict = {
@@ -1434,7 +1470,7 @@ def date_location_selection_view(request, request_id):
         'partner_lon': float(partner_location['lon']) if partner_location else None,
         'preferred_tags': preferred_tags,
         'mode': 'location_selection',  # Special mode for location selection
-        'current_location': date_request.get('date_location', None)
+        'current_location': current_location
     }
     
     context = {
@@ -1480,11 +1516,12 @@ def get_date_location(request):
             }, status=403)
         
         date_location = date_request.get('date_location', None)
+        is_sender = date_request.get('From') == name
         
         return JsonResponse({
             'status': 'success',
             'date_location': date_location,
-            'can_modify': date_request.get('From') == name  # Only sender can modify
+            'can_modify': is_sender or (not is_sender and date_location is not None)  # Updated permission logic
         })
         
     except Exception as e:
@@ -1524,11 +1561,14 @@ def remove_date_location(request):
                     'message': 'Date request not found'
                 }, status=404)
             
-            # Check if user is the sender
-            if date_request.get('From') != name:
+            # Updated permission check: both sender and receiver can remove existing location
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+
+            if not (is_sender or is_receiver):
                 return JsonResponse({
                     'status': 'error',
-                    'message': 'Only the sender can remove the date location'
+                    'message': 'Access denied'
                 }, status=403)
             
             # Remove the date location

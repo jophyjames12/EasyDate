@@ -471,7 +471,7 @@
             background: #e0a800;
         }
 
-        /* NEW: Location Selection Styles */
+        /* UPDATED: Location Selection Styles */
         .location-selection-instructions {
             background: #e3f2fd;
             padding: 15px;
@@ -488,6 +488,25 @@
         .location-selection-instructions p {
             margin: 5px 0;
             color: #333;
+        }
+
+        /* UPDATED: Enhanced instruction styles for different user roles */
+        .location-selection-instructions.sender-mode {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+
+        .location-selection-instructions.sender-mode h4 {
+            color: #2e7d32;
+        }
+
+        .location-selection-instructions.receiver-mode {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+
+        .location-selection-instructions.receiver-mode h4 {
+            color: #ef6c00;
         }
 
         .popup-location-btn {
@@ -513,6 +532,26 @@
             100% {
                 transform: scale(1);
             }
+        }
+
+        /* UPDATED: Role-based styling */
+        .user-role-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .user-role-indicator.sender {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .user-role-indicator.receiver {
+            background: #fff3e0;
+            color: #ef6c00;
         }
 
         /* Responsive Design */
@@ -566,13 +605,23 @@
 </head>
 <body>
     {% if date_info %}
-    <!-- Date Context Header -->
+    <!-- UPDATED: Enhanced Date Context Header with Role Information -->
     <div class="date-info">
-        <h2>Date with {{ date_info.partner }}</h2>
+        <h2>Date with {{ date_info.partner }}
+            {% if location_selection_mode %}
+                <span class="user-role-indicator {% if date_info.current_location %}receiver{% else %}sender{% endif %}">
+                    {% if date_info.current_location %}Changing Location{% else %}Setting Location{% endif %}
+                </span>
+            {% endif %}
+        </h2>
         <p><strong>Date:</strong> {{ date_info.date }}</p>
         <p><strong>Time:</strong> {{ date_info.time }}</p>
         {% if location_selection_mode %}
-            <p>📍 Select a meeting location from the places below</p>
+            {% if date_info.current_location %}
+                <p>🔄 Choose a different meeting location from the places below</p>
+            {% else %}
+                <p>📍 Select a meeting location from the places below</p>
+            {% endif %}
         {% else %}
             <p>Map shows both your locations and the midpoint</p>
         {% endif %}
@@ -644,12 +693,14 @@
             // Global variable to store reviews modal
             let reviewsModal = null;
 
-            // NEW: Global variables for location selection mode
+            // UPDATED: Global variables for location selection mode with enhanced role support
             let locationSelectionMode = false;
             let currentRequestId = null;
             let selectedLocationMarker = null;
             let midpointRouteLayer = null;
             let midpointRouteData = null;
+            let isUserSender = false; // Track if current user is sender
+            let hasExistingLocation = false; // Track if location already exists
 
             // Function to create reviews modal
             function createReviewsModal() {
@@ -852,22 +903,40 @@
 
             const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
             
-            // NEW: Initialize location selection mode if enabled
+            // UPDATED: Initialize location selection mode if enabled with enhanced role tracking
             if (dateInfo && dateInfo.mode === 'location_selection') {
                 locationSelectionMode = true;
                 currentRequestId = dateInfo.request_id;
+                hasExistingLocation = !!dateInfo.current_location;
+                isUserSender = !hasExistingLocation; // If no existing location, user must be sender
                 
-                // Update page title and add instructions
-                document.title = `Select Date Location - ${dateInfo.partner}`;
+                // Update page title and add enhanced instructions
+                if (hasExistingLocation) {
+                    document.title = `Change Date Location - ${dateInfo.partner}`;
+                } else {
+                    document.title = `Select Date Location - ${dateInfo.partner}`;
+                }
                 
-                // Add location selection instructions
+                // UPDATED: Add enhanced location selection instructions with role-based styling
                 const instructionsDiv = document.createElement('div');
-                instructionsDiv.className = 'location-selection-instructions';
-                instructionsDiv.innerHTML = `
-                    <h4>📍 Select Date Location</h4>
-                    <p>Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.</p>
-                    ${dateInfo.current_location ? `<p style="margin: 5px 0 0 0; color: #666;"><strong>Current location:</strong> ${dateInfo.current_location.name}</p>` : ''}
-                `;
+                instructionsDiv.className = `location-selection-instructions ${hasExistingLocation ? 'receiver-mode' : 'sender-mode'}`;
+                
+                let instructionHTML = '';
+                if (hasExistingLocation) {
+                    instructionHTML = `
+                        <h4>🔄 Change Date Location</h4>
+                        <p>You can select a different meeting location if you prefer somewhere else than <strong>${dateInfo.current_location.name}</strong>.</p>
+                        <p>Click on any place marker or use the "Set as Date Location" button to choose a new location.</p>
+                    `;
+                } else {
+                    instructionHTML = `
+                        <h4>📍 Select Date Location</h4>
+                        <p>Choose where you'd like to meet ${dateInfo.partner} for your date.</p>
+                        <p>Click on any place marker or use the "Set as Date Location" button to choose your meeting location.</p>
+                    `;
+                }
+                
+                instructionsDiv.innerHTML = instructionHTML;
                 document.body.insertBefore(instructionsDiv, document.getElementById('map'));
                 
                 // Show current location if exists
@@ -876,7 +945,7 @@
                 }
             }
 
-            // NEW: Function to show current date location
+            // UPDATED: Function to show current date location with enhanced messaging
             function showCurrentDateLocation(location) {
                 if (!location || !location.lat || !location.lon) return;
                 
@@ -894,11 +963,15 @@
                     icon: currentLocationIcon
                 }).addTo(map);
                 
+                const isCurrentUserLocation = location.selected_by === '{{ name }}';
+                const actionText = isCurrentUserLocation ? 'selected' : 'chosen';
+                
                 const popupContent = `
                     <div>
                         <b>📍 Current Date Location</b><br>
                         <strong>${location.name}</strong><br>
                         ${location.address ? `${location.address}<br>` : ''}
+                        <small style="color: #666;">Location ${actionText} by ${location.selected_by}</small><br>
                         <div style="margin-top: 10px;">
                             <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
                                 Remove Location
@@ -910,7 +983,7 @@
                 selectedLocationMarker.bindPopup(popupContent).openPopup();
             }
 
-            // NEW: Function to set date location
+            // UPDATED: Function to set date location with enhanced success messaging
             async function setDateLocation(requestId, placeName, lat, lon, address, placeType) {
                 try {
                     const response = await fetch('/save_date_location/', {
@@ -951,9 +1024,10 @@
                             icon: selectedIcon
                         }).addTo(map);
                         
+                        const actionText = hasExistingLocation ? 'changed' : 'set';
                         const popupContent = `
                             <div>
-                                <b>📍 Selected Date Location</b><br>
+                                <b>📍 ${hasExistingLocation ? 'Updated' : 'Selected'} Date Location</b><br>
                                 <strong>${placeName}</strong><br>
                                 ${address ? `${address}<br>` : ''}
                                 <div style="margin-top: 10px;">
@@ -966,13 +1040,24 @@
                         
                         selectedLocationMarker.bindPopup(popupContent).openPopup();
                         
-                        // Show success message
-                        alert(`Date location set to ${placeName}!`);
+                        // UPDATED: Enhanced success message
+                        const successMessage = hasExistingLocation 
+                            ? `Date location changed to ${placeName}!` 
+                            : `Date location set to ${placeName}!`;
+                        alert(successMessage);
+                        
+                        // Update the mode to reflect that location now exists
+                        hasExistingLocation = true;
                         
                         // Update instructions
-                        const instructions = document.querySelector('.location-selection-instructions p');
+                        const instructions = document.querySelector('.location-selection-instructions');
                         if (instructions) {
-                            instructions.innerHTML = `Date location set to <strong>${placeName}</strong>. You can select a different location or go back to your profile.`;
+                            instructions.className = 'location-selection-instructions receiver-mode';
+                            instructions.innerHTML = `
+                                <h4>🔄 Date Location Set</h4>
+                                <p>Date location is now set to <strong>${placeName}</strong>.</p>
+                                <p>You can select a different location or go back to your profile.</p>
+                            `;
                         }
                         
                     } else {
@@ -985,11 +1070,15 @@
                 }
             }
 
-            // NEW: Function to remove date location
+            // UPDATED: Function to remove date location with enhanced messaging
             async function removeDateLocation() {
                 if (!currentRequestId) return;
                 
-                if (!confirm('Are you sure you want to remove the date location?')) {
+                const confirmMessage = hasExistingLocation 
+                    ? 'Are you sure you want to remove the current date location?' 
+                    : 'Are you sure you want to remove the date location?';
+                
+                if (!confirm(confirmMessage)) {
                     return;
                 }
                 
@@ -1016,10 +1105,17 @@
                         
                         alert('Date location removed successfully!');
                         
+                        // Update state
+                        hasExistingLocation = false;
+                        
                         // Update instructions
-                        const instructions = document.querySelector('.location-selection-instructions p');
+                        const instructions = document.querySelector('.location-selection-instructions');
                         if (instructions) {
-                            instructions.innerHTML = `Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.`;
+                            instructions.className = 'location-selection-instructions sender-mode';
+                            instructions.innerHTML = `
+                                <h4>📍 Select Date Location</h4>
+                                <p>Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.</p>
+                            `;
                         }
                         
                     } else {
@@ -1385,7 +1481,7 @@
                 }
             }
 
-            // UPDATED: Enhanced displayPlaces function with location selection
+            // UPDATED: Enhanced displayPlaces function with improved location selection messaging
             function displayPlaces(places, userLat, userLon) {
                 clearPlaceMarkers();
                 const placeDetails = document.getElementById('place-details');
@@ -1428,7 +1524,7 @@
                     const website = place.tags?.website || "";
                     const openingHours = place.tags?.opening_hours || "";
                     
-                    // UPDATED: Enhanced popup with location selection button
+                    // UPDATED: Enhanced popup with improved location selection button text
                     let popupContent = `<div><b>${name}</b><br>`;
                     popupContent += `<i>${amenity}</i><br>`;
                     if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
@@ -1452,7 +1548,7 @@
                         🗺️ Directions
                     </button>`;
 
-                    // Add location selection button if in location selection mode
+                    // UPDATED: Add location selection button with improved text
                     if (locationSelectionMode && currentRequestId) {
                         const address = [
                             place.tags?.['addr:street'],
@@ -1460,9 +1556,11 @@
                             place.tags?.['addr:postcode']
                         ].filter(Boolean).join(', ');
                         
+                        const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
+                        
                         popupContent += `<button class="popup-btn popup-location-btn" 
                             onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
-                            📍 Set as Date Location
+                            ${buttonText}
                         </button>`;
                     }
 
@@ -1486,7 +1584,7 @@
                     
                     placeMarkers.push(marker);
                     
-                    // UPDATED: Enhanced place details list with location selection button
+                    // UPDATED: Enhanced place details list with improved location selection button
                     if (placeDetails) {
                         const div = document.createElement('div');
                         div.className = 'place-item';
@@ -1504,7 +1602,7 @@
                                 </button>
                         `;
                         
-                        // Add location selection button if in location selection mode
+                        // UPDATED: Add location selection button with improved text
                         if (locationSelectionMode && currentRequestId) {
                             const address = [
                                 place.tags?.['addr:street'],
@@ -1512,9 +1610,11 @@
                                 place.tags?.['addr:postcode']
                             ].filter(Boolean).join(', ');
                             
+                            const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
+                            
                             placeHTML += `<button class="popup-btn popup-location-btn" 
                                 onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
-                                📍 Set as Date Location
+                                ${buttonText}
                             </button>`;
                         }
                         
