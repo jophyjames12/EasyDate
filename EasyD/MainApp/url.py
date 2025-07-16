@@ -46,3 +46,6 @@ urlpatterns=[
     path('reject_event/', views.reject_event, name='reject_event'),
     path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
