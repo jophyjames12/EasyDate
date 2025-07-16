@@ -13,7 +13,7 @@ import requests
 import os
 import math 
 import uuid
-from datetime import datetime,date
+from datetime import datetime,date, timedelta 
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
@@ -38,18 +38,206 @@ Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
 
+def cleanup_old_events():
+    """Remove events older than 30 days from past events"""
+    try:
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Find events that are older than 30 days
+        old_events = Events.find({
+            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
+            'status': 'past'
+        })
+        
+        deleted_count = 0
+        for event in old_events:
+            event_id = str(event['_id'])
+            
+            # Delete associated images from filesystem
+            event_images = EventImages.find({'event_id': event_id})
+            for img in event_images:
+                try:
+                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting image file: {e}")
+            
+            # Delete from database
+            EventImages.delete_many({'event_id': event_id})
+            Events.delete_one({'_id': event['_id']})
+            deleted_count += 1
+        
+        logger.info(f"Cleaned up {deleted_count} old events")
+        return deleted_count
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_events: {e}")
+        return 0
+
+def move_past_events():
+    """Move events that have passed their date to past status"""
+    try:
+        today = datetime.now().date()
+        
+        # Find approved events that have passed their date
+        past_events = Events.find({
+            'status': 'approved',
+            'event_date': {'$exists': True, '$ne': ''}
+        })
+        
+        moved_count = 0
+        for event in past_events:
+            try:
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date < today:
+                        # Update status to past
+                        Events.update_one(
+                            {'_id': event['_id']},
+                            {
+                                '$set': {
+                                    'status': 'past',
+                                    'moved_to_past_at': datetime.now()
+                                }
+                            }
+                        )
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} events to past status")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_past_events: {e}")
+        return 0
+
+
 # Events view - main events page
+# Add this import at the top of your views.py file
+from datetime import datetime, date, timedelta
+
+# Add these functions to your views.py - Event management functions
+
+def cleanup_old_events():
+    """Remove events older than 30 days from past events"""
+    try:
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Find events that are older than 30 days
+        old_events = Events.find({
+            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
+            'status': 'past'
+        })
+        
+        deleted_count = 0
+        for event in old_events:
+            event_id = str(event['_id'])
+            
+            # Delete associated images from filesystem
+            event_images = EventImages.find({'event_id': event_id})
+            for img in event_images:
+                try:
+                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting image file: {e}")
+            
+            # Delete from database
+            EventImages.delete_many({'event_id': event_id})
+            Events.delete_one({'_id': event['_id']})
+            deleted_count += 1
+        
+        logger.info(f"Cleaned up {deleted_count} old events")
+        return deleted_count
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_events: {e}")
+        return 0
+
+def move_past_events():
+    """Move events that have passed their date to past status"""
+    try:
+        today = datetime.now().date()
+        
+        # Find approved events that have passed their date
+        past_events = Events.find({
+            'status': 'approved',
+            'event_date': {'$exists': True, '$ne': ''}
+        })
+        
+        moved_count = 0
+        for event in past_events:
+            try:
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date < today:
+                        # Update status to past
+                        Events.update_one(
+                            {'_id': event['_id']},
+                            {
+                                '$set': {
+                                    'status': 'past',
+                                    'moved_to_past_at': datetime.now()
+                                }
+                            }
+                        )
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} events to past status")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_past_events: {e}")
+        return 0
+
+# Updated events_view function
 def events_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
     
     userinfo(request)
     
+    # Perform maintenance tasks
+    move_past_events()
+    cleanup_old_events()
+    
     # Check if user is admin (Faisal or Jophy)
     is_admin = name in ['Faisal', 'Jophy']
     
     # Get approved events for everyone to see
     approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get past events
+    past_events = list(Events.find({'status': 'past'}).sort('moved_to_past_at', -1))
     
     # Get user's own events
     user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
@@ -59,16 +247,25 @@ def events_view(request):
     if is_admin:
         pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
     
-    # Process events to add image URLs
-    for event in approved_events + user_events + pending_events:
-        event['id'] = str(event['_id'])
-        # Get first image for display
-        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
-        first_image = next(event_images, None)
-        event['image'] = first_image['image_url'] if first_image else None
+    # FIXED: Process events to add ALL images (not just first one)
+    def process_event_images(events):
+        for event in events:
+            event['id'] = str(event['_id'])
+            # Get ALL images for this event - THIS IS THE KEY FIX
+            event_images = list(EventImages.find({'event_id': str(event['_id'])}))
+            event['images'] = [img['image_url'] for img in event_images] if event_images else []
+            # Keep first image for backward compatibility
+            event['image'] = event['images'][0] if event['images'] else None
+            print(f"Event {event['name']} has {len(event['images'])} images: {event['images']}")  # Debug print
+    
+    process_event_images(approved_events)
+    process_event_images(past_events)
+    process_event_images(user_events)
+    process_event_images(pending_events)
     
     context = {
         'approved_events': approved_events,
+        'past_events': past_events,
         'user_events': user_events,
         'pending_events': pending_events,
         'is_admin': is_admin,
