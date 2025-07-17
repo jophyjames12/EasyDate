@@ -127,6 +127,7 @@
             padding: 30px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             border: 1px solid #e9ecef;
+            margin-bottom: 30px;
         }
 
         .section-title {
@@ -227,6 +228,7 @@
             display: flex;
             gap: 10px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
 
         .btn {
@@ -237,6 +239,9 @@
             font-weight: 500;
             transition: background-color 0.3s ease;
             font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
         }
 
         .btn-accept {
@@ -274,6 +279,139 @@
             margin-bottom: 10px;
         }
 
+        /* Location display styles */
+        .location-info {
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border: 1px solid #c3e6cb;
+        }
+
+        .location-info.no-location {
+            background: #fff3cd;
+            border-color: #ffeaa7;
+        }
+
+        .location-info p {
+            margin: 5px 0;
+        }
+
+        .location-info .location-name {
+            font-weight: bold;
+            color: #155724;
+        }
+
+        .location-info.no-location p {
+            color: #856404;
+        }
+
+        .location-info .location-details {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .location-info .location-meta {
+            font-size: 0.8em;
+            color: #666;
+        }
+
+        /* Button variants for different actions */
+        .btn-map {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-map:hover {
+            background: #0056b3;
+        }
+
+        .btn-location {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-location:hover {
+            background: #218838;
+        }
+
+        .btn-change-location {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-change-location:hover {
+            background: #e0a800;
+        }
+
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-remove:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .permission-note {
+            font-size: 0.9em;
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
+        }
+
+        .location-help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+
+        .location-management {
+            margin: 10px 0;
+        }
+
+        .location-management .btn {
+            font-size: 0.9em;
+            padding: 8px 15px;
+        }
+
+        /* UPDATED: Enhanced styles for new permission system */
+        .location-permission-info {
+            background: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #2196f3;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+
+        .location-permission-info.sender-info {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+            color: #2e7d32;
+        }
+
+        .location-permission-info.receiver-info {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+            color: #ef6c00;
+        }
+
+        .location-permission-info.can-change {
+            background: #f3e5f5;
+            border-left-color: #9c27b0;
+            color: #7b1fa2;
+        }
+
         @media (max-width: 768px) {
             .profile-content {
                 flex-direction: column;
@@ -290,6 +428,11 @@
 
             .action-buttons {
                 flex-direction: column;
+            }
+
+            .btn {
+                width: 100%;
+                margin-bottom: 5px;
             }
         }
     </style>
@@ -328,9 +471,141 @@
             </div>
         </div>
 
-        <!-- Date Requests Section -->
+        <!-- Upcoming Dates Section with Enhanced Location Management -->
+        {% if upcoming_dates %}
         <div class="date-requests">
-            <h2 class="section-title">Your Date Requests</h2>
+            <h2 class="section-title">📅 Your Upcoming Dates</h2>
+            <ul class="request-list">
+                {% for date_item in upcoming_dates %}
+                    <li class="request-item" style="border-left-color: #28a745;">
+                        <div class="request-header">
+                            <div class="request-from">Date with: {{ date_item.partner }}</div>
+                            <div class="status-badge" style="background: linear-gradient(135deg, #d4edda, #c3e6cb); color: #155724;">Confirmed</div>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <p><strong>📅 Date:</strong> {{ date_item.date|default:"Not set" }}</p>
+                            <p><strong>⏰ Time:</strong> {{ date_item.time|default:"Not set" }}</p>
+                            
+                            {% if date_item.date_location %}
+                                <div class="location-info">
+                                    <p style="margin: 0;"><strong>📍 Meeting Location:</strong></p>
+                                    <p class="location-name">{{ date_item.date_location.name }}</p>
+                                    {% if date_item.date_location.address %}
+                                        <p class="location-details">{{ date_item.date_location.address }}</p>
+                                    {% endif %}
+                                    <p class="location-meta">Selected by: {{ date_item.date_location.selected_by }}</p>
+                                </div>
+                            {% else %}
+                                <div class="location-info no-location">
+                                    <p>📍 No meeting location set yet</p>
+                                </div>
+                            {% endif %}
+
+                            <!-- UPDATED: Enhanced permission info with clearer messaging -->
+                            {% if date_item.is_sender %}
+                                <div class="location-permission-info sender-info">
+                                    💡 You can {% if date_item.date_location %}change the{% else %}set the{% endif %} meeting location for this date.
+                                </div>
+                            {% else %}
+                                {% if date_item.date_location %}
+                                    <div class="location-permission-info can-change">
+                                        🔄 You can change the location chosen by {{ date_item.partner }} if you prefer somewhere else.
+                                    </div>
+                                {% else %}
+                                    <div class="location-permission-info receiver-info">
+                                        ⏳ {{ date_item.partner }} can set the initial meeting location, then you can change it if needed.
+                                    </div>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                        
+                        <div class="action-buttons">
+                            {% if date_item.can_set_location %}
+                                <!-- Location selection button - shows based on updated permission logic -->
+                                <a href="{% url 'select_date_location' date_item.request_id %}" class="btn {% if date_item.date_location %}btn-change-location{% else %}btn-location{% endif %}">
+                                    {% if date_item.date_location %}
+                                        {% if date_item.is_sender %}
+                                            📍 Change Location
+                                        {% else %}
+                                            🔄 Choose Different Location
+                                        {% endif %}
+                                    {% else %}
+                                        📍 Set Location
+                                    {% endif %}
+                                </a>
+                                
+                                {% if date_item.date_location %}
+                                    <!-- Remove location button - available for both sender and receiver -->
+                                    <button onclick="removeLocationFromProfile('{{ date_item.request_id }}')" class="btn btn-remove">
+                                        🗑️ Remove Location
+                                    </button>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Pending Date Requests (Sent by You) -->
+        {% if sent_from %}
+        <div class="date-requests">
+            <h2 class="section-title">📨 Pending Date Requests (Sent by You)</h2>
+            <ul class="request-list">
+                {% for request in sent_from %}
+                    <li class="request-item" style="border-left-color: #ffc107;">
+                        <div class="request-header">
+                            <div class="request-from">Sent to: {{ request.username }}</div>
+                            <div class="status-badge" style="background: linear-gradient(135deg, #fff3cd, #ffeaa7);">Pending</div>
+                        </div>
+                        
+                        <div style="margin-bottom: 15px;">
+                            <p><strong>📅 Date:</strong> {{ request.date|default:"Not set" }}</p>
+                            <p><strong>⏰ Time:</strong> {{ request.time|default:"Not set" }}</p>
+                            
+                            {% if request.date_location %}
+                                <div class="location-info">
+                                    <p style="margin: 0;"><strong>📍 Proposed Location:</strong></p>
+                                    <p class="location-name">{{ request.date_location.name }}</p>
+                                    {% if request.date_location.address %}
+                                        <p class="location-details">{{ request.date_location.address }}</p>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <div class="location-info no-location">
+                                    <p>📍 No location proposed yet</p>
+                                </div>
+                            {% endif %}
+
+                            <!-- UPDATED: Enhanced permission info for sent requests -->
+                            <div class="location-permission-info sender-info">
+                                💡 You can {% if request.date_location %}change the{% else %}set a{% endif %} proposed meeting location. {{ request.username }} can modify it after accepting.
+                            </div>
+                        </div>
+                        
+                        <div class="action-buttons">
+                            <!-- Location selection button for pending requests -->
+                            <a href="{% url 'select_date_location' request.request_id %}" class="btn {% if request.date_location %}btn-change-location{% else %}btn-location{% endif %}">
+                                📍 {% if request.date_location %}Change{% else %}Set{% endif %} Location
+                            </a>
+                            
+                            {% if request.date_location %}
+                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
+                                    🗑️ Remove Location
+                                </button>
+                            {% endif %}
+                        </div>
+                    </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- Date Requests Section (Received) - Enhanced with Location Management -->
+        <div class="date-requests">
+            <h2 class="section-title">📬 Your Date Requests (Received)</h2>
             {% if received_from %}
                 <ul class="request-list">
                     {% for request in received_from %}
@@ -338,6 +613,51 @@
                             <div class="request-header">
                                 <div class="request-from">From: {{ request.username }}</div>
                                 <div class="status-badge">Pending</div>
+                            </div>
+                            
+                            <!-- Enhanced location info and management options -->
+                            <div style="margin-bottom: 15px;">
+                                <p><strong>📅 Proposed Date:</strong> {{ request.date|default:"Not set" }}</p>
+                                <p><strong>⏰ Proposed Time:</strong> {{ request.time|default:"Not set" }}</p>
+                                
+                                {% if request.date_location %}
+                                    <div class="location-info">
+                                        <p style="margin: 0;"><strong>📍 Proposed Location:</strong></p>
+                                        <p class="location-name">{{ request.date_location.name }}</p>
+                                        {% if request.date_location.address %}
+                                            <p class="location-details">{{ request.date_location.address }}</p>
+                                        {% endif %}
+                                        <p class="location-meta">Selected by: {{ request.date_location.selected_by }}</p>
+                                    </div>
+                                    
+                                    <!-- UPDATED: Enhanced location management for receivers with clearer messaging -->
+                                    <div class="location-permission-info can-change">
+                                        🔄 You can change this location when you accept the date request if you prefer somewhere else.
+                                    </div>
+                                    
+                                    <!-- Location management for receivers when location exists -->
+                                    {% if request.can_set_location %}
+                                        <div class="location-management">
+                                            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                                                <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-change-location">
+                                                    🔄 Change Location
+                                                </a>
+                                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
+                                                    🗑️ Remove Location
+                                                </button>
+                                            </div>
+                                        </div>
+                                    {% endif %}
+                                {% else %}
+                                    <div class="location-info no-location">
+                                        <p>📍 No location proposed yet</p>
+                                    </div>
+                                    
+                                    <!-- UPDATED: Enhanced messaging for no location scenario -->
+                                    <div class="location-permission-info receiver-info">
+                                        ⏳ {{ request.username }} can set a meeting location. Once set, you can change it if needed.
+                                    </div>
+                                {% endif %}
                             </div>
                             
                             <form method="POST" action="{% url 'handle_date_request' %}" class="request-form">
@@ -370,5 +690,58 @@
             {% endif %}
         </div>
     </div>
+
+    <!-- JavaScript for profile page functionality -->
+    <script>
+    // Function to remove location from profile page
+    async function removeLocationFromProfile(requestId) {
+        if (!confirm('Are you sure you want to remove the date location?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/remove_date_location/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: JSON.stringify({
+                    request_id: requestId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert('Date location removed successfully!');
+                // Reload the page to show updated information
+                window.location.reload();
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+            
+        } catch (error) {
+            console.error('Error removing date location:', error);
+            alert('Failed to remove date location. Please try again.');
+        }
+    }
+
+    // CSRF token helper function
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+    </script>
 </body>
 </html>

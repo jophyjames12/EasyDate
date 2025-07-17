@@ -21,6 +21,9 @@ from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import logging
+from PIL import Image
+from django.core.files.storage import FileSystemStorage
+
 logger = logging.getLogger(__name__)
 
 # MongoDB connection
@@ -35,343 +38,60 @@ Preference = db['PreferenceList']
 Review=db['Reviews']
 Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
+Events = db['Events']  # New collection for events
+EventImages = db['EventImages']  # New collection for event images
 
-
-client_id = settings.GOOGLE_CLIENT_ID
-
-import json
-from django.http import JsonResponse
-from django.views.decorators.csrf import csrf_exempt
-from django.views.decorators.http import require_http_methods
-from google.oauth2 import id_token
-from google.auth.transport import requests
-from datetime import datetime
-import logging
-
-# Set up logging
-logger = logging.getLogger(__name__)
-
+GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
 @csrf_exempt
-@require_http_methods(["POST"])
 def google_auth_view(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
     try:
-        # Parse request body
-        body = json.loads(request.body)
-        credential = body.get("credential")
-        
+        data = json.loads(request.body)
+        credential = data.get('credential')
+
         if not credential:
-            logger.error("Missing credential in request")
-            return JsonResponse({'status': 'error', 'message': 'Missing credential'})
+            return JsonResponse({'success': False, 'error': 'Missing credential'})
 
-        # Verify the token using Google's official library (more secure)
-        try:
-            idinfo = id_token.verify_oauth2_token(
-                credential, 
-                requests.Request(), 
-                client_id  # Your Google OAuth client ID
-            )
-        except ValueError as e:
-            logger.error(f"Token verification failed: {str(e)}")
-            return JsonResponse({'status': 'error', 'message': 'Invalid token'})
+        # Verify token with Google
+        token_info = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}').json()
 
-        # Validate the token audience
-        if idinfo['aud'] != client_id:
-            logger.error("Token audience mismatch")
-            return JsonResponse({'status': 'error', 'message': 'Invalid token audience'})
+        if token_info.get('aud') != GOOGLE_CLIENT_ID:
+            return JsonResponse({'success': False, 'error': 'Token audience mismatch'}, status=400)
 
-        # Extract user information
-        email = idinfo.get('email')
-        name = idinfo.get('name', '')
-        google_id = idinfo.get('sub')
-        picture = idinfo.get('picture', '')
-        
+        email = token_info.get('email')
+        name = token_info.get('name')
+
         if not email:
-            logger.error("No email in token")
-            return JsonResponse({'status': 'error', 'message': 'No email provided'})
+            return JsonResponse({'success': False, 'error': 'Email not found in token'}, status=400)
 
-        # Check if user exists in your database
+        # Check if user exists in MongoDB
         user = users_collection.find_one({"email": email})
-        
-        if user:
-            # Existing user - log them in
-            user_id = str(user['_id'])
-            logger.info(f"Existing user logged in: {email}")
-        else:
-            # New user - create account
-            try:
-                user_data = {
-                    "username": email.split('@')[0],  # Use email prefix as username
-                    "email": email,
-                    "name": name,
-                    "google_id": google_id,
-                    "picture": picture,
-                    "password": "",  # No password for Google users
-                    "created_at": datetime.now(),
-                    "auth_method": "google"
-                }
-                
-                # Check if username already exists and modify if needed
-                existing_username = users_collection.find_one({"username": user_data["username"]})
-                if existing_username:
-                    user_data["username"] = f"{user_data['username']}_{google_id[:8]}"
-                
-                result = users_collection.insert_one(user_data)
-                user_id = str(result.inserted_id)
-                logger.info(f"New user created: {email}")
-                
-            except Exception as e:
-                logger.error(f"Error creating user: {str(e)}")
-                return JsonResponse({'status': 'error', 'message': 'Failed to create user'})
 
-        # Set session data
-        request.session['user_id'] = user_id
-        request.session['login_success'] = True
-        request.session['auth_method'] = 'google'
-        
-        logger.info(f"User {email} successfully authenticated via Google")
-        
-        return JsonResponse({
-            'status': 'success', 
-            'message': 'Login successful',
-            'email': email,
-            'redirect_url': '/area/'
-        })
-
-    except json.JSONDecodeError:
-        logger.error("Invalid JSON in request body")
-        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'})
-    
-    except Exception as e:
-        logger.error(f"Unexpected error in Google auth: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': 'Authentication failed'})
-
-
-# Alternative: If you prefer to stick with the tokeninfo endpoint (less secure)
-@csrf_exempt
-@require_http_methods(["POST"])
-def google_auth_view_tokeninfo(request):
-    try:
-        body = json.loads(request.body)
-        token = body.get("credential")
-        
-        if not token:
-            return JsonResponse({'status': 'error', 'message': 'Missing token'})
-
-        # Verify token using Google's tokeninfo endpoint
-        response = requests.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={token}",
-            timeout=10  # Add timeout
-        )
-        
-        if response.status_code != 200:
-            logger.error(f"Token verification failed: {response.status_code}")
-            return JsonResponse({'status': 'error', 'message': 'Invalid token'})
-
-        user_info = response.json()
-        
-        # Validate the token
-        if user_info.get('aud') != client_id:
-            return JsonResponse({'status': 'error', 'message': 'Invalid token audience'})
-        
-        email = user_info.get('email')
-        name = user_info.get('name', '')
-        google_id = user_info.get('sub')
-        
-        if not email:
-            return JsonResponse({'status': 'error', 'message': 'No email provided'})
-
-        # Handle user authentication/creation (same as above)
-        user = users_collection.find_one({"email": email})
-        
-        if user:
-            user_id = str(user['_id'])
-        else:
-            # Create new user
+        if not user:
+            # New user from Google Sign-In
             user_data = {
-                "username": email.split('@')[0],
-                "email": email,
-                "name": name,
-                "google_id": google_id,
-                "password": "",
-                "created_at": datetime.now(),
-                "auth_method": "google"
+            "username": name,  # Full name from Google
+            "email": email,
+            "password": None,  # No password because it's Google Sign-In
+            "login_method": "google"
             }
-            
-            # Handle duplicate username
-            existing_username = users_collection.find_one({"username": user_data["username"]})
-            if existing_username:
-                user_data["username"] = f"{user_data['username']}_{google_id[:8]}"
-            
-            result = users_collection.insert_one(user_data)
-            user_id = str(result.inserted_id)
+            inserted = users_collection.insert_one(user_data)
+            user_id = str(inserted.inserted_id)
+        else:
+            user_id = str(user["_id"])
 
-        # Set session
+        # Set Django session
         request.session['user_id'] = user_id
         request.session['login_success'] = True
-        request.session['auth_method'] = 'google'
-        
-        return JsonResponse({
-            'status': 'success', 
-            'message': 'Login successful',
-            'email': email
-        })
 
-    except requests.RequestException as e:
-        logger.error(f"Request error: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': 'Network error'})
-    
+        return JsonResponse({'success': True})
+
     except Exception as e:
-        logger.error(f"Unexpected error: {str(e)}")
-        return JsonResponse({'status': 'error', 'message': 'Authentication failed'})
-@csrf_exempt
-def get_place_reviews(request):
-    """
-    Fetch reviews for a place using Google Places API
-    """
-    if request.method == 'GET':
-        try:
-            # Get parameters from request
-            place_name = request.GET.get('name', '')
-            lat = request.GET.get('lat', '')
-            lon = request.GET.get('lon', '')
-            
-            if not all([place_name, lat, lon]):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Missing required parameters: name, lat, lon'
-                })
-            
-            # Check if API key is configured
-            if not settings.GOOGLE_PLACES_API_KEY:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Google Places API key not configured'
-                })
-            
-            # Step 1: Find the place using Places API Text Search
-            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-            search_params = {
-                'query': f"{place_name}",
-                'location': f"{lat},{lon}",
-                'radius': 500,  # 500 meters radius
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            search_response = requests.get(search_url, params=search_params)
-            search_data = search_response.json()
-            
-            if search_data.get('status') != 'OK' or not search_data.get('results'):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place not found in Google Places'
-                })
-            
-            # Get the first result (most relevant)
-            place = search_data['results'][0]
-            place_id = place.get('place_id')
-            
-            if not place_id:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place ID not found'
-                })
-            
-            # Step 2: Get place details including reviews
-            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
-            details_params = {
-                'place_id': place_id,
-                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            details_response = requests.get(details_url, params=details_params)
-            details_data = details_response.json()
-            
-            if details_data.get('status') != 'OK':
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Failed to fetch place details'
-                })
-            
-            place_details = details_data.get('result', {})
-            
-            # Extract relevant information
-            reviews_data = {
-                'status': 'success',
-                'place_name': place_details.get('name', place_name),
-                'rating': place_details.get('rating', 0),
-                'total_ratings': place_details.get('user_ratings_total', 0),
-                'address': place_details.get('formatted_address', ''),
-                'phone': place_details.get('formatted_phone_number', ''),
-                'website': place_details.get('website', ''),
-                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
-                'reviews': []
-            }
-            
-            # Process reviews
-            reviews = place_details.get('reviews', [])
-            for review in reviews[:5]:  # Limit to 5 reviews
-                review_data = {
-                    'author_name': review.get('author_name', 'Anonymous'),
-                    'rating': review.get('rating', 0),
-                    'text': review.get('text', ''),
-                    'time': review.get('relative_time_description', ''),
-                    'profile_photo_url': review.get('profile_photo_url', '')
-                }
-                reviews_data['reviews'].append(review_data)
-            
-            return JsonResponse(reviews_data)
-            
-        except requests.RequestException as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'API request failed: {str(e)}'
-            })
-        except Exception as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'Server error: {str(e)}'
-            })
-    
-    return JsonResponse({
-        'status': 'error',
-        'message': 'Only GET method allowed'
-    })
-
-
-@csrf_exempt
-def update_location(request):
-    userinfo(request)
-    if request.method == 'POST':
-        lat = None
-        lon = None
-        # Try to parse JSON first
-        try:
-            data = json.loads(request.body)
-            lat = data.get('latitude')
-            lon = data.get('longitude')
-        except (json.JSONDecodeError, TypeError):
-            # Fallback to form data
-            lat = request.POST.get('latitude')
-            lon = request.POST.get('longitude')
-
-        if lat is None or lon is None:
-            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
-        try:
-            lat = float(lat)
-            lon = float(lon)
-        except ValueError:
-            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
-
-        existing = Location.find_one({'name': name})
-        if existing:
-            Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
-        else:
-            Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
-        return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
-#Retrieves user information from session anwd fetches username from sdatabase
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
+# Events view - main events page
+# Retrieves user information from session and fetches username from database
 def userinfo(request):
     global user
     user = request.session.get('user_id')
@@ -431,12 +151,15 @@ def signup_view(request):
             else:
                 hashed_password = pbkdf2_sha256.hash(password)
                 new_user = {
-                    "username": username,
-                    "email": email,
-                    "password": hashed_password
+                "username": username,
+                "email": email,
+                "password": hashed_password,
+                "login_method": "password"
                 }
-                inserted_user = users_collection.insert_one(new_user)
-                request.session['user_id'] = str(inserted_user.inserted_id)
+                users_collection.insert_one(new_user)
+
+                # Start session for the newly registered user
+                request.session['user_id'] = str(new_user['_id'])
                 request.session['account_created'] = True
                 return redirect('area')
         else:
@@ -450,10 +173,13 @@ def signup_view(request):
 def area_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
+    
     # Get user info
     userinfo(request)
+    
     # Move old dates to separate collection
     move_old_dates()
+    
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -464,13 +190,15 @@ def area_view(request):
     if 'login_success' in request.session:
         del request.session['login_success']
     
-    # Fetch upcoming accepted dates for the current user
+    # UPDATED: Fetch upcoming accepted dates that have a location set
     upcoming_dates = list(DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
-        ]
+        ],
+        "date_location": {"$exists": True, "$ne": None}  # Only include dates with location set
     }))
+    
     # Fetch old dates for the current user (last 10 for reference)
     old_dates = list(OldDates.find({
         "$or": [
@@ -478,6 +206,17 @@ def area_view(request):
             {"To": name, "status": "accepted"}
         ]
     }).sort("moved_at", -1).limit(10))
+
+    # NEW: Fetch recent approved events (last 3 for homepage display)
+    recent_events = list(Events.find({'status': 'approved'}).sort('created_at', -1).limit(3))
+    
+    # Process recent events to add image URLs
+    for event in recent_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
 
     # Process upcoming dates to get partner info
     processed_upcoming_dates = []
@@ -502,15 +241,18 @@ def area_view(request):
             'request_id': str(date_req.get('original_id', date_req['_id'])),
             'status': 'past'
         })
+    
     # Sort upcoming dates by date
     processed_upcoming_dates.sort(key=lambda x: x['date'] if x['date'] else '')
-    # Pass success messages and dates to the template
+    
+    # Pass success messages, dates, and events to the template
     return render(request, 'MainApp/area.html', {
         'account_created': account_created, 
         'login_success': login_success,
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
-        'accepted_dates': processed_upcoming_dates  # Keep for backward compatibility
+        'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
+        'recent_events': recent_events,  # NEW: Add recent events
     })
 
 def logout_view(request):
@@ -695,13 +437,14 @@ def send_date_request(request):
             messages.info(request, "Date request already sent. Waiting for response.")
             return redirect("search_user")
 
-        # Create a new date request with date and time
+        # Create a new date request with date and time (date_location starts as null)
         date_request = {
             "From": name,
             "To": friendname,
             "status": "pending",
             "date": date,
-            "time": time
+            "time": time,
+            "date_location": None  # Initially null, can be set later by sender
         }
         DateReq.insert_one(date_request)
         messages.success(request, f"Date request sent to {friendname}.")
@@ -716,30 +459,72 @@ def profile(request):
     # Fetch the pending date requests for the user
     sent_requests = DateReq.find({"From": name, "status": "pending"})
     received_requests = DateReq.find({"To": name, "status": "pending"})
+    
+    # Fetch accepted dates (upcoming dates)
+    upcoming_dates = DateReq.find({
+        "$or": [
+            {"From": name, "status": "accepted"},
+            {"To": name, "status": "accepted"}
+        ]
+    })
+    
     # Get the user's friend count
     user_friendlist = Friendlist.find_one({"username": name})
     friend_count = len(user_friendlist.get("friends", [])) if user_friendlist else 0
     
-    # Prepare lists of users that sent or received requests
-    sent_from = [{"username": req["To"], "request_id": str(req["_id"])} for req in sent_requests]
-    received_from = [
-        {
+    # Prepare lists with location info
+    sent_from = []
+    for req in sent_requests:
+        req_data = {
+            "username": req["To"], 
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": True  # Sender can always set location
+        }
+        sent_from.append(req_data)
+    
+    received_from = []
+    for req in received_requests:
+        req_data = {
             "username": req["From"],
             "request_id": str(req["_id"]),
             "date": req.get("date", ""),
-            "time": req.get("time", "")
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": req.get("date_location") is not None  # Receiver can change existing location
         }
-        for req in received_requests
-    ]
+        received_from.append(req_data)
+    
+    # Process upcoming dates
+    upcoming_dates_list = []
+    for req in upcoming_dates:
+        partner = req["To"] if req["From"] == name else req["From"]
+        is_sender = req["From"] == name
+        
+        date_data = {
+            "partner": partner,
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": is_sender or (not is_sender and req.get("date_location") is not None),  # Updated permission logic
+            "is_sender": is_sender
+        }
+        upcoming_dates_list.append(date_data)
+    
     return render(request, 'MainApp/profile.html', {
         "sent_from": sent_from,
         "received_from": received_from,
+        "upcoming_dates": upcoming_dates_list,
         "name": name,
         "friend_count": friend_count,
         "post_count": 0,
         "bio": bio,
         "profile_picture": profile_picture
     })
+
 # Edit profile view
 def edit_profile(request):
     if not request.session.get('user_id'):
@@ -924,7 +709,7 @@ def handle_date_request(request):
                 # Debug logging
                 print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
                 
-                # Update the date request with the new date/time
+                # Update the date request with the new date/time (preserve existing date_location)
                 update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
                     "$set": {
                         "status": "accepted", 
@@ -955,6 +740,7 @@ def handle_date_request(request):
 
 def map_view(request):
     return render(request,'MainApp/Map.html')
+
 @csrf_exempt
 def update_preferences(request):
     userinfo(request)
@@ -1144,73 +930,112 @@ def profile_view(request):
     preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
     return render(request, 'profile.html', {'user': user, 'preferences': preferences})
 
-@csrf_exempt
-def update_location(request):
-    userinfo(request)
-    if request.method == 'POST':
-        lat = None
-        lon = None
-
-        # Try to parse JSON first
-        try:
-            data = json.loads(request.body)
-            lat = data.get('latitude')
-            lon = data.get('longitude')
-        except (json.JSONDecodeError, TypeError):
-            # Fallback to form data
-            lat = request.POST.get('latitude')
-            lon = request.POST.get('longitude')
-
-        if lat is None or lon is None:
-            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
-
-        try:
-            lat = float(lat)
-            lon = float(lon)
-        except ValueError:
-            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
-
-        existing = Location.find_one({'name': name})
-        if existing:
-            Location.update_one({'_id': existing['_id']}, {'$set': {'lat': lat, 'lon': lon}})
-        else:
-            Location.insert_one({'name': name, 'lat': lat, 'lon': lon})
-
-        return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
-
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
         return redirect('login')
     userinfo(request)
+    
     # Fetch the specific date request
     date_request = DateReq.find_one({"_id": ObjectId(request_id)})
     if not date_request:
         messages.error(request, "Date not found.")
         return redirect('area')
+    
     # Get partner info
     partner = date_request["To"] if date_request["From"] == name else date_request["From"]
-    # Get both users' locations
+    
+    # Get both users' locations with detailed error checking
     user_location = Location.find_one({'name': name})
     partner_location = Location.find_one({'name': partner})
+    
+    # Debug logging
+    print(f"DEBUG - Current user: {name}")
+    print(f"DEBUG - Partner: {partner}")
+    print(f"DEBUG - User location data: {user_location}")
+    print(f"DEBUG - Partner location data: {partner_location}")
+    
+    # Validate user location
+    if not user_location:
+        messages.error(request, f"Your location is not set. Please update your location in your profile.")
+        return redirect('profile')
+    
+    if not user_location.get('lat') or not user_location.get('lon'):
+        messages.error(request, f"Your location coordinates are incomplete. Please update your location.")
+        return redirect('profile')
+    
+    # Validate partner location  
+    if not partner_location:
+        messages.error(request, f"{partner}'s location is not set. They need to update their location.")
+        return redirect('profile')
+    
+    if not partner_location.get('lat') or not partner_location.get('lon'):
+        messages.error(request, f"{partner}'s location coordinates are incomplete.")
+        return redirect('profile')
+    
+    # Convert coordinates to float with error handling
+    try:
+        user_lat = float(user_location['lat'])
+        user_lon = float(user_location['lon'])
+        partner_lat = float(partner_location['lat'])
+        partner_lon = float(partner_location['lon'])
+        
+        # Validate coordinate ranges
+        if not (-90 <= user_lat <= 90) or not (-180 <= user_lon <= 180):
+            messages.error(request, "Your location coordinates are invalid.")
+            return redirect('profile')
+            
+        if not (-90 <= partner_lat <= 90) or not (-180 <= partner_lon <= 180):
+            messages.error(request, f"{partner}'s location coordinates are invalid.")
+            return redirect('profile')
+            
+    except (ValueError, TypeError) as e:
+        messages.error(request, "Location coordinates are not in valid format.")
+        print(f"DEBUG - Coordinate conversion error: {e}")
+        return redirect('profile')
+    
+    # Debug - log final coordinates
+    print(f"DEBUG - Final coordinates:")
+    print(f"  User: {user_lat}, {user_lon}")
+    print(f"  Partner: {partner_lat}, {partner_lon}")
+    
     # Get combined preferences for context
     preferred_tags = get_combined_preferences(name, partner)
-    # Prepare date info
+    
+    # Prepare current location data for JSON serialization (if it exists)
+    current_location = date_request.get('date_location', None)
+    if current_location and 'selected_at' in current_location:
+        # Convert datetime to string for JSON serialization
+        current_location_copy = current_location.copy()
+        current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
+        current_location = current_location_copy
+    
+    # NEW: Check if there's a date location set
+    has_date_location = current_location is not None
+    
+     # Prepare date info with validated coordinates
     date_info_dict = {
         'date': date_request.get('date', ''),
         'time': date_request.get('time', ''),
         'partner': partner,
-        'user_lat': float(user_location['lat']) if user_location else None,
-        'user_lon': float(user_location['lon']) if user_location else None,
-        'partner_lat': float(partner_location['lat']) if partner_location else None,
-        'partner_lon': float(partner_location['lon']) if partner_location else None,
+        'user_lat': user_lat,
+        'user_lon': user_lon,
+        'partner_lat': partner_lat,
+        'partner_lon': partner_lon,
         'preferred_tags': preferred_tags,
+        'current_location': current_location,
+        'has_date_location': has_date_location,
+        'show_routes_to_location': has_date_location,
+        'auto_search_places': False  # NEW: Disable auto-search for regular date mode too
     }
+    
+    # Debug - log the final data being sent to template
+    print(f"DEBUG - Date info being sent to template: {date_info_dict}")
+    
     context = {
         'date_info': date_info_dict,
-        'date_info_json': json.dumps(date_info_dict),  # Add JSON serialized version
+        'date_info_json': json.dumps(date_info_dict),
     }
+    
     return render(request, 'MainApp/Map.html', context)
 
 def get_osrm_route(request):
@@ -1308,4 +1133,892 @@ def old_dates_view(request):
         'old_dates': processed_old_dates,
         'name': name
     })
+
+# NEW FUNCTIONS FOR DATE LOCATION FEATURE
+
+@csrf_exempt
+def save_date_location(request):
+    """
+    Save selected location for a date request
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            # Get data from request
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            
+            request_id = data.get('request_id')
+            place_name = data.get('place_name')
+            place_lat = data.get('place_lat')
+            place_lon = data.get('place_lon')
+            place_address = data.get('place_address', '')
+            place_type = data.get('place_type', '')
+            
+            # Validate required fields
+            if not all([request_id, place_name, place_lat, place_lon]):
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Missing required fields: request_id, place_name, place_lat, place_lon'
+                }, status=400)
+            
+            # Convert coordinates to float
+            try:
+                place_lat = float(place_lat)
+                place_lon = float(place_lon)
+            except ValueError:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Invalid coordinates'
+                }, status=400)
+            
+            # Find the date request
+            date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+            if not date_request:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Date request not found'
+                }, status=404)
+            
+            # Updated permission check: sender can always set/change, receiver can only change existing location
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+            existing_location = date_request.get('date_location')
+
+            if not (is_sender or is_receiver):
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Access denied'
+                }, status=403)
+
+            # Receiver can only change existing location, not set initial location
+            if is_receiver and not existing_location:
+                return JsonResponse({
+                    'status': 'error', 
+                    'message': 'Only the sender can set the initial date location'
+                }, status=403)
+            
+            # Prepare location data
+            location_data = {
+                'name': place_name,
+                'lat': place_lat,
+                'lon': place_lon,
+                'address': place_address,
+                'type': place_type,
+                'selected_by': name,
+                'selected_at': datetime.now()
+            }
+            
+            # Update the date request with location
+            result = DateReq.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$set": {"date_location": location_data}}
+            )
+            
+            if result.modified_count > 0:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Date location set to {place_name}',
+                    'location': location_data
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to update date location'
+                }, status=500)
+                
+        except json.JSONDecodeError:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Invalid JSON data'
+            }, status=400)
+        except Exception as e:
+            logger.error(f"Error saving date location: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+
+def get_user_upcoming_dates(request):
+    """
+    Get upcoming dates for the current user (both sent and received)
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    try:
+        # Get all upcoming dates where user is involved
+        upcoming_dates = list(DateReq.find({
+            "$or": [
+                {"From": name, "status": "accepted"},
+                {"To": name, "status": "accepted"},
+                {"From": name, "status": "pending"}  # Include pending requests sent by user
+            ]
+        }))
+        
+        processed_dates = []
+        for date_req in upcoming_dates:
+            partner = date_req["To"] if date_req["From"] == name else date_req["From"]
+            is_sender = date_req["From"] == name
+            
+            date_info = {
+                'request_id': str(date_req['_id']),
+                'date': date_req.get('date', ''),
+                'time': date_req.get('time', ''),
+                'partner': partner,
+                'status': date_req.get('status', ''),
+                'is_sender': is_sender,
+                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),  # Updated permission logic
+                'date_location': date_req.get('date_location', None)
+            }
+            processed_dates.append(date_info)
+        
+        return JsonResponse({
+            'status': 'success',
+            'dates': processed_dates
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting upcoming dates: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Failed to fetch upcoming dates'
+        }, status=500)
+
+
+def date_location_selection_view(request, request_id):
+    """
+    View for selecting date location - enhanced map view
+    """
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Fetch the specific date request
+    date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+    if not date_request:
+        messages.error(request, "Date request not found.")
+        return redirect('area')
+    
+    # Updated permission check: sender can always select, receiver can only change existing location
+    is_sender = date_request.get('From') == name
+    is_receiver = date_request.get('To') == name
+    existing_location = date_request.get('date_location')
+
+    if not (is_sender or is_receiver):
+        messages.error(request, "Access denied.")
+        return redirect('area')
+
+    if is_receiver and not existing_location:
+        messages.error(request, "Only the sender can set the initial date location.")
+        return redirect('area')
+    
+    # Get partner info
+    partner = date_request["To"] if date_request["From"] == name else date_request["From"]
+    
+    # Get both users' locations with detailed error checking
+    user_location = Location.find_one({'name': name})
+    partner_location = Location.find_one({'name': partner})
+    
+    # Validate user location
+    if not user_location:
+        messages.error(request, f"Your location is not set. Please update your location in your profile.")
+        return redirect('profile')
+    
+    if not user_location.get('lat') or not user_location.get('lon'):
+        messages.error(request, f"Your location coordinates are incomplete. Please update your location.")
+        return redirect('profile')
+    
+    # Validate partner location  
+    if not partner_location:
+        messages.error(request, f"{partner}'s location is not set. They need to update their location.")
+        return redirect('profile')
+    
+    if not partner_location.get('lat') or not partner_location.get('lon'):
+        messages.error(request, f"{partner}'s location coordinates are incomplete.")
+        return redirect('profile')
+    
+    # Convert coordinates to float with error handling
+    try:
+        user_lat = float(user_location['lat'])
+        user_lon = float(user_location['lon'])
+        partner_lat = float(partner_location['lat'])
+        partner_lon = float(partner_location['lon'])
+        
+        # Validate coordinate ranges
+        if not (-90 <= user_lat <= 90) or not (-180 <= user_lon <= 180):
+            messages.error(request, "Your location coordinates are invalid.")
+            return redirect('profile')
+            
+        if not (-90 <= partner_lat <= 90) or not (-180 <= partner_lon <= 180):
+            messages.error(request, f"{partner}'s location coordinates are invalid.")
+            return redirect('profile')
+            
+    except (ValueError, TypeError) as e:
+        messages.error(request, "Location coordinates are not in valid format.")
+        print(f"DEBUG - Coordinate conversion error: {e}")
+        return redirect('profile')
+    
+    # Get combined preferences for context
+    preferred_tags = get_combined_preferences(name, partner)
+    
+    # Prepare current location data for JSON serialization
+    current_location = date_request.get('date_location', None)
+    if current_location and 'selected_at' in current_location:
+        # Convert datetime to string for JSON serialization
+        current_location_copy = current_location.copy()
+        current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
+        current_location = current_location_copy
+    
+    # NEW: Get route midpoint (not just coordinate midpoint)
+    route_midpoint_lat = None
+    route_midpoint_lon = None
+    
+    # Try to get actual route midpoint
+    try:
+        import requests
+        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if route.get('geometry') and route['geometry'].get('coordinates'):
+                    coords = route['geometry']['coordinates']
+                    # Get the actual midpoint of the route
+                    midpoint_index = len(coords) // 2
+                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                    logger.info(f"Route midpoint found: {route_midpoint_lat}, {route_midpoint_lon}")
+    except Exception as e:
+        logger.warning(f"Failed to get route midpoint: {e}")
+    
+    # Fallback to coordinate midpoint if route fails
+    if route_midpoint_lat is None or route_midpoint_lon is None:
+        route_midpoint_lat = (user_lat + partner_lat) / 2
+        route_midpoint_lon = (user_lon + partner_lon) / 2
+        logger.info(f"Using coordinate midpoint fallback: {route_midpoint_lat}, {route_midpoint_lon}")
+    
+    # Prepare date info with location selection mode
+    date_info_dict = {
+        'request_id': str(date_request['_id']),
+        'date': date_request.get('date', ''),
+        'time': date_request.get('time', ''),
+        'partner': partner,
+        'status': date_request.get('status', ''),
+        'user_lat': user_lat,
+        'user_lon': user_lon,
+        'partner_lat': partner_lat,
+        'partner_lon': partner_lon,
+        'route_midpoint_lat': route_midpoint_lat,  # NEW: Actual route midpoint
+        'route_midpoint_lon': route_midpoint_lon,  # NEW: Actual route midpoint
+        'preferred_tags': preferred_tags,
+        'mode': 'location_selection',  # Special mode for location selection
+        'current_location': current_location,
+        'is_sender': is_sender,  # NEW: Add sender flag
+        'show_midpoint_route': not current_location  # NEW: Show midpoint route only if no location set
+    }
+    
+    context = {
+        'date_info': date_info_dict,
+        'date_info_json': json.dumps(date_info_dict),
+        'location_selection_mode': True
+    }
+    
+    return render(request, 'MainApp/Map.html', context)
+
+
+@csrf_exempt
+def get_date_location(request):
+    """
+    Get the current date location for a specific date request
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    try:
+        request_id = request.GET.get('request_id')
+        if not request_id:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Missing request_id parameter'
+            }, status=400)
+        
+        # Find the date request
+        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+        if not date_request:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Date request not found'
+            }, status=404)
+        
+        # Check if user is involved in this date
+        if date_request.get('From') != name and date_request.get('To') != name:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Access denied'
+            }, status=403)
+        
+        date_location = date_request.get('date_location', None)
+        is_sender = date_request.get('From') == name
+        
+        return JsonResponse({
+            'status': 'success',
+            'date_location': date_location,
+            'can_modify': is_sender or (not is_sender and date_location is not None)  # Updated permission logic
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting date location: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Failed to get date location'
+        }, status=500)
+
+
+@csrf_exempt
+def remove_date_location(request):
+    """
+    Remove/clear the date location from a date request
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            request_id = data.get('request_id')
+            
+            if not request_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing request_id'
+                }, status=400)
+            
+            # Find the date request
+            date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+            if not date_request:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Date request not found'
+                }, status=404)
+            
+            # Updated permission check: both sender and receiver can remove existing location
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+
+            if not (is_sender or is_receiver):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Access denied'
+                }, status=403)
+            
+            # Remove the date location
+            result = DateReq.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$unset": {"date_location": ""}}
+            )
+            
+            if result.modified_count > 0:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': 'Date location removed successfully'
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to remove date location'
+                }, status=500)
+                
+        except Exception as e:
+            logger.error(f"Error removing date location: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+def events_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin (Faisal or Jophy)
+    is_admin = name in ['Faisal', 'Jophy']
+    
+    # Get approved events for everyone to see
+    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get user's own events
+    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    
+    # Get pending events for admin
+    pending_events = []
+    if is_admin:
+        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
+    
+    # Process events to add image URLs
+    for event in approved_events + user_events + pending_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    context = {
+        'approved_events': approved_events,
+        'user_events': user_events,
+        'pending_events': pending_events,
+        'is_admin': is_admin,
+        'name': name
+    }
+    
+    return render(request, 'MainApp/events.html', context)
+
+# Create event view
+@csrf_exempt
+def create_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            event_name = request.POST.get('event_name', '').strip()
+            event_description = request.POST.get('event_description', '').strip()
+            event_date = request.POST.get('event_date', '').strip()
+            event_time = request.POST.get('event_time', '').strip()
+            event_location = request.POST.get('event_location', '').strip()
+            event_lat = request.POST.get('event_lat', '')
+            event_lon = request.POST.get('event_lon', '')
+            
+            # Validate required fields
+            if not event_name or not event_description or not event_date:
+                messages.error(request, "Event name, description, and date are required.")
+                return redirect('events')
+            
+            # Create event document
+            event_data = {
+                'name': event_name,
+                'description': event_description,
+                'event_date': event_date,
+                'event_time': event_time,
+                'location': event_location,
+                'created_by': name,
+                'status': 'pending',  # All events start as pending
+                'created_at': datetime.now(),
+                'updated_at': datetime.now()
+            }
+            
+            # Add location coordinates if provided
+            if event_lat and event_lon:
+                try:
+                    event_data['lat'] = float(event_lat)
+                    event_data['lon'] = float(event_lon)
+                except ValueError:
+                    pass  # Skip if coordinates are invalid
+            
+            # Insert event into database
+            result = Events.insert_one(event_data)
+            event_id = str(result.inserted_id)
+            
+            # Handle image uploads
+            uploaded_files = request.FILES.getlist('event_images')
+            image_count = 0
+            
+            for uploaded_file in uploaded_files:
+                if uploaded_file and image_count < 5:  # Limit to 5 images
+                    try:
+                        # Validate file type
+                        if not uploaded_file.content_type.startswith('image/'):
+                            continue
+                        
+                        # Validate file size (5MB limit)
+                        if uploaded_file.size > 5 * 1024 * 1024:
+                            continue
+                        
+                        # Create upload directory
+                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
+                        if not os.path.exists(upload_dir):
+                            os.makedirs(upload_dir, mode=0o755)
+                        
+                        # Generate unique filename
+                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        unique_id = str(uuid.uuid4())[:8]
+                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
+                        file_path = os.path.join(upload_dir, filename)
+                        
+                        # Save file
+                        with open(file_path, 'wb+') as destination:
+                            for chunk in uploaded_file.chunks():
+                                destination.write(chunk)
+                        
+                        # Store image info in database
+                        image_url = f"/media/event_images/{filename}"
+                        EventImages.insert_one({
+                            'event_id': event_id,
+                            'image_url': image_url,
+                            'filename': filename,
+                            'uploaded_at': datetime.now()
+                        })
+                        
+                        image_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error uploading image: {e}")
+                        continue
+            
+            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
+            return redirect('events')
+            
+        except Exception as e:
+            logger.error(f"Error creating event: {e}")
+            messages.error(request, "An error occurred while creating the event. Please try again.")
+            return redirect('events')
+    
+    return redirect('events')
+
+# Approve event view (admin only)
+@csrf_exempt
+def approve_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to approve events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to approved
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'approved',
+                        'approved_by': name,
+                        'approved_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                messages.success(request, "Event has been approved successfully!")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error approving event: {e}")
+            messages.error(request, "An error occurred while approving the event.")
+    
+    return redirect('events')
+
+# Reject event view (admin only)
+@csrf_exempt
+def reject_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to reject events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to rejected
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'rejected',
+                        'rejected_by': name,
+                        'rejected_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                # Optionally delete associated images
+                EventImages.delete_many({'event_id': event_id})
+                messages.success(request, "Event has been rejected.")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error rejecting event: {e}")
+            messages.error(request, "An error occurred while rejecting the event.")
+    
+    return redirect('events')
+
+# Get event details (for AJAX calls)
+@csrf_exempt
+def get_event_details(request, event_id):
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    try:
+        event = Events.find_one({'_id': ObjectId(event_id)})
+        
+        if not event:
+            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
+        
+        # Get event images
+        images = list(EventImages.find({'event_id': event_id}))
+        image_urls = [img['image_url'] for img in images]
+        
+        event_data = {
+            'id': str(event['_id']),
+            'name': event.get('name', ''),
+            'description': event.get('description', ''),
+            'event_date': event.get('event_date', ''),
+            'event_time': event.get('event_time', ''),
+            'location': event.get('location', ''),
+            'lat': event.get('lat'),
+            'lon': event.get('lon'),
+            'created_by': event.get('created_by', ''),
+            'status': event.get('status', ''),
+            'images': image_urls,
+            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
+        }
+        
+        return JsonResponse({'status': 'success', 'event': event_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting event details: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    
+    
+@csrf_exempt
+def get_place_reviews(request):
+    """
+    Fetch reviews for a place using Google Places API
+    """
+    if request.method == 'GET':
+        try:
+            # Get parameters from request
+            place_name = request.GET.get('name', '')
+            lat = request.GET.get('lat', '')
+            lon = request.GET.get('lon', '')
+            
+            if not all([place_name, lat, lon]):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing required parameters: name, lat, lon'
+                })
+            
+            # Check if API key is configured
+            if not settings.GOOGLE_PLACES_API_KEY:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Places API key not configured'
+                })
+            
+            # Step 1: Find the place using Places API Text Search
+            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+            search_params = {
+                'query': f"{place_name}",
+                'location': f"{lat},{lon}",
+                'radius': 500,  # 500 meters radius
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            search_response = requests.get(search_url, params=search_params)
+            search_data = search_response.json()
+            
+            if search_data.get('status') != 'OK' or not search_data.get('results'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place not found in Google Places'
+                })
+            
+            # Get the first result (most relevant)
+            place = search_data['results'][0]
+            place_id = place.get('place_id')
+            
+            if not place_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place ID not found'
+                })
+            
+            # Step 2: Get place details including reviews
+            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+            details_params = {
+                'place_id': place_id,
+                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            details_response = requests.get(details_url, params=details_params)
+            details_data = details_response.json()
+            
+            if details_data.get('status') != 'OK':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to fetch place details'
+                })
+            
+            place_details = details_data.get('result', {})
+            
+            # Extract relevant information
+            reviews_data = {
+                'status': 'success',
+                'place_name': place_details.get('name', place_name),
+                'rating': place_details.get('rating', 0),
+                'total_ratings': place_details.get('user_ratings_total', 0),
+                'address': place_details.get('formatted_address', ''),
+                'phone': place_details.get('formatted_phone_number', ''),
+                'website': place_details.get('website', ''),
+                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
+                'reviews': []
+            }
+            
+            # Process reviews
+            reviews = place_details.get('reviews', [])
+            for review in reviews[:5]:  # Limit to 5 reviews
+                review_data = {
+                    'author_name': review.get('author_name', 'Anonymous'),
+                    'rating': review.get('rating', 0),
+                    'text': review.get('text', ''),
+                    'time': review.get('relative_time_description', ''),
+                    'profile_photo_url': review.get('profile_photo_url', '')
+                }
+                reviews_data['reviews'].append(review_data)
+            
+            return JsonResponse(reviews_data)
+            
+        except requests.RequestException as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'API request failed: {str(e)}'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Server error: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only GET method allowed'
+    })
+
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = None
+        lon = None
+        
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
+
+        # Debug logging
+        print(f"DEBUG - Received coordinates: lat={lat}, lon={lon}")
+        print(f"DEBUG - User: {name}")
+
+        if lat is None or lon is None:
+            print("DEBUG - Missing latitude or longitude")
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+        
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            print(f"DEBUG - Converted to floats: lat={lat}, lon={lon}")
+        except ValueError as e:
+            print(f"DEBUG - Conversion error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        # Validate coordinate ranges
+        if not (-90 <= lat <= 90):
+            print(f"DEBUG - Invalid latitude range: {lat}")
+            return JsonResponse({'status': 'error', 'message': 'Latitude must be between -90 and 90'}, status=400)
+            
+        if not (-180 <= lon <= 180):
+            print(f"DEBUG - Invalid longitude range: {lon}")
+            return JsonResponse({'status': 'error', 'message': 'Longitude must be between -180 and 180'}, status=400)
+
+        # Check for null island (0,0) which is often a default value
+        if lat == 0 and lon == 0:
+            print("DEBUG - Warning: Coordinates are at 0,0 (Null Island)")
+            return JsonResponse({'status': 'error', 'message': 'Invalid coordinates: 0,0 is not a valid location'}, status=400)
+
+        try:
+            existing = Location.find_one({'name': name})
+            if existing:
+                print(f"DEBUG - Updating existing location for {name}")
+                result = Location.update_one(
+                    {'_id': existing['_id']}, 
+                    {'$set': {'lat': lat, 'lon': lon, 'updated_at': datetime.now()}}
+                )
+                print(f"DEBUG - Update result: {result.modified_count} modified")
+            else:
+                print(f"DEBUG - Creating new location for {name}")
+                result = Location.insert_one({
+                    'name': name, 
+                    'lat': lat, 
+                    'lon': lon, 
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now()
+                })
+                print(f"DEBUG - Insert result: {result.inserted_id}")
+            
+            # Verify the save
+            saved_location = Location.find_one({'name': name})
+            print(f"DEBUG - Saved location: {saved_location}")
+            
+            return JsonResponse({
+                'status': 'success', 
+                'message': 'Location updated successfully',
+                'coordinates': {'lat': lat, 'lon': lon}
+            })
+            
+        except Exception as e:
+            print(f"DEBUG - Database error: {e}")
+            return JsonResponse({'status': 'error', 'message': f'Database error: {str(e)}'}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 

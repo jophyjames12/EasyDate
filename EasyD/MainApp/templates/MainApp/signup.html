@@ -6,15 +6,12 @@
     <title>Sign Up</title>
     {% load static %}
     <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
-    <!-- Google Identity Services script -->
-    <script src="https://accounts.google.com/gsi/client" async defer>
-        
-    </script>
+    <!-- Google Sign-In API -->
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
     <div class="auth-container">
         <h2>Sign Up</h2>
-
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
@@ -22,6 +19,28 @@
                 {% endfor %}
             </div>
         {% endif %}
+        
+        <!-- Google Sign-Up Button -->
+        <div class="google-signin-container" style="margin-bottom: 20px; text-align: center;">
+            <div id="g_id_onload"
+                 data-client_id="YOUR_GOOGLE_CLIENT_ID"
+                 data-callback="handleCredentialResponse"
+                 data-auto_prompt="false">
+            </div>
+            <div class="g_id_signin"
+                 data-type="standard"
+                 data-size="large"
+                 data-theme="outline"
+                 data-text="signup_with"
+                 data-shape="rectangular"
+                 data-logo_alignment="left">
+            </div>
+        </div>
+        
+        <div class="divider" style="text-align: center; margin: 20px 0; position: relative;">
+            <span style="background: white; padding: 0 15px; color: #666;">or</span>
+            <hr style="position: absolute; top: 50%; left: 0; right: 0; z-index: -1; border: none; border-top: 1px solid #ddd;">
+        </div>
 
         <form method="post">
             {% csrf_token %}
@@ -39,60 +58,38 @@
 
             <button type="submit">Sign Up</button>
         </form>
-
-        <div style="margin-top: 20px;">
-            <!-- Google Sign-In -->
-            <div id="g_id_onload"
-                 data-client_id="{{ google_client_id }}"
-                 data-auto_prompt="false">
-            </div>
-
-            <div class="g_id_signin"
-                 data-type="standard"
-                 data-size="large"
-                 data-theme="outline"
-                 data-text="sign_in_with"
-                 data-shape="rectangular"
-                 data-logo_alignment="left">
-            </div>
-        </div>
-
         <p>Already have an account? <a href="{% url 'login' %}">Log in here</a></p>
     </div>
-
-    <!-- Google Sign-In JS Handler -->
+    
+    <script src="{% static 'MainApp/file.js' %}"></script>
+    
     <script>
+        // Handle Google Sign-Up response
         function handleCredentialResponse(response) {
-            fetch("{% url 'google_auth' %}", {
+            // Send the credential to your Django backend for sign-up
+            fetch('/auth/google/signup/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': '{{ csrf_token }}'
+                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
                 },
-                body: JSON.stringify({ credential: response.credential })
+                body: JSON.stringify({
+                    'credential': response.credential
+                })
             })
-            .then(res => res.json())
+            .then(response => response.json())
             .then(data => {
-                if (data.status === 'success') {
+                if (data.success) {
                     window.location.href = '/area/';
                 } else {
-                    alert("Google sign-in failed: " + data.message);
+                    alert('Google Sign-Up failed: ' + (data.error || 'Please try again.'));
                 }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during sign-up.');
             });
         }
-
-        window.onload = function () {
-            google.accounts.id.initialize({
-                client_id: "{{ google_client_id }}",
-                callback: handleCredentialResponse
-            });
-            google.accounts.id.renderButton(
-                document.querySelector(".g_id_signin"),
-                { theme: "outline", size: "large" }
-            );
-        };
     </script>
-
-    <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>
