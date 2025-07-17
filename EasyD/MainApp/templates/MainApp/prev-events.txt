@@ -418,20 +418,148 @@
                 margin: 5px 0;
             }
         }
+        /* Notification Badge Styles */
+        .nav-item {
+            position: relative !important;
+            display: inline-block !important;
+        }
+
+        .notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background-color: #ff4757;
+            color: white;
+            border-radius: 50%;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+            min-width: 16px;
+            height: 16px;
+            line-height: 12px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            z-index: 1001;
+            animation: pulse-notification 2s infinite;
+        }
+
+        /* Pulse animation for notification badge */
+        @keyframes pulse-notification {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+            }
+            70% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 8px rgba(255, 71, 87, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+            }
+        }
+
+        /* Enhanced dropdown styles for better notification display */
+        .dropdown-content {
+            display: none;
+            position: absolute;
+            top: 40px;
+            right: 0;
+            background-color: white;
+            color: black;
+            border: 1px solid #ddd;
+            min-width: 120px;
+            z-index: 1000;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        .dropdown-content a {
+            display: block;
+            padding: 12px 16px;
+            text-decoration: none;
+            color: black;
+            position: relative;
+            transition: background-color 0.3s ease;
+        }
+
+        .dropdown-content a:hover {
+            background-color: #f5f5f5;
+        }
+
+        /* Show the dropdown menu on hover */
+        .menu:hover .dropdown-content {
+            display: block;
+        }
+
+        /* Ensure the menu button has proper styling */
+        .menu button {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 4px;
+            transition: background-color 0.3s ease;
+        }
+
+        .menu button:hover {
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .notification-badge {
+                top: -6px;
+                right: -6px;
+                font-size: 9px;
+                min-width: 14px;
+                height: 14px;
+                line-height: 10px;
+                padding: 1px 4px;
+            }
+            
+            .dropdown-content {
+                min-width: 100px;
+                right: -10px;
+            }
+            
+            .dropdown-content a {
+                padding: 10px 12px;
+                font-size: 14px;
+            }
+        }
     </style>
 </head>
 <body>
-    <!-- Top Menu Section -->
+    <!-- Update the header section in your templates (area.html, events.html, etc.) -->
     <header>
-        <h1>Events</h1>
+        <h1>Event Schedule</h1>
         <div class="menu">
             <button onclick="toggleMenu()">☰ Menu</button>
             <div id="dropdown" class="dropdown-content">
-                <a href="{% url 'area' %}">Home</a>
                 <a href="map">Map</a>
-                <a href="{% url 'profile' %}">Profile</a>
+                <a href="{% url 'events' %}">Events</a>
+                
+                <!-- Profile link with date request notifications -->
+                <a href="{% url 'profile' %}" class="nav-item">
+                    Profile
+                    {% if date_request_count > 0 %}
+                        <span class="notification-badge">{{ date_request_count }}</span>
+                    {% endif %}
+                </a>
+                
                 <a href="logout/">Logout</a>
-                <a href="search_user">Friends</a>
+                
+                <!-- Friends link with friend request notifications -->
+                <a href="search_user" class="nav-item">
+                    Friends
+                    {% if friend_request_count > 0 %}
+                        <span class="notification-badge">{{ friend_request_count }}</span>
+                    {% endif %}
+                </a>
             </div>
         </div>
     </header>
@@ -809,7 +937,7 @@
             }
         }
 
-        // File upload preview
+        // File upload preview - FIXED VERSION
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('event_images');
             if (fileInput) {
@@ -817,13 +945,28 @@
                     const files = e.target.files;
                     const uploadDiv = e.target.parentElement;
                     
+                    // Find or create a preview div (don't replace the input!)
+                    let previewDiv = uploadDiv.querySelector('.file-preview');
+                    if (!previewDiv) {
+                        previewDiv = document.createElement('div');
+                        previewDiv.className = 'file-preview';
+                        uploadDiv.appendChild(previewDiv);
+                    }
+                    
                     if (files.length > 0) {
-                        uploadDiv.innerHTML = `
-                            <input type="file" id="event_images" name="event_images" multiple accept="image/*">
-                            <p>📷 ${files.length} image(s) selected</p>
-                            <p style="font-size: 12px; color: #666;">Click to change selection</p>
+                        // Update preview text without replacing the input
+                        previewDiv.innerHTML = `
+                            <p style="color: #28a745; font-weight: bold;">📷 ${files.length} image(s) selected</p>
+                            <p style="font-size: 12px; color: #666;">Click above to change selection</p>
                         `;
-                        uploadDiv.onclick = () => document.getElementById('event_images').click();
+                        
+                        // Optional: Show file names
+                        const fileNames = Array.from(files).map(file => file.name).join(', ');
+                        if (fileNames.length < 100) { // Only show if not too long
+                            previewDiv.innerHTML += `<p style="font-size: 11px; color: #888;">${fileNames}</p>`;
+                        }
+                    } else {
+                        previewDiv.innerHTML = '';
                     }
                 });
             }
@@ -981,6 +1124,93 @@
         document.addEventListener('DOMContentLoaded', function() {
             setupLocationSearch();
         });
+
+        // Function to update notification badges
+        function updateNotificationBadges(friendCount, dateCount) {
+            // Update friend request badge
+            const friendsLink = document.querySelector('a[href*="search_user"]');
+            if (friendsLink) {
+                let friendBadge = friendsLink.querySelector('.notification-badge');
+                if (friendCount > 0) {
+                    if (!friendBadge) {
+                        friendBadge = document.createElement('span');
+                        friendBadge.className = 'notification-badge';
+                        friendsLink.appendChild(friendBadge);
+                        friendsLink.classList.add('nav-item');
+                    }
+                    friendBadge.textContent = friendCount;
+                } else if (friendBadge) {
+                    friendBadge.remove();
+                }
+            }
+            
+            // Update date request badge
+            const profileLink = document.querySelector('a[href*="profile"]');
+            if (profileLink) {
+                let dateBadge = profileLink.querySelector('.notification-badge');
+                if (dateCount > 0) {
+                    if (!dateBadge) {
+                        dateBadge = document.createElement('span');
+                        dateBadge.className = 'notification-badge';
+                        profileLink.appendChild(dateBadge);
+                        profileLink.classList.add('nav-item');
+                    }
+                    dateBadge.textContent = dateCount;
+                } else if (dateBadge) {
+                    dateBadge.remove();
+                }
+            }
+        }
+
+        // Function to fetch current notification counts
+        async function fetchNotificationCounts() {
+            try {
+                const response = await fetch('/get_notification_counts/');
+                const data = await response.json();
+                
+                if (data.status === 'success') {
+                    updateNotificationBadges(data.friend_count, data.date_count);
+                }
+            } catch (error) {
+                console.error('Error fetching notification counts:', error);
+            }
+        }
+
+        // Check for new notifications every 30 seconds
+        document.addEventListener('DOMContentLoaded', function() {
+            // Initial load
+            fetchNotificationCounts();
+            
+            // Set up periodic checking (every 30 seconds)
+            setInterval(fetchNotificationCounts, 30000);
+        });
+
+        // Function to show notification sound/alert (optional)
+        function playNotificationSound() {
+            // You can add a notification sound here if desired
+            // const audio = new Audio('/static/sounds/notification.mp3');
+            // audio.play().catch(e => console.log('Could not play notification sound'));
+        }
+
+        // Function to show browser notification (optional)
+        function showBrowserNotification(title, message) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/static/MainApp/icon.png' // Add your app icon
+                });
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification(title, {
+                            body: message,
+                            icon: '/static/MainApp/icon.png'
+                        });
+                    }
+                });
+            }
+        }
     </script>
+
 </body>
 </html>

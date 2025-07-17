@@ -224,7 +224,7 @@ def events_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
     
-    userinfo(request)
+    notifications = userinfo(request)
     
     # Perform maintenance tasks
     move_past_events()
@@ -269,7 +269,9 @@ def events_view(request):
         'user_events': user_events,
         'pending_events': pending_events,
         'is_admin': is_admin,
-        'name': name
+        'name': name,
+        'friend_request_count': notifications['friend_request_count'],
+        'date_request_count': notifications['date_request_count'],
     }
     
     return render(request, 'MainApp/events.html', context)
@@ -706,11 +708,27 @@ def update_location(request):
 
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
-    global user
+    """
+    Retrieves user information from session and fetches username from database
+    Also gets notification counts for friend and date requests
+    """
+    global user, name
     user = request.session.get('user_id')
-    global name
     # Fetch the username from MongoDB using the user ID in the session
     name = users_collection.find_one({"_id": ObjectId(user)}).get('username')
+    
+    # Get notification counts
+    friend_request_count = FriendReq.find({"To": name}).count()
+    date_request_count = DateReq.find({"To": name, "status": "pending"}).count()
+    
+    # Store in session for easy access in templates
+    request.session['friend_request_count'] = friend_request_count
+    request.session['date_request_count'] = date_request_count
+    
+    return {
+        'friend_request_count': friend_request_count,
+        'date_request_count': date_request_count
+    }
 
 # Home view to check if user is logged in; if not, redirect to login
 def home(request):
@@ -786,8 +804,8 @@ def area_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
     
-    # Get user info
-    userinfo(request)
+    # Get user info and notifications
+    notifications = userinfo(request)
     
     # Move old dates to separate collection
     move_old_dates()
@@ -857,15 +875,20 @@ def area_view(request):
     # Sort upcoming dates by date
     processed_upcoming_dates.sort(key=lambda x: x['date'] if x['date'] else '')
     
-    # Pass success messages, dates, and events to the template
-    return render(request, 'MainApp/area.html', {
+    # Pass success messages, dates, events, and notifications to the template
+    context = {
         'account_created': account_created, 
         'login_success': login_success,
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
         'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
         'recent_events': recent_events,  # NEW: Add recent events
-    })
+        # Add notification counts
+        'friend_request_count': notifications['friend_request_count'],
+        'date_request_count': notifications['date_request_count'],
+    }
+    
+    return render(request, 'MainApp/area.html', context)
 
 def logout_view(request):
     if 'user_id' in request.session:
@@ -877,7 +900,7 @@ def logout_view(request):
 
 # View to handle user search and friend request functionality
 def search_user(request):
-    userinfo(request)  # Retrieve logged-in user's info
+    notifications = userinfo(request)  # Retrieve logged-in user's info
     if request.method == "POST":
         # Get the username input from the search form
         username = request.POST.get('username')
@@ -949,7 +972,8 @@ def search_user(request):
     all_friends = user_friendlist.get("friends", []) if user_friendlist else []
 
     # Render the search page with friend requests and friends list
-    return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends})
+    return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends, 'friend_request_count': notifications['friend_request_count'],
+        'date_request_count': notifications['date_request_count'],})
 
 # Check and display pending friend requests for the user
 def check_request(request):
@@ -1063,7 +1087,7 @@ def send_date_request(request):
         return redirect("search_user")
 
 def profile(request):
-    userinfo(request)
+    notifications = userinfo(request)
     # Fetch user profile information
     user_profile = Profiles.find_one({"username": name})
     bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
@@ -1134,7 +1158,9 @@ def profile(request):
         "friend_count": friend_count,
         "post_count": 0,
         "bio": bio,
-        "profile_picture": profile_picture
+        "profile_picture": profile_picture,
+        'friend_request_count': notifications['friend_request_count'],
+        'date_request_count': notifications['date_request_count'],
     })
 
 # Edit profile view
@@ -2163,6 +2189,70 @@ def remove_date_location(request):
             return JsonResponse({
                 'status': 'error',
                 'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+@csrf_exempt
+def get_notification_counts(request):
+    """
+    Get current notification counts for the user
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    try:
+        # Get current notification counts
+        friend_request_count = FriendReq.find({"To": name}).count()
+        date_request_count = DateReq.find({"To": name, "status": "pending"}).count()
+        
+        return JsonResponse({
+            'status': 'success',
+            'friend_count': friend_request_count,
+            'date_count': date_request_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting notification counts: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Failed to get notification counts'
+        }, status=500)
+
+# Also add this to clear notifications when user views them
+@csrf_exempt
+def mark_notifications_seen(request):
+    """
+    Mark notifications as seen (optional - for future use)
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            notification_type = data.get('type')  # 'friend' or 'date'
+            
+            # You can implement logic here to mark specific notifications as seen
+            # For now, we'll just return success
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'{notification_type} notifications marked as seen'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error marking notifications as seen: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Failed to mark notifications as seen'
             }, status=500)
     
     return JsonResponse({

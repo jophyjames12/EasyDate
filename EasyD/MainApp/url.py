@@ -45,6 +45,8 @@ urlpatterns=[
     path('approve_event/', views.approve_event, name='approve_event'),
     path('reject_event/', views.reject_event, name='reject_event'),
     path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
+    path('get_notification_counts/', views.get_notification_counts, name='get_notification_counts'),
+    path('mark_notifications_seen/', views.mark_notifications_seen, name='mark_notifications_seen'),
 ]
 
 if settings.DEBUG:
