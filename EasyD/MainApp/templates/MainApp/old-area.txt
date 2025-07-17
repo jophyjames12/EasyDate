@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Event Schedule</title>
+  {% load static %}  
+  <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
+  <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+  <style>
+    /* Add styles for clickable date items */
+    .schedule-item {
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: 2px solid transparent;
+    }
+    
+    .schedule-item:hover {
+      background-color: #f0f8ff;
+      border-color: #007bff;
+      transform: translateY(-2px);
+    }
+    
+    .schedule-item:active {
+      transform: translateY(0);
+    }
+    
+    .no-dates {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 20px;
+    }
+  </style>
+</head>
+<body>
+  
+  <!-- Success Modal for Account Creation -->
+  {% if account_created %} 
+  <div id="successModal" class="modal">
+    <div class="modal-content">
+        <div class="success-icon">✔️</div>
+        <h2>Account Created Successfully!</h2>
+        <p>Click Next to select your preferences.</p>
+        <button class="next-btn">Next</button>
+    </div>
+  </div> 
+
+  <!-- Preferences Modal -->
+  <div id="preferencesModal" class="modal" style="display: none;">
+      <div class="modal-content preferences-modal">
+          <h2>Select Your Preferences</h2>
+          <form id="save" action="{% url 'update_preferences' %}" method="POST">
+            {% csrf_token %}
+              <div class="preferences-options">
+                  <label><input type="checkbox" name="preferences" value="restaurant"> Restaurant</label>
+                  <label><input type="checkbox" name="preferences" value="bar"> Bar</label>
+                  <label><input type="checkbox" name="preferences" value="stall"> Stalls</label>
+                  <label><input type="checkbox" name="preferences" value="club"> Club</label>
+              </div>
+              <input type="hidden" name="selected_preferences" id="selectedPreferencesInput">
+              <button type="button" class="save-btn">Save</button>
+          </form>
+      </div>
+  </div>
+
+  {% endif %}
+
+  <!-- Top Menu Section -->
+  <header>
+    <h1>Event Schedule</h1>
+    <div class="menu">
+      <button onclick="toggleMenu()">☰ Menu</button>
+      <div id="dropdown" class="dropdown-content">
+        <a href="map">map</a>
+        <!-- Update Profile link to go to the profile page -->
+        <a href="{% url 'events' %}">Events</a>
+        <a href="{% url 'profile' %}">Profile</a>  <!-- Link to profile page -->
+        <a href="logout/">Logout</a>
+        <a href="search_user">Friends</a> <!-- Link to Friends feature -->
+      </div>
+    </div>
+  </header>
+
+  <!-- Horizontal Sliding Schedule Section -->
+  <section class="schedule">
+    <div class="schedule-slider">
+      {% if accepted_dates %}
+        {% for date in accepted_dates %}
+          <div class="schedule-item" onclick="goToDateMap('{{ date.request_id }}')">
+            {{ date.date }} - Meet with {{ date.partner }}<br>
+            {{ date.time }} - Click to view map
+          </div>
+        {% endfor %}
+      {% else %}
+        <div class="no-dates">
+          No upcoming dates. Send a date request to your friends!
+        </div>
+      {% endif %}
+    </div>
+  </section>
+
+  <!-- Community Events Section - ADD THIS ENTIRE SECTION -->
+  <section class="community-events">
+    <div class="events-header">
+      <h2>Community Events</h2>
+      <a href="{% url 'events' %}" class="view-all-btn">View All Events</a>
+    </div>
+    
+    {% if recent_events %}
+      <div class="events-grid">
+        {% for event in recent_events %}
+          <div class="event-card">
+            {% if event.image %}
+              <img src="{{ event.image }}" alt="{{ event.name }}" class="event-thumbnail">
+            {% else %}
+              <div class="event-thumbnail-placeholder">
+                <span>📅</span>
+              </div>
+            {% endif %}
+            
+            <div class="event-info">
+              <h3 class="event-name">{{ event.name }}</h3>
+              <p class="event-date">{{ event.event_date }}</p>
+              {% if event.location %}
+                <p class="event-location">📍 {{ event.location|truncatechars:30 }}</p>
+              {% endif %}
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="no-events-message">
+        <p>No community events yet. <a href="{% url 'events' %}">Be the first to create one!</a></p>
+      </div>
+    {% endif %}
+  </section>
+
+  <!-- Auto-sliding Event Design Section -->
+  <section class="event">
+    <button class="arrow left-arrow">←</button> <!-- Left arrow -->
+    <div class="event-slider">
+      <div class="event-item">Event Design 1</div>
+      <div class="event-item">Event Design 2</div>
+      <div class="event-item">Event Design 3</div>
+    </div>
+    <button class="arrow right-arrow">→</button> <!-- Right arrow -->
+  </section>
+
+  
+  
+  <script src="{% static 'MainApp/file.js' %}"></script>
+  <script>
+    // Function to navigate to date map
+    function goToDateMap(requestId) {
+      window.location.href = '/date-map/' + requestId + '/';
+    }
+  </script>
+</body>
+</html>

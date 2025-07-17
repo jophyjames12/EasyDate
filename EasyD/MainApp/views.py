@@ -326,6 +326,10 @@ def create_event(request):
             # Handle image uploads
             uploaded_files = request.FILES.getlist('event_images')
             image_count = 0
+            # DEBUG: Add logging to see what files are received
+            print(f"DEBUG: Found {len(uploaded_files)} uploaded files")
+            for i, file in enumerate(uploaded_files):
+                print(f"  File {i+1}: {file.name}, Size: {file.size}, Type: {file.content_type}")
             
             for uploaded_file in uploaded_files:
                 if uploaded_file and image_count < 5:  # Limit to 5 images

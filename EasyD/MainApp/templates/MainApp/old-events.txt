@@ -809,7 +809,7 @@
             }
         }
 
-        // File upload preview - FIXED VERSION
+        // File upload preview
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('event_images');
             if (fileInput) {
@@ -817,28 +817,13 @@
                     const files = e.target.files;
                     const uploadDiv = e.target.parentElement;
                     
-                    // Find or create a preview div (don't replace the input!)
-                    let previewDiv = uploadDiv.querySelector('.file-preview');
-                    if (!previewDiv) {
-                        previewDiv = document.createElement('div');
-                        previewDiv.className = 'file-preview';
-                        uploadDiv.appendChild(previewDiv);
-                    }
-                    
                     if (files.length > 0) {
-                        // Update preview text without replacing the input
-                        previewDiv.innerHTML = `
-                            <p style="color: #28a745; font-weight: bold;">📷 ${files.length} image(s) selected</p>
-                            <p style="font-size: 12px; color: #666;">Click above to change selection</p>
+                        uploadDiv.innerHTML = `
+                            <input type="file" id="event_images" name="event_images" multiple accept="image/*">
+                            <p>📷 ${files.length} image(s) selected</p>
+                            <p style="font-size: 12px; color: #666;">Click to change selection</p>
                         `;
-                        
-                        // Optional: Show file names
-                        const fileNames = Array.from(files).map(file => file.name).join(', ');
-                        if (fileNames.length < 100) { // Only show if not too long
-                            previewDiv.innerHTML += `<p style="font-size: 11px; color: #888;">${fileNames}</p>`;
-                        }
-                    } else {
-                        previewDiv.innerHTML = '';
+                        uploadDiv.onclick = () => document.getElementById('event_images').click();
                     }
                 });
             }
