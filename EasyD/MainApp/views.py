@@ -1,6 +1,7 @@
 from asyncio.log import logger
 from tkinter import Place
 from django.http import HttpResponse, JsonResponse
+from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
 from google.oauth2 import id_token
@@ -38,57 +39,190 @@ Profiles = db['Profiles']  # New collection for storing profile info
 
 client_id = settings.GOOGLE_CLIENT_ID
 
+import json
+from django.http import JsonResponse
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_http_methods
+from google.oauth2 import id_token
+from google.auth.transport import requests
+from datetime import datetime
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
+
 @csrf_exempt
+@require_http_methods(["POST"])
 def google_auth_view(request):
-    if request.method == 'POST':
+    try:
+        # Parse request body
+        body = json.loads(request.body)
+        credential = body.get("credential")
+        
+        if not credential:
+            logger.error("Missing credential in request")
+            return JsonResponse({'status': 'error', 'message': 'Missing credential'})
+
+        # Verify the token using Google's official library (more secure)
         try:
-            # Parse token
-            body = json.loads(request.body.decode())
-            token = body.get("credential")
-
-            if not token:
-                return JsonResponse({'status': 'error', 'message': 'Missing token'}, status=400)
-
-            # Verify token
             idinfo = id_token.verify_oauth2_token(
-                token,
-                google_requests.Request(),
-                settings.GOOGLE_CLIENT_ID
+                credential, 
+                requests.Request(), 
+                client_id  # Your Google OAuth client ID
             )
+        except ValueError as e:
+            logger.error(f"Token verification failed: {str(e)}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid token'})
 
-            email = idinfo['email']
-            name = idinfo.get('name', '')
+        # Validate the token audience
+        if idinfo['aud'] != client_id:
+            logger.error("Token audience mismatch")
+            return JsonResponse({'status': 'error', 'message': 'Invalid token audience'})
 
-            # Check if user exists in MongoDB
-            user = users_collection.find_one({"username": email})
+        # Extract user information
+        email = idinfo.get('email')
+        name = idinfo.get('name', '')
+        google_id = idinfo.get('sub')
+        picture = idinfo.get('picture', '')
+        
+        if not email:
+            logger.error("No email in token")
+            return JsonResponse({'status': 'error', 'message': 'No email provided'})
 
-            if not user:
-                # Create a new user
-                new_user = {
-                    "username": email,
+        # Check if user exists in your database
+        user = users_collection.find_one({"email": email})
+        
+        if user:
+            # Existing user - log them in
+            user_id = str(user['_id'])
+            logger.info(f"Existing user logged in: {email}")
+        else:
+            # New user - create account
+            try:
+                user_data = {
+                    "username": email.split('@')[0],  # Use email prefix as username
                     "email": email,
                     "name": name,
-                    "password": "",  # Not applicable for Google login
-                    "google_auth": True
+                    "google_id": google_id,
+                    "picture": picture,
+                    "password": "",  # No password for Google users
+                    "created_at": datetime.now(),
+                    "auth_method": "google"
                 }
-                inserted = users_collection.insert_one(new_user)
-                user_id = inserted.inserted_id
-            else:
-                user_id = user['_id']
+                
+                # Check if username already exists and modify if needed
+                existing_username = users_collection.find_one({"username": user_data["username"]})
+                if existing_username:
+                    user_data["username"] = f"{user_data['username']}_{google_id[:8]}"
+                
+                result = users_collection.insert_one(user_data)
+                user_id = str(result.inserted_id)
+                logger.info(f"New user created: {email}")
+                
+            except Exception as e:
+                logger.error(f"Error creating user: {str(e)}")
+                return JsonResponse({'status': 'error', 'message': 'Failed to create user'})
 
-            # Set session manually
-            request.session['user_id'] = str(user_id)
-            request.session['login_success'] = True
+        # Set session data
+        request.session['user_id'] = user_id
+        request.session['login_success'] = True
+        request.session['auth_method'] = 'google'
+        
+        logger.info(f"User {email} successfully authenticated via Google")
+        
+        return JsonResponse({
+            'status': 'success', 
+            'message': 'Login successful',
+            'email': email,
+            'redirect_url': '/area/'
+        })
 
-            return JsonResponse({'status': 'success'})
+    except json.JSONDecodeError:
+        logger.error("Invalid JSON in request body")
+        return JsonResponse({'status': 'error', 'message': 'Invalid JSON'})
+    
+    except Exception as e:
+        logger.error(f"Unexpected error in Google auth: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Authentication failed'})
 
-        except ValueError as ve:
-            return JsonResponse({'status': 'error', 'message': 'Invalid token'}, status=401)
-        except Exception as e:
-            return JsonResponse({'status': 'error', 'message': str(e)}, status=500)
 
-    return JsonResponse({'status': 'error', 'message': 'Only POST allowed'}, status=405)
+# Alternative: If you prefer to stick with the tokeninfo endpoint (less secure)
+@csrf_exempt
+@require_http_methods(["POST"])
+def google_auth_view_tokeninfo(request):
+    try:
+        body = json.loads(request.body)
+        token = body.get("credential")
+        
+        if not token:
+            return JsonResponse({'status': 'error', 'message': 'Missing token'})
 
+        # Verify token using Google's tokeninfo endpoint
+        response = requests.get(
+            f"https://oauth2.googleapis.com/tokeninfo?id_token={token}",
+            timeout=10  # Add timeout
+        )
+        
+        if response.status_code != 200:
+            logger.error(f"Token verification failed: {response.status_code}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid token'})
+
+        user_info = response.json()
+        
+        # Validate the token
+        if user_info.get('aud') != client_id:
+            return JsonResponse({'status': 'error', 'message': 'Invalid token audience'})
+        
+        email = user_info.get('email')
+        name = user_info.get('name', '')
+        google_id = user_info.get('sub')
+        
+        if not email:
+            return JsonResponse({'status': 'error', 'message': 'No email provided'})
+
+        # Handle user authentication/creation (same as above)
+        user = users_collection.find_one({"email": email})
+        
+        if user:
+            user_id = str(user['_id'])
+        else:
+            # Create new user
+            user_data = {
+                "username": email.split('@')[0],
+                "email": email,
+                "name": name,
+                "google_id": google_id,
+                "password": "",
+                "created_at": datetime.now(),
+                "auth_method": "google"
+            }
+            
+            # Handle duplicate username
+            existing_username = users_collection.find_one({"username": user_data["username"]})
+            if existing_username:
+                user_data["username"] = f"{user_data['username']}_{google_id[:8]}"
+            
+            result = users_collection.insert_one(user_data)
+            user_id = str(result.inserted_id)
+
+        # Set session
+        request.session['user_id'] = user_id
+        request.session['login_success'] = True
+        request.session['auth_method'] = 'google'
+        
+        return JsonResponse({
+            'status': 'success', 
+            'message': 'Login successful',
+            'email': email
+        })
+
+    except requests.RequestException as e:
+        logger.error(f"Request error: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Network error'})
+    
+    except Exception as e:
+        logger.error(f"Unexpected error: {str(e)}")
+        return JsonResponse({'status': 'error', 'message': 'Authentication failed'})
 @csrf_exempt
 def get_place_reviews(request):
     """
@@ -237,7 +371,7 @@ def update_location(request):
         return JsonResponse({'status': 'success', 'message': 'Location updated successfully'})
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
-# Retrieves user information from session and fetches username from database
+#Retrieves user information from session anwd fetches username from sdatabase
 def userinfo(request):
     global user
     user = request.session.get('user_id')
@@ -249,35 +383,34 @@ def userinfo(request):
 def home(request):
     if not request.session.get('user_id'):
         # If user is not logged in, show login page
-        return render(request, 'MainApp/login.html')
+        return render(request, 'MainApp/login.html', {
+        'google_client_id': client_id
+    })
     # If logged in, show the main area page
     return render(request, 'MainApp/area.html')
 
 # Login view to handle user authentication
 def login_view(request):
-    # If user is already logged in, redirect to the main area page
     if request.session.get('user_id'):
         return render(request, 'MainApp/area.html')
 
     if request.method == 'POST':
-        # Retrieve submitted username and password from form
         username = request.POST['username']
         password = request.POST['password']
 
-        # Fetch the user record from MongoDB by username
         user = users_collection.find_one({"username": username})
         if user and pbkdf2_sha256.verify(password, user['password']):
-            # If user exists and password is correct, create session and redirect
             request.session['user_id'] = str(user['_id'])
             request.session['login_success'] = True
             return redirect('area')
         else:
-            # Display error if login details are invalid
             messages.error(request, "Invalid username or password")
-    return render(request, 'MainApp/login.html')
 
+    # ⚠️ Pass google_client_id here
+    return render(request, 'MainApp/login.html', {
+        'google_client_id': client_id
+    })
 # Signup view to handle user registration
-from django.conf import settings
 
 def signup_view(request):
     # Redirects logged-in users to the main area page

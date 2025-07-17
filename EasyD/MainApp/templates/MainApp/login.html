@@ -11,6 +11,7 @@
 <body>
     <div class="auth-container">
         <h2>Login</h2>
+        
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
@@ -34,6 +35,7 @@
             <!-- Google Sign-In button -->
             <div id="g_id_onload"
                  data-client_id="{{ google_client_id }}"
+                 data-callback="handleCredentialResponse"
                  data-auto_prompt="false">
             </div>
 
@@ -51,7 +53,9 @@
     </div>
 
     <script>
-        function handleCredentialResponse(response) {
+        // Global callback function for Google Sign-In
+        window.handleCredentialResponse = function(response) {
+            console.log("Google credential received", response);
             fetch("{% url 'google_auth' %}", {
                 method: 'POST',
                 headers: {
@@ -67,18 +71,11 @@
                 } else {
                     alert("Google sign-in failed: " + data.message);
                 }
+            })
+            .catch(err => {
+                console.error("Sign-in error:", err);
+                alert("Something went wrong with Google Sign-In.");
             });
-        }
-
-        window.onload = function () {
-            google.accounts.id.initialize({
-                client_id: "{{ google_client_id }}",
-                callback: handleCredentialResponse
-            });
-            google.accounts.id.renderButton(
-                document.querySelector(".g_id_signin"),
-                { theme: "outline", size: "large" }
-            );
         };
     </script>
 
