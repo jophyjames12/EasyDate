@@ -1,11 +1,8 @@
 from asyncio.log import logger
 from tkinter import Place
 from django.http import HttpResponse, JsonResponse
-from django.conf import settings
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from google.oauth2 import id_token
-from google.auth.transport import requests as google_requests
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from passlib.hash import pbkdf2_sha256  # For password hashing
@@ -103,52 +100,55 @@ def userinfo(request):
 def home(request):
     if not request.session.get('user_id'):
         # If user is not logged in, show login page
-        return render(request, 'MainApp/login.html', {
-        'google_client_id': client_id
-    })
+        return render(request, 'MainApp/login.html')
     # If logged in, show the main area page
     return render(request, 'MainApp/area.html')
 
 # Login view to handle user authentication
 def login_view(request):
+    # If user is already logged in, redirect to the main area page
     if request.session.get('user_id'):
         return render(request, 'MainApp/area.html')
 
     if request.method == 'POST':
+        # Retrieve submitted username and password from form
         username = request.POST['username']
         password = request.POST['password']
 
+        # Fetch the user record from MongoDB by username
         user = users_collection.find_one({"username": username})
         if user and pbkdf2_sha256.verify(password, user['password']):
+            # If user exists and password is correct, create session and redirect
             request.session['user_id'] = str(user['_id'])
             request.session['login_success'] = True
             return redirect('area')
         else:
+            # Display error if login details are invalid
             messages.error(request, "Invalid username or password")
+    return render(request, 'MainApp/login.html')
 
-    # ⚠️ Pass google_client_id here
-    return render(request, 'MainApp/login.html', {
-        'google_client_id': client_id
-    })
 # Signup view to handle user registration
-
 def signup_view(request):
     # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
+        # Retrieve form data for user registration
         username = request.POST['username']
         email = request.POST['email']
         password = request.POST['password']
         confirm_password = request.POST['confirm_password']
 
+        # Check if passwords match
         if password == confirm_password:
+            # Check if username or email already exists in MongoDB
             if users_collection.find_one({"username": username}):
                 messages.error(request, "Username already exists")
             elif users_collection.find_one({"email": email}):
                 messages.error(request, "Email already registered")
             else:
+                # Hash the password and save the new user in MongoDB
                 hashed_password = pbkdf2_sha256.hash(password)
                 new_user = {
                 "username": username,
@@ -163,11 +163,21 @@ def signup_view(request):
                 request.session['account_created'] = True
                 return redirect('area')
         else:
+            # Display error if passwords do not match
             messages.error(request, "Passwords do not match")
+    return render(request, 'MainApp/signup.html')
 
-    return render(request, 'MainApp/signup.html', {
-        'google_client_id': settings.GOOGLE_CLIENT_ID
-    })
+
+def logout_view(request):
+    if 'user_id' in request.session:
+        # Remove user ID from session to log the user out
+        del request.session['user_id']
+    # Clear messages properly after the user logs out
+    messages.get_messages(request).used = True  # This clears all messages
+    return redirect('login')
+
+
+#----------------------------------------------------------------------------------------------------------------------------
 
 # Area view to display main content for logged-in users
 def area_view(request):
@@ -254,15 +264,6 @@ def area_view(request):
         'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
         'recent_events': recent_events,  # NEW: Add recent events
     })
-
-def logout_view(request):
-    if 'user_id' in request.session:
-        # Remove user ID from session to log the user out
-        del request.session['user_id']
-    # Clear messages properly after the user logs out
-    messages.get_messages(request).used = True  # This clears all messages
-    return redirect('login')
-
 # View to handle user search and friend request functionality
 def search_user(request):
     userinfo(request)  # Retrieve logged-in user's info
@@ -339,6 +340,7 @@ def search_user(request):
     # Render the search page with friend requests and friends list
     return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends})
 
+#-------------------------------------------------------------------------------------------------------------------
 # Check and display pending friend requests for the user
 def check_request(request):
     userinfo(request)
@@ -450,6 +452,77 @@ def send_date_request(request):
         messages.success(request, f"Date request sent to {friendname}.")
         return redirect("search_user")
 
+# Handle accepting or rejecting a date request
+def handle_date_request(request):
+    userinfo(request)
+
+    if request.method == "POST":
+        request_id = request.POST.get('request_id')
+        action = request.POST.get('action')  # either 'accept' or 'reject'
+
+        # Fetch the date request
+        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+
+        if date_request:
+            if action == "accept":
+                # Get the current date/time from the request
+                current_date = date_request.get("date", "")
+                current_time = date_request.get("time", "")
+                
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date')
+                new_time = request.POST.get('new_time')
+                
+                # Debug logging
+                print(f"DEBUG - Current date: '{current_date}', Current time: '{current_time}'")
+                print(f"DEBUG - New date: '{new_date}', New time: '{new_time}'")
+                
+                # Use new values if provided, otherwise keep existing (but validate they're not empty)
+                final_date = new_date if new_date and new_date.strip() else current_date
+                final_time = new_time if new_time and new_time.strip() else current_time
+                
+                # If we still don't have date/time, require them
+                if not final_date or not final_time or final_date.strip() == "" or final_time.strip() == "":
+                    messages.error(request, "Date and time are required to accept the date request. Please provide both.")
+                    return redirect('profile')
+                
+                # Clean up the values
+                final_date = final_date.strip()
+                final_time = final_time.strip()
+                
+                # Debug logging
+                print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
+                
+                # Update the date request with the new date/time (preserve existing date_location)
+                update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
+                    "$set": {
+                        "status": "accepted", 
+                        "date": final_date, 
+                        "time": final_time
+                    }
+                })
+                
+                # Debug logging
+                print(f"DEBUG - Update result: {update_result.modified_count} documents modified")
+                
+                # Verify the update
+                updated_request = DateReq.find_one({"_id": ObjectId(request_id)})
+                print(f"DEBUG - Updated document: {updated_request}")
+                
+                if new_date or new_time:
+                    messages.success(request, f"Date request accepted with updated details: {final_date} at {final_time}.")
+                else:
+                    messages.success(request, f"Date request accepted for {final_date} at {final_time}.")
+                    
+            elif action == "reject":
+                DateReq.delete_one({"_id": ObjectId(request_id)})
+                messages.success(request, "Date request rejected.")
+        else:
+            messages.error(request, "Date request not found.")
+
+    return redirect('profile')
+
+#------------------------------------------------------------------------------------------------------------------------------
 def profile(request):
     userinfo(request)
     # Fetch user profile information
@@ -668,76 +741,7 @@ def edit_profile(request):
         messages.error(request, f"Error loading profile: {str(e)}")
         return redirect('profile')
 
-# Handle accepting or rejecting a date request
-def handle_date_request(request):
-    userinfo(request)
-
-    if request.method == "POST":
-        request_id = request.POST.get('request_id')
-        action = request.POST.get('action')  # either 'accept' or 'reject'
-
-        # Fetch the date request
-        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
-
-        if date_request:
-            if action == "accept":
-                # Get the current date/time from the request
-                current_date = date_request.get("date", "")
-                current_time = date_request.get("time", "")
-                
-                # Option to change the date or time before accepting
-                new_date = request.POST.get('new_date')
-                new_time = request.POST.get('new_time')
-                
-                # Debug logging
-                print(f"DEBUG - Current date: '{current_date}', Current time: '{current_time}'")
-                print(f"DEBUG - New date: '{new_date}', New time: '{new_time}'")
-                
-                # Use new values if provided, otherwise keep existing (but validate they're not empty)
-                final_date = new_date if new_date and new_date.strip() else current_date
-                final_time = new_time if new_time and new_time.strip() else current_time
-                
-                # If we still don't have date/time, require them
-                if not final_date or not final_time or final_date.strip() == "" or final_time.strip() == "":
-                    messages.error(request, "Date and time are required to accept the date request. Please provide both.")
-                    return redirect('profile')
-                
-                # Clean up the values
-                final_date = final_date.strip()
-                final_time = final_time.strip()
-                
-                # Debug logging
-                print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
-                
-                # Update the date request with the new date/time (preserve existing date_location)
-                update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
-                    "$set": {
-                        "status": "accepted", 
-                        "date": final_date, 
-                        "time": final_time
-                    }
-                })
-                
-                # Debug logging
-                print(f"DEBUG - Update result: {update_result.modified_count} documents modified")
-                
-                # Verify the update
-                updated_request = DateReq.find_one({"_id": ObjectId(request_id)})
-                print(f"DEBUG - Updated document: {updated_request}")
-                
-                if new_date or new_time:
-                    messages.success(request, f"Date request accepted with updated details: {final_date} at {final_time}.")
-                else:
-                    messages.success(request, f"Date request accepted for {final_date} at {final_time}.")
-                    
-            elif action == "reject":
-                DateReq.delete_one({"_id": ObjectId(request_id)})
-                messages.success(request, "Date request rejected.")
-        else:
-            messages.error(request, "Date request not found.")
-
-    return redirect('profile')
-
+#------------------------------------------------------------------------------------------------------------------------------
 def map_view(request):
     return render(request,'MainApp/Map.html')
 
@@ -1558,6 +1562,8 @@ def remove_date_location(request):
         'message': 'Only POST method allowed'
     }, status=405)
 
+
+#-----------------------------------------------------------------------------------------------------------------------
 def events_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
@@ -1823,7 +1829,7 @@ def get_event_details(request, event_id):
         logger.error(f"Error getting event details: {e}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
     
-    
+#---------------------------------------------------------------------------------------------------------------------
 @csrf_exempt
 def get_place_reviews(request):
     """
