@@ -13,13 +13,22 @@ import requests
 import os
 import math 
 import uuid
-from datetime import datetime,date, timedelta 
+from datetime import datetime,date
 from django.conf import settings
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import logging
 from PIL import Image
 from django.core.files.storage import FileSystemStorage
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from django.shortcuts import render, redirect
+from django.contrib import messages
+from datetime import datetime, date, timedelta
+from passlib.hash import pbkdf2_sha256
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -38,697 +47,63 @@ Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
 
-def cleanup_old_events():
-    """Remove events older than 30 days from past events"""
+GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
+@csrf_exempt
+def google_auth_view(request):
+    if request.method != 'POST':
+        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
+
     try:
-        thirty_days_ago = datetime.now() - timedelta(days=30)
-        
-        # Find events that are older than 30 days
-        old_events = Events.find({
-            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
-            'status': 'past'
-        })
-        
-        deleted_count = 0
-        for event in old_events:
-            event_id = str(event['_id'])
-            
-            # Delete associated images from filesystem
-            event_images = EventImages.find({'event_id': event_id})
-            for img in event_images:
-                try:
-                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except Exception as e:
-                    logger.error(f"Error deleting image file: {e}")
-            
-            # Delete from database
-            EventImages.delete_many({'event_id': event_id})
-            Events.delete_one({'_id': event['_id']})
-            deleted_count += 1
-        
-        logger.info(f"Cleaned up {deleted_count} old events")
-        return deleted_count
-        
+        data = json.loads(request.body)
+        credential = data.get('credential')
+
+        if not credential:
+            return JsonResponse({'success': False, 'error': 'Missing credential'})
+
+        # Verify token with Google
+        token_info = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}').json()
+
+        if token_info.get('aud') != GOOGLE_CLIENT_ID:
+            return JsonResponse({'success': False, 'error': 'Token audience mismatch'}, status=400)
+
+        email = token_info.get('email')
+        name = token_info.get('name')
+
+        if not email:
+            return JsonResponse({'success': False, 'error': 'Email not found in token'}, status=400)
+
+        # Check if user exists in MongoDB
+        user = users_collection.find_one({"email": email})
+
+        if not user:
+            # New user from Google Sign-In
+            user_data = {
+            "username": name,  # Full name from Google
+            "email": email,
+            "password": None,  # No password because it's Google Sign-In
+            "login_method": "google"
+            }
+            inserted = users_collection.insert_one(user_data)
+            user_id = str(inserted.inserted_id)
+        else:
+            user_id = str(user["_id"])
+
+        # Set Django session
+        request.session['user_id'] = user_id
+        request.session['login_success'] = True
+
+        return JsonResponse({'success': True})
+
     except Exception as e:
-        logger.error(f"Error in cleanup_old_events: {e}")
-        return 0
-
-def move_past_events():
-    """Move events that have passed their date to past status"""
-    try:
-        today = datetime.now().date()
-        
-        # Find approved events that have passed their date
-        past_events = Events.find({
-            'status': 'approved',
-            'event_date': {'$exists': True, '$ne': ''}
-        })
-        
-        moved_count = 0
-        for event in past_events:
-            try:
-                event_date_str = event.get('event_date', '')
-                if event_date_str:
-                    # Handle different date formats
-                    try:
-                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
-                    except ValueError:
-                        try:
-                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
-                        except ValueError:
-                            continue  # Skip if date format is not recognized
-                    
-                    # Check if event date has passed
-                    if event_date < today:
-                        # Update status to past
-                        Events.update_one(
-                            {'_id': event['_id']},
-                            {
-                                '$set': {
-                                    'status': 'past',
-                                    'moved_to_past_at': datetime.now()
-                                }
-                            }
-                        )
-                        moved_count += 1
-                        
-            except Exception as e:
-                logger.error(f"Error processing event {event.get('_id')}: {e}")
-                continue
-        
-        logger.info(f"Moved {moved_count} events to past status")
-        return moved_count
-        
-    except Exception as e:
-        logger.error(f"Error in move_past_events: {e}")
-        return 0
-
-
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 # Events view - main events page
-# Add this import at the top of your views.py file
-from datetime import datetime, date, timedelta
-
-# Add these functions to your views.py - Event management functions
-
-def cleanup_old_events():
-    """Remove events older than 30 days from past events"""
-    try:
-        thirty_days_ago = datetime.now() - timedelta(days=30)
-        
-        # Find events that are older than 30 days
-        old_events = Events.find({
-            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
-            'status': 'past'
-        })
-        
-        deleted_count = 0
-        for event in old_events:
-            event_id = str(event['_id'])
-            
-            # Delete associated images from filesystem
-            event_images = EventImages.find({'event_id': event_id})
-            for img in event_images:
-                try:
-                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
-                    if os.path.exists(file_path):
-                        os.remove(file_path)
-                except Exception as e:
-                    logger.error(f"Error deleting image file: {e}")
-            
-            # Delete from database
-            EventImages.delete_many({'event_id': event_id})
-            Events.delete_one({'_id': event['_id']})
-            deleted_count += 1
-        
-        logger.info(f"Cleaned up {deleted_count} old events")
-        return deleted_count
-        
-    except Exception as e:
-        logger.error(f"Error in cleanup_old_events: {e}")
-        return 0
-
-def move_past_events():
-    """Move events that have passed their date to past status"""
-    try:
-        today = datetime.now().date()
-        
-        # Find approved events that have passed their date
-        past_events = Events.find({
-            'status': 'approved',
-            'event_date': {'$exists': True, '$ne': ''}
-        })
-        
-        moved_count = 0
-        for event in past_events:
-            try:
-                event_date_str = event.get('event_date', '')
-                if event_date_str:
-                    # Handle different date formats
-                    try:
-                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
-                    except ValueError:
-                        try:
-                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
-                        except ValueError:
-                            continue  # Skip if date format is not recognized
-                    
-                    # Check if event date has passed
-                    if event_date < today:
-                        # Update status to past
-                        Events.update_one(
-                            {'_id': event['_id']},
-                            {
-                                '$set': {
-                                    'status': 'past',
-                                    'moved_to_past_at': datetime.now()
-                                }
-                            }
-                        )
-                        moved_count += 1
-                        
-            except Exception as e:
-                logger.error(f"Error processing event {event.get('_id')}: {e}")
-                continue
-        
-        logger.info(f"Moved {moved_count} events to past status")
-        return moved_count
-        
-    except Exception as e:
-        logger.error(f"Error in move_past_events: {e}")
-        return 0
-
-# Updated events_view function
-def events_view(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    notifications = userinfo(request)
-    
-    # Perform maintenance tasks
-    move_past_events()
-    cleanup_old_events()
-    
-    # Check if user is admin (Faisal or Jophy)
-    is_admin = name in ['Faisal', 'Jophy']
-    
-    # Get approved events for everyone to see
-    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
-    
-    # Get past events
-    past_events = list(Events.find({'status': 'past'}).sort('moved_to_past_at', -1))
-    
-    # Get user's own events
-    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
-    
-    # Get pending events for admin
-    pending_events = []
-    if is_admin:
-        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
-    
-    # FIXED: Process events to add ALL images (not just first one)
-    def process_event_images(events):
-        for event in events:
-            event['id'] = str(event['_id'])
-            # Get ALL images for this event - THIS IS THE KEY FIX
-            event_images = list(EventImages.find({'event_id': str(event['_id'])}))
-            event['images'] = [img['image_url'] for img in event_images] if event_images else []
-            # Keep first image for backward compatibility
-            event['image'] = event['images'][0] if event['images'] else None
-            print(f"Event {event['name']} has {len(event['images'])} images: {event['images']}")  # Debug print
-    
-    process_event_images(approved_events)
-    process_event_images(past_events)
-    process_event_images(user_events)
-    process_event_images(pending_events)
-    
-    context = {
-        'approved_events': approved_events,
-        'past_events': past_events,
-        'user_events': user_events,
-        'pending_events': pending_events,
-        'is_admin': is_admin,
-        'name': name,
-        'friend_request_count': notifications['friend_request_count'],
-        'date_request_count': notifications['date_request_count'],
-    }
-    
-    return render(request, 'MainApp/events.html', context)
-
-# Create event view
-@csrf_exempt
-def create_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    if request.method == 'POST':
-        try:
-            # Get form data
-            event_name = request.POST.get('event_name', '').strip()
-            event_description = request.POST.get('event_description', '').strip()
-            event_date = request.POST.get('event_date', '').strip()
-            event_time = request.POST.get('event_time', '').strip()
-            event_location = request.POST.get('event_location', '').strip()
-            event_lat = request.POST.get('event_lat', '')
-            event_lon = request.POST.get('event_lon', '')
-            
-            # Validate required fields
-            if not event_name or not event_description or not event_date:
-                messages.error(request, "Event name, description, and date are required.")
-                return redirect('events')
-            
-            # Create event document
-            event_data = {
-                'name': event_name,
-                'description': event_description,
-                'event_date': event_date,
-                'event_time': event_time,
-                'location': event_location,
-                'created_by': name,
-                'status': 'pending',  # All events start as pending
-                'created_at': datetime.now(),
-                'updated_at': datetime.now()
-            }
-            
-            # Add location coordinates if provided
-            if event_lat and event_lon:
-                try:
-                    event_data['lat'] = float(event_lat)
-                    event_data['lon'] = float(event_lon)
-                except ValueError:
-                    pass  # Skip if coordinates are invalid
-            
-            # Insert event into database
-            result = Events.insert_one(event_data)
-            event_id = str(result.inserted_id)
-            
-            # Handle image uploads
-            uploaded_files = request.FILES.getlist('event_images')
-            image_count = 0
-            # DEBUG: Add logging to see what files are received
-            print(f"DEBUG: Found {len(uploaded_files)} uploaded files")
-            for i, file in enumerate(uploaded_files):
-                print(f"  File {i+1}: {file.name}, Size: {file.size}, Type: {file.content_type}")
-            
-            for uploaded_file in uploaded_files:
-                if uploaded_file and image_count < 5:  # Limit to 5 images
-                    try:
-                        # Validate file type
-                        if not uploaded_file.content_type.startswith('image/'):
-                            continue
-                        
-                        # Validate file size (5MB limit)
-                        if uploaded_file.size > 5 * 1024 * 1024:
-                            continue
-                        
-                        # Create upload directory
-                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
-                        if not os.path.exists(upload_dir):
-                            os.makedirs(upload_dir, mode=0o755)
-                        
-                        # Generate unique filename
-                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
-                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                        unique_id = str(uuid.uuid4())[:8]
-                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
-                        file_path = os.path.join(upload_dir, filename)
-                        
-                        # Save file
-                        with open(file_path, 'wb+') as destination:
-                            for chunk in uploaded_file.chunks():
-                                destination.write(chunk)
-                        
-                        # Store image info in database
-                        image_url = f"/media/event_images/{filename}"
-                        EventImages.insert_one({
-                            'event_id': event_id,
-                            'image_url': image_url,
-                            'filename': filename,
-                            'uploaded_at': datetime.now()
-                        })
-                        
-                        image_count += 1
-                        
-                    except Exception as e:
-                        logger.error(f"Error uploading image: {e}")
-                        continue
-            
-            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
-            return redirect('events')
-            
-        except Exception as e:
-            logger.error(f"Error creating event: {e}")
-            messages.error(request, "An error occurred while creating the event. Please try again.")
-            return redirect('events')
-    
-    return redirect('events')
-
-# Approve event view (admin only)
-@csrf_exempt
-def approve_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin
-    if name not in ['Faisal', 'Jophy']:
-        messages.error(request, "You don't have permission to approve events.")
-        return redirect('events')
-    
-    if request.method == 'POST':
-        event_id = request.POST.get('event_id')
-        
-        try:
-            # Update event status to approved
-            result = Events.update_one(
-                {'_id': ObjectId(event_id)},
-                {
-                    '$set': {
-                        'status': 'approved',
-                        'approved_by': name,
-                        'approved_at': datetime.now(),
-                        'updated_at': datetime.now()
-                    }
-                }
-            )
-            
-            if result.modified_count > 0:
-                messages.success(request, "Event has been approved successfully!")
-            else:
-                messages.error(request, "Event not found or already processed.")
-                
-        except Exception as e:
-            logger.error(f"Error approving event: {e}")
-            messages.error(request, "An error occurred while approving the event.")
-    
-    return redirect('events')
-
-# Reject event view (admin only)
-@csrf_exempt
-def reject_event(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin
-    if name not in ['Faisal', 'Jophy']:
-        messages.error(request, "You don't have permission to reject events.")
-        return redirect('events')
-    
-    if request.method == 'POST':
-        event_id = request.POST.get('event_id')
-        
-        try:
-            # Update event status to rejected
-            result = Events.update_one(
-                {'_id': ObjectId(event_id)},
-                {
-                    '$set': {
-                        'status': 'rejected',
-                        'rejected_by': name,
-                        'rejected_at': datetime.now(),
-                        'updated_at': datetime.now()
-                    }
-                }
-            )
-            
-            if result.modified_count > 0:
-                # Optionally delete associated images
-                EventImages.delete_many({'event_id': event_id})
-                messages.success(request, "Event has been rejected.")
-            else:
-                messages.error(request, "Event not found or already processed.")
-                
-        except Exception as e:
-            logger.error(f"Error rejecting event: {e}")
-            messages.error(request, "An error occurred while rejecting the event.")
-    
-    return redirect('events')
-
-# Get event details (for AJAX calls)
-@csrf_exempt
-def get_event_details(request, event_id):
-    if not request.session.get('user_id'):
-        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
-    
-    try:
-        event = Events.find_one({'_id': ObjectId(event_id)})
-        
-        if not event:
-            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
-        
-        # Get event images
-        images = list(EventImages.find({'event_id': event_id}))
-        image_urls = [img['image_url'] for img in images]
-        
-        event_data = {
-            'id': str(event['_id']),
-            'name': event.get('name', ''),
-            'description': event.get('description', ''),
-            'event_date': event.get('event_date', ''),
-            'event_time': event.get('event_time', ''),
-            'location': event.get('location', ''),
-            'lat': event.get('lat'),
-            'lon': event.get('lon'),
-            'created_by': event.get('created_by', ''),
-            'status': event.get('status', ''),
-            'images': image_urls,
-            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
-        }
-        
-        return JsonResponse({'status': 'success', 'event': event_data})
-        
-    except Exception as e:
-        logger.error(f"Error getting event details: {e}")
-        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
-    
-    
-@csrf_exempt
-def get_place_reviews(request):
-    """
-    Fetch reviews for a place using Google Places API
-    """
-    if request.method == 'GET':
-        try:
-            # Get parameters from request
-            place_name = request.GET.get('name', '')
-            lat = request.GET.get('lat', '')
-            lon = request.GET.get('lon', '')
-            
-            if not all([place_name, lat, lon]):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Missing required parameters: name, lat, lon'
-                })
-            
-            # Check if API key is configured
-            if not settings.GOOGLE_PLACES_API_KEY:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Google Places API key not configured'
-                })
-            
-            # Step 1: Find the place using Places API Text Search
-            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
-            search_params = {
-                'query': f"{place_name}",
-                'location': f"{lat},{lon}",
-                'radius': 500,  # 500 meters radius
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            search_response = requests.get(search_url, params=search_params)
-            search_data = search_response.json()
-            
-            if search_data.get('status') != 'OK' or not search_data.get('results'):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place not found in Google Places'
-                })
-            
-            # Get the first result (most relevant)
-            place = search_data['results'][0]
-            place_id = place.get('place_id')
-            
-            if not place_id:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Place ID not found'
-                })
-            
-            # Step 2: Get place details including reviews
-            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
-            details_params = {
-                'place_id': place_id,
-                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
-                'key': settings.GOOGLE_PLACES_API_KEY
-            }
-            
-            details_response = requests.get(details_url, params=details_params)
-            details_data = details_response.json()
-            
-            if details_data.get('status') != 'OK':
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Failed to fetch place details'
-                })
-            
-            place_details = details_data.get('result', {})
-            
-            # Extract relevant information
-            reviews_data = {
-                'status': 'success',
-                'place_name': place_details.get('name', place_name),
-                'rating': place_details.get('rating', 0),
-                'total_ratings': place_details.get('user_ratings_total', 0),
-                'address': place_details.get('formatted_address', ''),
-                'phone': place_details.get('formatted_phone_number', ''),
-                'website': place_details.get('website', ''),
-                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
-                'reviews': []
-            }
-            
-            # Process reviews
-            reviews = place_details.get('reviews', [])
-            for review in reviews[:5]:  # Limit to 5 reviews
-                review_data = {
-                    'author_name': review.get('author_name', 'Anonymous'),
-                    'rating': review.get('rating', 0),
-                    'text': review.get('text', ''),
-                    'time': review.get('relative_time_description', ''),
-                    'profile_photo_url': review.get('profile_photo_url', '')
-                }
-                reviews_data['reviews'].append(review_data)
-            
-            return JsonResponse(reviews_data)
-            
-        except requests.RequestException as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'API request failed: {str(e)}'
-            })
-        except Exception as e:
-            return JsonResponse({
-                'status': 'error',
-                'message': f'Server error: {str(e)}'
-            })
-    
-    return JsonResponse({
-        'status': 'error',
-        'message': 'Only GET method allowed'
-    })
-
-@csrf_exempt
-def update_location(request):
-    userinfo(request)
-    if request.method == 'POST':
-        lat = None
-        lon = None
-        
-        # Try to parse JSON first
-        try:
-            data = json.loads(request.body)
-            lat = data.get('latitude')
-            lon = data.get('longitude')
-        except (json.JSONDecodeError, TypeError):
-            # Fallback to form data
-            lat = request.POST.get('latitude')
-            lon = request.POST.get('longitude')
-
-        # Debug logging
-        print(f"DEBUG - Received coordinates: lat={lat}, lon={lon}")
-        print(f"DEBUG - User: {name}")
-
-        if lat is None or lon is None:
-            print("DEBUG - Missing latitude or longitude")
-            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
-        
-        try:
-            lat = float(lat)
-            lon = float(lon)
-            print(f"DEBUG - Converted to floats: lat={lat}, lon={lon}")
-        except ValueError as e:
-            print(f"DEBUG - Conversion error: {e}")
-            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
-
-        # Validate coordinate ranges
-        if not (-90 <= lat <= 90):
-            print(f"DEBUG - Invalid latitude range: {lat}")
-            return JsonResponse({'status': 'error', 'message': 'Latitude must be between -90 and 90'}, status=400)
-            
-        if not (-180 <= lon <= 180):
-            print(f"DEBUG - Invalid longitude range: {lon}")
-            return JsonResponse({'status': 'error', 'message': 'Longitude must be between -180 and 180'}, status=400)
-
-        # Check for null island (0,0) which is often a default value
-        if lat == 0 and lon == 0:
-            print("DEBUG - Warning: Coordinates are at 0,0 (Null Island)")
-            return JsonResponse({'status': 'error', 'message': 'Invalid coordinates: 0,0 is not a valid location'}, status=400)
-
-        try:
-            existing = Location.find_one({'name': name})
-            if existing:
-                print(f"DEBUG - Updating existing location for {name}")
-                result = Location.update_one(
-                    {'_id': existing['_id']}, 
-                    {'$set': {'lat': lat, 'lon': lon, 'updated_at': datetime.now()}}
-                )
-                print(f"DEBUG - Update result: {result.modified_count} modified")
-            else:
-                print(f"DEBUG - Creating new location for {name}")
-                result = Location.insert_one({
-                    'name': name, 
-                    'lat': lat, 
-                    'lon': lon, 
-                    'created_at': datetime.now(),
-                    'updated_at': datetime.now()
-                })
-                print(f"DEBUG - Insert result: {result.inserted_id}")
-            
-            # Verify the save
-            saved_location = Location.find_one({'name': name})
-            print(f"DEBUG - Saved location: {saved_location}")
-            
-            return JsonResponse({
-                'status': 'success', 
-                'message': 'Location updated successfully',
-                'coordinates': {'lat': lat, 'lon': lon}
-            })
-            
-        except Exception as e:
-            print(f"DEBUG - Database error: {e}")
-            return JsonResponse({'status': 'error', 'message': f'Database error: {str(e)}'}, status=500)
-    
-    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
-
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
-    """
-    Retrieves user information from session and fetches username from database
-    Also gets notification counts for friend and date requests
-    """
-    global user, name
+    global user
     user = request.session.get('user_id')
+    global name
     # Fetch the username from MongoDB using the user ID in the session
     name = users_collection.find_one({"_id": ObjectId(user)}).get('username')
-    
-    # Get notification counts
-    friend_request_count = FriendReq.find({"To": name}).count()
-    date_request_count = DateReq.find({"To": name, "status": "pending"}).count()
-    
-    # Store in session for easy access in templates
-    request.session['friend_request_count'] = friend_request_count
-    request.session['date_request_count'] = date_request_count
-    
-    return {
-        'friend_request_count': friend_request_count,
-        'date_request_count': date_request_count
-    }
 
 # Home view to check if user is logged in; if not, redirect to login
 def home(request):
@@ -761,51 +136,197 @@ def login_view(request):
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
 
-# Signup view to handle user registration
+def send_otp_email(email, otp):
+    """Send OTP to user's email"""
+    try:
+        # Configure your email settings
+        smtp_server = settings.EMAIL_HOST
+        smtp_port = settings.EMAIL_PORT
+        sender_email = settings.EMAIL_HOST_USER
+        sender_password = settings.EMAIL_HOST_PASSWORD
+        
+        # Create message
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = email
+        message["Subject"] = "Email Verification - Your OTP Code"
+        
+        # Email body
+        body = f"""
+        Hi there!
+        
+        Your verification code is: {otp}
+        
+        This code will expire in 10 minutes.
+        
+        If you didn't request this code, please ignore this email.
+        
+        Best regards,
+        Your App Team
+        """
+        
+        message.attach(MIMEText(body, "plain"))
+        
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(message)
+        
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
+def generate_otp():
+    """Generate a 6-digit OTP"""
+    return str(random.randint(100000, 999999))
+
 def signup_view(request):
     # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
-        # Retrieve form data for user registration
-        username = request.POST['username']
-        email = request.POST['email']
-        password = request.POST['password']
-        confirm_password = request.POST['confirm_password']
-
-        # Check if passwords match
-        if password == confirm_password:
-            # Check if username or email already exists in MongoDB
-            if users_collection.find_one({"username": username}):
-                messages.error(request, "Username already exists")
-            elif users_collection.find_one({"email": email}):
-                messages.error(request, "Email already registered")
-            else:
-                # Hash the password and save the new user in MongoDB
-                hashed_password = pbkdf2_sha256.hash(password)
-                new_user = {
-                    "username": username,
-                    "email": email,
-                    "password": hashed_password
-                }
-                users_collection.insert_one(new_user)
-                # Start session for the newly registered user
-                request.session['user_id'] = str(new_user['_id'])
-                request.session['account_created'] = True
-                return redirect('area')
-        else:
-            # Display error if passwords do not match
-            messages.error(request, "Passwords do not match")
+        # Check if this is OTP verification step
+        if request.POST.get('step') == 'verify_otp':
+            return handle_otp_verification(request)
+        
+        # This is the initial registration step
+        return handle_initial_registration(request)
+    
     return render(request, 'MainApp/signup.html')
+
+def handle_initial_registration(request):
+    """Handle the initial registration form submission"""
+    # Retrieve form data for user registration
+    username = request.POST['username']
+    email = request.POST['email']
+    password = request.POST['password']
+    confirm_password = request.POST['confirm_password']
+
+    # Check if passwords match
+    if password != confirm_password:
+        messages.error(request, "Passwords do not match")
+        return render(request, 'MainApp/signup.html')
+
+    # Check if username or email already exists in MongoDB
+    if users_collection.find_one({"username": username}):
+        messages.error(request, "Username already exists")
+        return render(request, 'MainApp/signup.html')
+    elif users_collection.find_one({"email": email}):
+        messages.error(request, "Email already registered")
+        return render(request, 'MainApp/signup.html')
+
+    # Generate OTP
+    otp = generate_otp()
+    
+    # Store user data and OTP in session temporarily
+    request.session['pending_user'] = {
+        'username': username,
+        'email': email,
+        'password': password,
+        'otp': otp,
+        'otp_created_at': datetime.now().isoformat()
+    }
+    
+    # Send OTP via email
+    if send_otp_email(email, otp):
+        messages.success(request, f"Verification code sent to {email}")
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+    else:
+        messages.error(request, "Failed to send verification email. Please try again.")
+        return render(request, 'MainApp/signup.html')
+
+def handle_otp_verification(request):
+    """Handle OTP verification step"""
+    entered_otp = request.POST.get('otp')
+    pending_user = request.session.get('pending_user')
+    
+    if not pending_user:
+        messages.error(request, "Session expired. Please start registration again.")
+        return render(request, 'MainApp/signup.html')
+    
+    # Check if OTP has expired (10 minutes)
+    otp_created_at = datetime.fromisoformat(pending_user['otp_created_at'])
+    if datetime.now() - otp_created_at > timedelta(minutes=10):
+        messages.error(request, "OTP has expired. Please start registration again.")
+        del request.session['pending_user']
+        return render(request, 'MainApp/signup.html')
+    
+    # Verify OTP
+    if entered_otp == pending_user['otp']:
+        # OTP is correct, create the user
+        hashed_password = pbkdf2_sha256.hash(pending_user['password'])
+        new_user = {
+            "username": pending_user['username'],
+            "email": pending_user['email'],
+            "password": hashed_password,
+            "login_method": "password",
+            "email_verified": True,
+            "created_at": datetime.now()
+        }
+        
+        result = users_collection.insert_one(new_user)
+        
+        # Start session for the newly registered user
+        request.session['user_id'] = str(result.inserted_id)
+        request.session['account_created'] = True
+        
+        # Clean up pending user data
+        del request.session['pending_user']
+        
+        messages.success(request, "Registration successful! Welcome!")
+        return redirect('area')
+    else:
+        messages.error(request, "Invalid OTP. Please try again.")
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+
+def resend_otp(request):
+    """Resend OTP to user's email"""
+    if request.method == 'POST':
+        pending_user = request.session.get('pending_user')
+        
+        if not pending_user:
+            messages.error(request, "Session expired. Please start registration again.")
+            return redirect('signup')
+        
+        # Generate new OTP
+        otp = generate_otp()
+        
+        # Update session with new OTP
+        pending_user['otp'] = otp
+        pending_user['otp_created_at'] = datetime.now().isoformat()
+        request.session['pending_user'] = pending_user
+        
+        # Send new OTP
+        if send_otp_email(pending_user['email'], otp):
+            messages.success(request, "New verification code sent!")
+        else:
+            messages.error(request, "Failed to send verification email. Please try again.")
+        
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+    
+    return redirect('signup')
+
+def logout_view(request):
+    if 'user_id' in request.session:
+        # Remove user ID from session to log the user out
+        del request.session['user_id']
+    # Clear messages properly after the user logs out
+    messages.get_messages(request).used = True  # This clears all messages
+    return redirect('login')
+
+
+#----------------------------------------------------------------------------------------------------------------------------
 
 # Area view to display main content for logged-in users
 def area_view(request):
     if not request.session.get('user_id'):
         return redirect('login')
     
-    # Get user info and notifications
-    notifications = userinfo(request)
+    # Get user info
+    userinfo(request)
     
     # Move old dates to separate collection
     move_old_dates()
@@ -875,32 +396,18 @@ def area_view(request):
     # Sort upcoming dates by date
     processed_upcoming_dates.sort(key=lambda x: x['date'] if x['date'] else '')
     
-    # Pass success messages, dates, events, and notifications to the template
-    context = {
+    # Pass success messages, dates, and events to the template
+    return render(request, 'MainApp/area.html', {
         'account_created': account_created, 
         'login_success': login_success,
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
         'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
         'recent_events': recent_events,  # NEW: Add recent events
-        # Add notification counts
-        'friend_request_count': notifications['friend_request_count'],
-        'date_request_count': notifications['date_request_count'],
-    }
-    
-    return render(request, 'MainApp/area.html', context)
-
-def logout_view(request):
-    if 'user_id' in request.session:
-        # Remove user ID from session to log the user out
-        del request.session['user_id']
-    # Clear messages properly after the user logs out
-    messages.get_messages(request).used = True  # This clears all messages
-    return redirect('login')
-
+    })
 # View to handle user search and friend request functionality
 def search_user(request):
-    notifications = userinfo(request)  # Retrieve logged-in user's info
+    userinfo(request)  # Retrieve logged-in user's info
     if request.method == "POST":
         # Get the username input from the search form
         username = request.POST.get('username')
@@ -972,9 +479,9 @@ def search_user(request):
     all_friends = user_friendlist.get("friends", []) if user_friendlist else []
 
     # Render the search page with friend requests and friends list
-    return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends, 'friend_request_count': notifications['friend_request_count'],
-        'date_request_count': notifications['date_request_count'],})
+    return render(request, "MainApp/search.html", {"friends": friends, "all_friends": all_friends})
 
+#-------------------------------------------------------------------------------------------------------------------
 # Check and display pending friend requests for the user
 def check_request(request):
     userinfo(request)
@@ -1086,8 +593,79 @@ def send_date_request(request):
         messages.success(request, f"Date request sent to {friendname}.")
         return redirect("search_user")
 
+# Handle accepting or rejecting a date request
+def handle_date_request(request):
+    userinfo(request)
+
+    if request.method == "POST":
+        request_id = request.POST.get('request_id')
+        action = request.POST.get('action')  # either 'accept' or 'reject'
+
+        # Fetch the date request
+        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+
+        if date_request:
+            if action == "accept":
+                # Get the current date/time from the request
+                current_date = date_request.get("date", "")
+                current_time = date_request.get("time", "")
+                
+                # Option to change the date or time before accepting
+                new_date = request.POST.get('new_date')
+                new_time = request.POST.get('new_time')
+                
+                # Debug logging
+                print(f"DEBUG - Current date: '{current_date}', Current time: '{current_time}'")
+                print(f"DEBUG - New date: '{new_date}', New time: '{new_time}'")
+                
+                # Use new values if provided, otherwise keep existing (but validate they're not empty)
+                final_date = new_date if new_date and new_date.strip() else current_date
+                final_time = new_time if new_time and new_time.strip() else current_time
+                
+                # If we still don't have date/time, require them
+                if not final_date or not final_time or final_date.strip() == "" or final_time.strip() == "":
+                    messages.error(request, "Date and time are required to accept the date request. Please provide both.")
+                    return redirect('profile')
+                
+                # Clean up the values
+                final_date = final_date.strip()
+                final_time = final_time.strip()
+                
+                # Debug logging
+                print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
+                
+                # Update the date request with the new date/time (preserve existing date_location)
+                update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
+                    "$set": {
+                        "status": "accepted", 
+                        "date": final_date, 
+                        "time": final_time
+                    }
+                })
+                
+                # Debug logging
+                print(f"DEBUG - Update result: {update_result.modified_count} documents modified")
+                
+                # Verify the update
+                updated_request = DateReq.find_one({"_id": ObjectId(request_id)})
+                print(f"DEBUG - Updated document: {updated_request}")
+                
+                if new_date or new_time:
+                    messages.success(request, f"Date request accepted with updated details: {final_date} at {final_time}.")
+                else:
+                    messages.success(request, f"Date request accepted for {final_date} at {final_time}.")
+                    
+            elif action == "reject":
+                DateReq.delete_one({"_id": ObjectId(request_id)})
+                messages.success(request, "Date request rejected.")
+        else:
+            messages.error(request, "Date request not found.")
+
+    return redirect('profile')
+
+#------------------------------------------------------------------------------------------------------------------------------
 def profile(request):
-    notifications = userinfo(request)
+    userinfo(request)
     # Fetch user profile information
     user_profile = Profiles.find_one({"username": name})
     bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
@@ -1158,9 +736,7 @@ def profile(request):
         "friend_count": friend_count,
         "post_count": 0,
         "bio": bio,
-        "profile_picture": profile_picture,
-        'friend_request_count': notifications['friend_request_count'],
-        'date_request_count': notifications['date_request_count'],
+        "profile_picture": profile_picture
     })
 
 # Edit profile view
@@ -1306,76 +882,7 @@ def edit_profile(request):
         messages.error(request, f"Error loading profile: {str(e)}")
         return redirect('profile')
 
-# Handle accepting or rejecting a date request
-def handle_date_request(request):
-    userinfo(request)
-
-    if request.method == "POST":
-        request_id = request.POST.get('request_id')
-        action = request.POST.get('action')  # either 'accept' or 'reject'
-
-        # Fetch the date request
-        date_request = DateReq.find_one({"_id": ObjectId(request_id)})
-
-        if date_request:
-            if action == "accept":
-                # Get the current date/time from the request
-                current_date = date_request.get("date", "")
-                current_time = date_request.get("time", "")
-                
-                # Option to change the date or time before accepting
-                new_date = request.POST.get('new_date')
-                new_time = request.POST.get('new_time')
-                
-                # Debug logging
-                print(f"DEBUG - Current date: '{current_date}', Current time: '{current_time}'")
-                print(f"DEBUG - New date: '{new_date}', New time: '{new_time}'")
-                
-                # Use new values if provided, otherwise keep existing (but validate they're not empty)
-                final_date = new_date if new_date and new_date.strip() else current_date
-                final_time = new_time if new_time and new_time.strip() else current_time
-                
-                # If we still don't have date/time, require them
-                if not final_date or not final_time or final_date.strip() == "" or final_time.strip() == "":
-                    messages.error(request, "Date and time are required to accept the date request. Please provide both.")
-                    return redirect('profile')
-                
-                # Clean up the values
-                final_date = final_date.strip()
-                final_time = final_time.strip()
-                
-                # Debug logging
-                print(f"DEBUG - Final date: '{final_date}', Final time: '{final_time}'")
-                
-                # Update the date request with the new date/time (preserve existing date_location)
-                update_result = DateReq.update_one({"_id": ObjectId(request_id)}, {
-                    "$set": {
-                        "status": "accepted", 
-                        "date": final_date, 
-                        "time": final_time
-                    }
-                })
-                
-                # Debug logging
-                print(f"DEBUG - Update result: {update_result.modified_count} documents modified")
-                
-                # Verify the update
-                updated_request = DateReq.find_one({"_id": ObjectId(request_id)})
-                print(f"DEBUG - Updated document: {updated_request}")
-                
-                if new_date or new_time:
-                    messages.success(request, f"Date request accepted with updated details: {final_date} at {final_time}.")
-                else:
-                    messages.success(request, f"Date request accepted for {final_date} at {final_time}.")
-                    
-            elif action == "reject":
-                DateReq.delete_one({"_id": ObjectId(request_id)})
-                messages.success(request, "Date request rejected.")
-        else:
-            messages.error(request, "Date request not found.")
-
-    return redirect('profile')
-
+#------------------------------------------------------------------------------------------------------------------------------
 def map_view(request):
     return render(request,'MainApp/Map.html')
 
@@ -1562,6 +1069,7 @@ def fetch_overpass_places(lat, lon, amenity_type, radius=2000):
         logger.error(f"Unexpected error fetching places for {amenity_type}: {e}")
         return []
 
+#-------------------------------------------------------------------------------------------------------
 # Profile view to show user preferences
 def profile_view(request):
     user = request.user
@@ -1691,7 +1199,7 @@ def get_osrm_route(request):
         return JsonResponse(geometry)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
+
 def move_old_dates():
     """Move dates that have passed their due date to OldDates collection"""
     try:
@@ -1886,6 +1394,260 @@ def save_date_location(request):
     }, status=405)
 
 
+def auto_select_midpoint_restaurant(request):
+    """
+    Automatically select the closest restaurant to the midpoint between two users
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            request_id = data.get('request_id')
+            
+            if not request_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing request_id'
+                }, status=400)
+            
+            # Find the date request
+            date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+            if not date_request:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Date request not found'
+                }, status=404)
+            
+            # Check permissions
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+            existing_location = date_request.get('date_location')
+
+            if not (is_sender or is_receiver):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Access denied'
+                }, status=403)
+
+            if is_receiver and not existing_location:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Only the sender can set the initial date location'
+                }, status=403)
+            
+            # Get partner info
+            partner = date_request["To"] if date_request["From"] == name else date_request["From"]
+            
+            # Get both users' locations
+            user_location = Location.find_one({'name': name})
+            partner_location = Location.find_one({'name': partner})
+            
+            if not user_location or not partner_location:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'User locations not found'
+                }, status=404)
+            
+            # Convert coordinates to float
+            try:
+                user_lat = float(user_location['lat'])
+                user_lon = float(user_location['lon'])
+                partner_lat = float(partner_location['lat'])
+                partner_lon = float(partner_location['lon'])
+            except (ValueError, TypeError):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid location coordinates'
+                }, status=400)
+            
+            # Calculate route midpoint
+            route_midpoint_lat, route_midpoint_lon = get_route_midpoint(
+                user_lat, user_lon, partner_lat, partner_lon
+            )
+            
+            # Get combined preferences
+            preferred_tags = get_combined_preferences(name, partner)
+            if not preferred_tags:
+                preferred_tags = ['restaurant']
+            
+            # Find closest restaurant to midpoint
+            closest_restaurant = find_closest_restaurant(
+                route_midpoint_lat, route_midpoint_lon, preferred_tags
+            )
+            
+            if not closest_restaurant:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No restaurants found near the midpoint'
+                }, status=404)
+            
+            # Prepare location data
+            location_data = {
+                'name': closest_restaurant['name'],
+                'lat': closest_restaurant['lat'],
+                'lon': closest_restaurant['lon'],
+                'address': closest_restaurant.get('address', ''),
+                'type': closest_restaurant.get('type', 'restaurant'),
+                'selected_by': name,
+                'selected_at': datetime.now(),
+                'auto_selected': True,  # Flag to indicate auto-selection
+                'distance_from_midpoint': closest_restaurant.get('distance', 0)
+            }
+            
+            # Update the date request with location
+            result = DateReq.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$set": {"date_location": location_data}}
+            )
+            
+            if result.modified_count > 0:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Auto-selected restaurant: {closest_restaurant["name"]}',
+                    'location': location_data,
+                    'midpoint': {
+                        'lat': route_midpoint_lat,
+                        'lon': route_midpoint_lon
+                    }
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to update date location'
+                }, status=500)
+                
+        except Exception as e:
+            logger.error(f"Error auto-selecting restaurant: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+
+def get_route_midpoint(user_lat, user_lon, partner_lat, partner_lon):
+    """
+    Get the actual route midpoint between two locations
+    """
+    try:
+        import requests
+        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if route.get('geometry') and route['geometry'].get('coordinates'):
+                    coords = route['geometry']['coordinates']
+                    # Get the actual midpoint of the route
+                    midpoint_index = len(coords) // 2
+                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                    return route_midpoint_lat, route_midpoint_lon
+    except Exception as e:
+        logger.warning(f"Failed to get route midpoint: {e}")
+    
+    # Fallback to coordinate midpoint
+    midpoint_lat = (user_lat + partner_lat) / 2
+    midpoint_lon = (user_lon + partner_lon) / 2
+    return midpoint_lat, midpoint_lon
+
+
+def find_closest_restaurant(midpoint_lat, midpoint_lon, preferred_tags):
+    """
+    Find the closest restaurant to the midpoint based on preferences
+    """
+    try:
+        # Map preferences to amenity tags
+        preference_to_amenity = {
+            'restaurant': 'restaurant',
+            'cafe': 'cafe', 
+            'bar': 'bar',
+            'club': 'club',
+            'shop': 'shop'
+        }
+        
+        # Convert preferences to amenity tags
+        amenity_tags = []
+        for pref in preferred_tags:
+            if pref in preference_to_amenity:
+                amenity_tags.append(preference_to_amenity[pref])
+        
+        # If no valid amenity tags, default to restaurant
+        if not amenity_tags:
+            amenity_tags = ['restaurant']
+        
+        # Fetch places for each preferred amenity type
+        all_places = []
+        for tag in amenity_tags:
+            places = fetch_overpass_places(midpoint_lat, midpoint_lon, tag)
+            all_places.extend(places)
+        
+        if not all_places:
+            return None
+        
+        # Calculate distances and find closest
+        closest_place = None
+        min_distance = float('inf')
+        
+        for place in all_places:
+            place_lat = place.get('lat') or (place.get('center', {}).get('lat'))
+            place_lon = place.get('lon') or (place.get('center', {}).get('lon'))
+            
+            if place_lat and place_lon:
+                # Calculate distance using Haversine formula
+                distance = calculate_distance(
+                    midpoint_lat, midpoint_lon, 
+                    float(place_lat), float(place_lon)
+                )
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_place = {
+                        'name': place.get('name', 'Unknown'),
+                        'lat': float(place_lat),
+                        'lon': float(place_lon),
+                        'address': place.get('address', ''),
+                        'type': place.get('amenity', 'restaurant'),
+                        'distance': distance
+                    }
+        
+        return closest_place
+        
+    except Exception as e:
+        logger.error(f"Error finding closest restaurant: {e}")
+        return None
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points on Earth (in km)
+    """
+    import math
+    
+    # Convert decimal degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    
+    # Radius of earth in kilometers
+    r = 6371
+    
+    return c * r
+
+
 def get_user_upcoming_dates(request):
     """
     Get upcoming dates for the current user (both sent and received)
@@ -1933,6 +1695,7 @@ def get_user_upcoming_dates(request):
             'status': 'error',
             'message': 'Failed to fetch upcoming dates'
         }, status=500)
+
 
 
 def date_location_selection_view(request, request_id):
@@ -2196,6 +1959,565 @@ def remove_date_location(request):
         'message': 'Only POST method allowed'
     }, status=405)
 
+#-----------------------------------------------------------------------------------------------------------------------
+# Create event view
+@csrf_exempt
+def create_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            # Get form data
+            event_name = request.POST.get('event_name', '').strip()
+            event_description = request.POST.get('event_description', '').strip()
+            event_date = request.POST.get('event_date', '').strip()
+            event_time = request.POST.get('event_time', '').strip()
+            event_location = request.POST.get('event_location', '').strip()
+            event_lat = request.POST.get('event_lat', '')
+            event_lon = request.POST.get('event_lon', '')
+            
+            # Validate required fields
+            if not event_name or not event_description or not event_date:
+                messages.error(request, "Event name, description, and date are required.")
+                return redirect('events')
+            
+            # Create event document
+            event_data = {
+                'name': event_name,
+                'description': event_description,
+                'event_date': event_date,
+                'event_time': event_time,
+                'location': event_location,
+                'created_by': name,
+                'status': 'pending',  # All events start as pending
+                'created_at': datetime.now(),
+                'updated_at': datetime.now()
+            }
+            
+            # Add location coordinates if provided
+            if event_lat and event_lon:
+                try:
+                    event_data['lat'] = float(event_lat)
+                    event_data['lon'] = float(event_lon)
+                except ValueError:
+                    pass  # Skip if coordinates are invalid
+            
+            # Insert event into database
+            result = Events.insert_one(event_data)
+            event_id = str(result.inserted_id)
+            
+            # Handle image uploads
+            uploaded_files = request.FILES.getlist('event_images')
+            image_count = 0
+            # DEBUG: Add logging to see what files are received
+            print(f"DEBUG: Found {len(uploaded_files)} uploaded files")
+            for i, file in enumerate(uploaded_files):
+                print(f"  File {i+1}: {file.name}, Size: {file.size}, Type: {file.content_type}")
+            
+            for uploaded_file in uploaded_files:
+                if uploaded_file and image_count < 5:  # Limit to 5 images
+                    try:
+                        # Validate file type
+                        if not uploaded_file.content_type.startswith('image/'):
+                            continue
+                        
+                        # Validate file size (5MB limit)
+                        if uploaded_file.size > 5 * 1024 * 1024:
+                            continue
+                        
+                        # Create upload directory
+                        upload_dir = os.path.join(settings.MEDIA_ROOT, 'event_images')
+                        if not os.path.exists(upload_dir):
+                            os.makedirs(upload_dir, mode=0o755)
+                        
+                        # Generate unique filename
+                        file_extension = os.path.splitext(uploaded_file.name)[1].lower()
+                        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                        unique_id = str(uuid.uuid4())[:8]
+                        filename = f"event_{event_id}_{timestamp}_{unique_id}{file_extension}"
+                        file_path = os.path.join(upload_dir, filename)
+                        
+                        # Save file
+                        with open(file_path, 'wb+') as destination:
+                            for chunk in uploaded_file.chunks():
+                                destination.write(chunk)
+                        
+                        # Store image info in database
+                        image_url = f"/media/event_images/{filename}"
+                        EventImages.insert_one({
+                            'event_id': event_id,
+                            'image_url': image_url,
+                            'filename': filename,
+                            'uploaded_at': datetime.now()
+                        })
+                        
+                        image_count += 1
+                        
+                    except Exception as e:
+                        logger.error(f"Error uploading image: {e}")
+                        continue
+            
+            messages.success(request, f"Event '{event_name}' has been submitted for approval!")
+            return redirect('events')
+            
+        except Exception as e:
+            logger.error(f"Error creating event: {e}")
+            messages.error(request, "An error occurred while creating the event. Please try again.")
+            return redirect('events')
+    
+    return redirect('events')
+
+# Approve event view (admin only)
+@csrf_exempt
+def approve_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to approve events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to approved
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'approved',
+                        'approved_by': name,
+                        'approved_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                messages.success(request, "Event has been approved successfully!")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error approving event: {e}")
+            messages.error(request, "An error occurred while approving the event.")
+    
+    return redirect('events')
+
+# Reject event view (admin only)
+@csrf_exempt
+def reject_event(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin
+    if name not in ['Faisal', 'Jophy']:
+        messages.error(request, "You don't have permission to reject events.")
+        return redirect('events')
+    
+    if request.method == 'POST':
+        event_id = request.POST.get('event_id')
+        
+        try:
+            # Update event status to rejected
+            result = Events.update_one(
+                {'_id': ObjectId(event_id)},
+                {
+                    '$set': {
+                        'status': 'rejected',
+                        'rejected_by': name,
+                        'rejected_at': datetime.now(),
+                        'updated_at': datetime.now()
+                    }
+                }
+            )
+            
+            if result.modified_count > 0:
+                # Optionally delete associated images
+                EventImages.delete_many({'event_id': event_id})
+                messages.success(request, "Event has been rejected.")
+            else:
+                messages.error(request, "Event not found or already processed.")
+                
+        except Exception as e:
+            logger.error(f"Error rejecting event: {e}")
+            messages.error(request, "An error occurred while rejecting the event.")
+    
+    return redirect('events')
+
+# Get event details (for AJAX calls)
+@csrf_exempt
+def get_event_details(request, event_id):
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    try:
+        event = Events.find_one({'_id': ObjectId(event_id)})
+        
+        if not event:
+            return JsonResponse({'status': 'error', 'message': 'Event not found'}, status=404)
+        
+        # Get event images
+        images = list(EventImages.find({'event_id': event_id}))
+        image_urls = [img['image_url'] for img in images]
+        
+        event_data = {
+            'id': str(event['_id']),
+            'name': event.get('name', ''),
+            'description': event.get('description', ''),
+            'event_date': event.get('event_date', ''),
+            'event_time': event.get('event_time', ''),
+            'location': event.get('location', ''),
+            'lat': event.get('lat'),
+            'lon': event.get('lon'),
+            'created_by': event.get('created_by', ''),
+            'status': event.get('status', ''),
+            'images': image_urls,
+            'created_at': event.get('created_at', '').isoformat() if event.get('created_at') else ''
+        }
+        
+        return JsonResponse({'status': 'success', 'event': event_data})
+        
+    except Exception as e:
+        logger.error(f"Error getting event details: {e}")
+        return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+    
+#---------------------------------------------------------------------------------------------------------------------
+@csrf_exempt
+def get_place_reviews(request):
+    """
+    Fetch reviews for a place using Google Places API
+    """
+    if request.method == 'GET':
+        try:
+            # Get parameters from request
+            place_name = request.GET.get('name', '')
+            lat = request.GET.get('lat', '')
+            lon = request.GET.get('lon', '')
+            
+            if not all([place_name, lat, lon]):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing required parameters: name, lat, lon'
+                })
+            
+            # Check if API key is configured
+            if not settings.GOOGLE_PLACES_API_KEY:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Google Places API key not configured'
+                })
+            
+            # Step 1: Find the place using Places API Text Search
+            search_url = 'https://maps.googleapis.com/maps/api/place/textsearch/json'
+            search_params = {
+                'query': f"{place_name}",
+                'location': f"{lat},{lon}",
+                'radius': 500,  # 500 meters radius
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            search_response = requests.get(search_url, params=search_params)
+            search_data = search_response.json()
+            
+            if search_data.get('status') != 'OK' or not search_data.get('results'):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place not found in Google Places'
+                })
+            
+            # Get the first result (most relevant)
+            place = search_data['results'][0]
+            place_id = place.get('place_id')
+            
+            if not place_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Place ID not found'
+                })
+            
+            # Step 2: Get place details including reviews
+            details_url = 'https://maps.googleapis.com/maps/api/place/details/json'
+            details_params = {
+                'place_id': place_id,
+                'fields': 'name,rating,user_ratings_total,reviews,formatted_address,opening_hours,formatted_phone_number,website',
+                'key': settings.GOOGLE_PLACES_API_KEY
+            }
+            
+            details_response = requests.get(details_url, params=details_params)
+            details_data = details_response.json()
+            
+            if details_data.get('status') != 'OK':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to fetch place details'
+                })
+            
+            place_details = details_data.get('result', {})
+            
+            # Extract relevant information
+            reviews_data = {
+                'status': 'success',
+                'place_name': place_details.get('name', place_name),
+                'rating': place_details.get('rating', 0),
+                'total_ratings': place_details.get('user_ratings_total', 0),
+                'address': place_details.get('formatted_address', ''),
+                'phone': place_details.get('formatted_phone_number', ''),
+                'website': place_details.get('website', ''),
+                'opening_hours': place_details.get('opening_hours', {}).get('weekday_text', []),
+                'reviews': []
+            }
+            
+            # Process reviews
+            reviews = place_details.get('reviews', [])
+            for review in reviews[:5]:  # Limit to 5 reviews
+                review_data = {
+                    'author_name': review.get('author_name', 'Anonymous'),
+                    'rating': review.get('rating', 0),
+                    'text': review.get('text', ''),
+                    'time': review.get('relative_time_description', ''),
+                    'profile_photo_url': review.get('profile_photo_url', '')
+                }
+                reviews_data['reviews'].append(review_data)
+            
+            return JsonResponse(reviews_data)
+            
+        except requests.RequestException as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'API request failed: {str(e)}'
+            })
+        except Exception as e:
+            return JsonResponse({
+                'status': 'error',
+                'message': f'Server error: {str(e)}'
+            })
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only GET method allowed'
+    })
+
+@csrf_exempt
+def update_location(request):
+    userinfo(request)
+    if request.method == 'POST':
+        lat = None
+        lon = None
+        
+        # Try to parse JSON first
+        try:
+            data = json.loads(request.body)
+            lat = data.get('latitude')
+            lon = data.get('longitude')
+        except (json.JSONDecodeError, TypeError):
+            # Fallback to form data
+            lat = request.POST.get('latitude')
+            lon = request.POST.get('longitude')
+
+        # Debug logging
+        print(f"DEBUG - Received coordinates: lat={lat}, lon={lon}")
+        print(f"DEBUG - User: {name}")
+
+        if lat is None or lon is None:
+            print("DEBUG - Missing latitude or longitude")
+            return JsonResponse({'status': 'error', 'message': 'Missing latitude or longitude'}, status=400)
+        
+        try:
+            lat = float(lat)
+            lon = float(lon)
+            print(f"DEBUG - Converted to floats: lat={lat}, lon={lon}")
+        except ValueError as e:
+            print(f"DEBUG - Conversion error: {e}")
+            return JsonResponse({'status': 'error', 'message': 'Invalid latitude or longitude'}, status=400)
+
+        # Validate coordinate ranges
+        if not (-90 <= lat <= 90):
+            print(f"DEBUG - Invalid latitude range: {lat}")
+            return JsonResponse({'status': 'error', 'message': 'Latitude must be between -90 and 90'}, status=400)
+            
+        if not (-180 <= lon <= 180):
+            print(f"DEBUG - Invalid longitude range: {lon}")
+            return JsonResponse({'status': 'error', 'message': 'Longitude must be between -180 and 180'}, status=400)
+
+        # Check for null island (0,0) which is often a default value
+        if lat == 0 and lon == 0:
+            print("DEBUG - Warning: Coordinates are at 0,0 (Null Island)")
+            return JsonResponse({'status': 'error', 'message': 'Invalid coordinates: 0,0 is not a valid location'}, status=400)
+
+        try:
+            existing = Location.find_one({'name': name})
+            if existing:
+                print(f"DEBUG - Updating existing location for {name}")
+                result = Location.update_one(
+                    {'_id': existing['_id']}, 
+                    {'$set': {'lat': lat, 'lon': lon, 'updated_at': datetime.now()}}
+                )
+                print(f"DEBUG - Update result: {result.modified_count} modified")
+            else:
+                print(f"DEBUG - Creating new location for {name}")
+                result = Location.insert_one({
+                    'name': name, 
+                    'lat': lat, 
+                    'lon': lon, 
+                    'created_at': datetime.now(),
+                    'updated_at': datetime.now()
+                })
+                print(f"DEBUG - Insert result: {result.inserted_id}")
+            
+            # Verify the save
+            saved_location = Location.find_one({'name': name})
+            print(f"DEBUG - Saved location: {saved_location}")
+            
+            return JsonResponse({
+                'status': 'success', 
+                'message': 'Location updated successfully',
+                'coordinates': {'lat': lat, 'lon': lon}
+            })
+            
+        except Exception as e:
+            print(f"DEBUG - Database error: {e}")
+            return JsonResponse({'status': 'error', 'message': f'Database error: {str(e)}'}, status=500)
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
+
+# Add these functions to your views.py - Event management functions
+def cleanup_old_events():
+    """Remove events older than 30 days from past events"""
+    try:
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Find events that are older than 30 days
+        old_events = Events.find({
+            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
+            'status': 'past'
+        })
+        
+        deleted_count = 0
+        for event in old_events:
+            event_id = str(event['_id'])
+            
+            # Delete associated images from filesystem
+            event_images = EventImages.find({'event_id': event_id})
+            for img in event_images:
+                try:
+                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting image file: {e}")
+            
+            # Delete from database
+            EventImages.delete_many({'event_id': event_id})
+            Events.delete_one({'_id': event['_id']})
+            deleted_count += 1
+        
+        logger.info(f"Cleaned up {deleted_count} old events")
+        return deleted_count
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_events: {e}")
+        return 0
+
+def move_past_events():
+    """Move events that have passed their date to past status"""
+    try:
+        today = datetime.now().date()
+        
+        # Find approved events that have passed their date
+        past_events = Events.find({
+            'status': 'approved',
+            'event_date': {'$exists': True, '$ne': ''}
+        })
+        
+        moved_count = 0
+        for event in past_events:
+            try:
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date < today:
+                        # Update status to past
+                        Events.update_one(
+                            {'_id': event['_id']},
+                            {
+                                '$set': {
+                                    'status': 'past',
+                                    'moved_to_past_at': datetime.now()
+                                }
+                            }
+                        )
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} events to past status")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_past_events: {e}")
+        return 0
+
+# Updated events_view function
+def events_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin (Faisal or Jophy)
+    is_admin = name in ['Faisal', 'Jophy']
+    
+    # Get approved events for everyone to see
+    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get user's own events
+    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    
+    # Get pending events for admin
+    pending_events = []
+    if is_admin:
+        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
+    
+    # Process events to add image URLs
+    for event in approved_events + user_events + pending_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    context = {
+        'approved_events': approved_events,
+        'user_events': user_events,
+        'pending_events': pending_events,
+        'is_admin': is_admin,
+        'name': name
+    }
+    
+    return render(request, 'MainApp/events.html', context)
+
+
 @csrf_exempt
 def get_notification_counts(request):
     """
@@ -2223,6 +2545,7 @@ def get_notification_counts(request):
             'status': 'error',
             'message': 'Failed to get notification counts'
         }, status=500)
+
 
 # Also add this to clear notifications when user views them
 @csrf_exempt
