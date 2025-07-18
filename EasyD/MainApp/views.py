@@ -26,7 +26,7 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from django.shortcuts import render, redirect
 from django.contrib import messages
-
+from datetime import datetime, date, timedelta
 from passlib.hash import pbkdf2_sha256
 from datetime import datetime, timedelta
 
@@ -1068,6 +1068,7 @@ def fetch_overpass_places(lat, lon, amenity_type, radius=2000):
     except Exception as e:
         logger.error(f"Unexpected error fetching places for {amenity_type}: {e}")
         return []
+
 #-------------------------------------------------------------------------------------------------------
 # Profile view to show user preferences
 def profile_view(request):
@@ -1198,7 +1199,7 @@ def get_osrm_route(request):
         return JsonResponse(geometry)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
- #----------------------------------------------------------------------------------------------   
+
 def move_old_dates():
     """Move dates that have passed their due date to OldDates collection"""
     try:
@@ -1281,6 +1282,7 @@ def old_dates_view(request):
 
 # NEW FUNCTIONS FOR DATE LOCATION FEATURE
 
+@csrf_exempt
 def save_date_location(request):
     """
     Save selected location for a date request
@@ -1677,8 +1679,7 @@ def get_user_upcoming_dates(request):
                 'partner': partner,
                 'status': date_req.get('status', ''),
                 'is_sender': is_sender,
-                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),
-                'can_auto_select': is_sender or (not is_sender and date_req.get('date_location') is not None),  # NEW: Permission for auto-selection
+                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),  # Updated permission logic
                 'date_location': date_req.get('date_location', None)
             }
             processed_dates.append(date_info)
@@ -1696,9 +1697,10 @@ def get_user_upcoming_dates(request):
         }, status=500)
 
 
+
 def date_location_selection_view(request, request_id):
     """
-    View for selecting date location - enhanced map view with auto-selection option
+    View for selecting date location - enhanced map view
     """
     if not request.session.get('user_id'):
         return redirect('login')
@@ -1781,10 +1783,34 @@ def date_location_selection_view(request, request_id):
         current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
         current_location = current_location_copy
     
-    # Get route midpoint
-    route_midpoint_lat, route_midpoint_lon = get_route_midpoint(
-        user_lat, user_lon, partner_lat, partner_lon
-    )
+    # NEW: Get route midpoint (not just coordinate midpoint)
+    route_midpoint_lat = None
+    route_midpoint_lon = None
+    
+    # Try to get actual route midpoint
+    try:
+        import requests
+        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if route.get('geometry') and route['geometry'].get('coordinates'):
+                    coords = route['geometry']['coordinates']
+                    # Get the actual midpoint of the route
+                    midpoint_index = len(coords) // 2
+                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                    logger.info(f"Route midpoint found: {route_midpoint_lat}, {route_midpoint_lon}")
+    except Exception as e:
+        logger.warning(f"Failed to get route midpoint: {e}")
+    
+    # Fallback to coordinate midpoint if route fails
+    if route_midpoint_lat is None or route_midpoint_lon is None:
+        route_midpoint_lat = (user_lat + partner_lat) / 2
+        route_midpoint_lon = (user_lon + partner_lon) / 2
+        logger.info(f"Using coordinate midpoint fallback: {route_midpoint_lat}, {route_midpoint_lon}")
     
     # Prepare date info with location selection mode
     date_info_dict = {
@@ -1797,14 +1823,13 @@ def date_location_selection_view(request, request_id):
         'user_lon': user_lon,
         'partner_lat': partner_lat,
         'partner_lon': partner_lon,
-        'route_midpoint_lat': route_midpoint_lat,
-        'route_midpoint_lon': route_midpoint_lon,
+        'route_midpoint_lat': route_midpoint_lat,  # NEW: Actual route midpoint
+        'route_midpoint_lon': route_midpoint_lon,  # NEW: Actual route midpoint
         'preferred_tags': preferred_tags,
-        'mode': 'location_selection',
+        'mode': 'location_selection',  # Special mode for location selection
         'current_location': current_location,
-        'is_sender': is_sender,
-        'show_midpoint_route': not current_location,
-        'can_auto_select': True  # NEW: Enable auto-selection feature
+        'is_sender': is_sender,  # NEW: Add sender flag
+        'show_midpoint_route': not current_location  # NEW: Show midpoint route only if no location set
     }
     
     context = {
@@ -1855,8 +1880,7 @@ def get_date_location(request):
         return JsonResponse({
             'status': 'success',
             'date_location': date_location,
-            'can_modify': is_sender or (not is_sender and date_location is not None),
-            'can_auto_select': is_sender or (not is_sender and date_location is not None)  # NEW: Auto-selection permission
+            'can_modify': is_sender or (not is_sender and date_location is not None)  # Updated permission logic
         })
         
     except Exception as e:
@@ -1865,6 +1889,8 @@ def get_date_location(request):
             'status': 'error',
             'message': 'Failed to get date location'
         }, status=500)
+
+
 @csrf_exempt
 def remove_date_location(request):
     """
@@ -1933,46 +1959,7 @@ def remove_date_location(request):
         'message': 'Only POST method allowed'
     }, status=405)
 
-
 #-----------------------------------------------------------------------------------------------------------------------
-def events_view(request):
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # Check if user is admin (Faisal or Jophy)
-    is_admin = name in ['Faisal', 'Jophy']
-    
-    # Get approved events for everyone to see
-    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
-    
-    # Get user's own events
-    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
-    
-    # Get pending events for admin
-    pending_events = []
-    if is_admin:
-        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
-    
-    # Process events to add image URLs
-    for event in approved_events + user_events + pending_events:
-        event['id'] = str(event['_id'])
-        # Get first image for display
-        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
-        first_image = next(event_images, None)
-        event['image'] = first_image['image_url'] if first_image else None
-    
-    context = {
-        'approved_events': approved_events,
-        'user_events': user_events,
-        'pending_events': pending_events,
-        'is_admin': is_admin,
-        'name': name
-    }
-    
-    return render(request, 'MainApp/events.html', context)
-
 # Create event view
 @csrf_exempt
 def create_event(request):
@@ -2025,6 +2012,10 @@ def create_event(request):
             # Handle image uploads
             uploaded_files = request.FILES.getlist('event_images')
             image_count = 0
+            # DEBUG: Add logging to see what files are received
+            print(f"DEBUG: Found {len(uploaded_files)} uploaded files")
+            for i, file in enumerate(uploaded_files):
+                print(f"  File {i+1}: {file.name}, Size: {file.size}, Type: {file.content_type}")
             
             for uploaded_file in uploaded_files:
                 if uploaded_file and image_count < 5:  # Limit to 5 images
@@ -2399,3 +2390,195 @@ def update_location(request):
     
     return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=405)
 
+# Add these functions to your views.py - Event management functions
+def cleanup_old_events():
+    """Remove events older than 30 days from past events"""
+    try:
+        thirty_days_ago = datetime.now() - timedelta(days=30)
+        
+        # Find events that are older than 30 days
+        old_events = Events.find({
+            'event_date': {'$lt': thirty_days_ago.strftime('%Y-%m-%d')},
+            'status': 'past'
+        })
+        
+        deleted_count = 0
+        for event in old_events:
+            event_id = str(event['_id'])
+            
+            # Delete associated images from filesystem
+            event_images = EventImages.find({'event_id': event_id})
+            for img in event_images:
+                try:
+                    file_path = os.path.join(settings.MEDIA_ROOT, img['image_url'].lstrip('/media/'))
+                    if os.path.exists(file_path):
+                        os.remove(file_path)
+                except Exception as e:
+                    logger.error(f"Error deleting image file: {e}")
+            
+            # Delete from database
+            EventImages.delete_many({'event_id': event_id})
+            Events.delete_one({'_id': event['_id']})
+            deleted_count += 1
+        
+        logger.info(f"Cleaned up {deleted_count} old events")
+        return deleted_count
+        
+    except Exception as e:
+        logger.error(f"Error in cleanup_old_events: {e}")
+        return 0
+
+def move_past_events():
+    """Move events that have passed their date to past status"""
+    try:
+        today = datetime.now().date()
+        
+        # Find approved events that have passed their date
+        past_events = Events.find({
+            'status': 'approved',
+            'event_date': {'$exists': True, '$ne': ''}
+        })
+        
+        moved_count = 0
+        for event in past_events:
+            try:
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date < today:
+                        # Update status to past
+                        Events.update_one(
+                            {'_id': event['_id']},
+                            {
+                                '$set': {
+                                    'status': 'past',
+                                    'moved_to_past_at': datetime.now()
+                                }
+                            }
+                        )
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} events to past status")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_past_events: {e}")
+        return 0
+
+# Updated events_view function
+def events_view(request):
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Check if user is admin (Faisal or Jophy)
+    is_admin = name in ['Faisal', 'Jophy']
+    
+    # Get approved events for everyone to see
+    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    
+    # Get user's own events
+    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    
+    # Get pending events for admin
+    pending_events = []
+    if is_admin:
+        pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
+    
+    # Process events to add image URLs
+    for event in approved_events + user_events + pending_events:
+        event['id'] = str(event['_id'])
+        # Get first image for display
+        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    context = {
+        'approved_events': approved_events,
+        'user_events': user_events,
+        'pending_events': pending_events,
+        'is_admin': is_admin,
+        'name': name
+    }
+    
+    return render(request, 'MainApp/events.html', context)
+
+
+@csrf_exempt
+def get_notification_counts(request):
+    """
+    Get current notification counts for the user
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    try:
+        # Get current notification counts
+        friend_request_count = FriendReq.find({"To": name}).count()
+        date_request_count = DateReq.find({"To": name, "status": "pending"}).count()
+        
+        return JsonResponse({
+            'status': 'success',
+            'friend_count': friend_request_count,
+            'date_count': date_request_count
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting notification counts: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Failed to get notification counts'
+        }, status=500)
+
+
+# Also add this to clear notifications when user views them
+@csrf_exempt
+def mark_notifications_seen(request):
+    """
+    Mark notifications as seen (optional - for future use)
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            notification_type = data.get('type')  # 'friend' or 'date'
+            
+            # You can implement logic here to mark specific notifications as seen
+            # For now, we'll just return success
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': f'{notification_type} notifications marked as seen'
+            })
+            
+        except Exception as e:
+            logger.error(f"Error marking notifications as seen: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Failed to mark notifications as seen'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)

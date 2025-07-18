@@ -418,16 +418,16 @@
                 margin: 5px 0;
             }
         }
-        /* Updated Notification Badge Styles - Inline with text */
+        /* Notification Badge Styles */
         .nav-item {
             position: relative !important;
-            display: block !important; /* Changed from inline-block to block for dropdown items */
+            display: inline-block !important;
         }
 
         .notification-badge {
-            /* Changed from absolute positioning to inline */
-            position: relative;
-            display: inline-block;
+            position: absolute;
+            top: -8px;
+            right: -8px;
             background-color: #ff4757;
             color: white;
             border-radius: 50%;
@@ -439,8 +439,7 @@
             line-height: 12px;
             text-align: center;
             box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            margin-left: 8px; /* Add space between text and badge */
-            vertical-align: middle; /* Align with text baseline */
+            z-index: 1001;
             animation: pulse-notification 2s infinite;
         }
 
@@ -477,9 +476,7 @@
         }
 
         .dropdown-content a {
-            display: flex; /* Use flexbox for better alignment */
-            align-items: center; /* Center items vertically */
-            justify-content: space-between; /* Space between text and badge */
+            display: block;
             padding: 12px 16px;
             text-decoration: none;
             color: black;
@@ -489,16 +486,6 @@
 
         .dropdown-content a:hover {
             background-color: #f5f5f5;
-        }
-
-        /* Alternative style: Badge at the end of the line */
-        .dropdown-content a.nav-item {
-            justify-content: flex-start; /* Align items to start */
-        }
-
-        .dropdown-content a.nav-item .notification-badge {
-            margin-left: auto; /* Push badge to the right */
-            margin-right: 0;
         }
 
         /* Show the dropdown menu on hover */
@@ -525,12 +512,13 @@
         /* Responsive adjustments */
         @media (max-width: 768px) {
             .notification-badge {
+                top: -6px;
+                right: -6px;
                 font-size: 9px;
                 min-width: 14px;
                 height: 14px;
                 line-height: 10px;
                 padding: 1px 4px;
-                margin-left: 6px;
             }
             
             .dropdown-content {
@@ -546,7 +534,7 @@
     </style>
 </head>
 <body>
-    <!-- Updated header section with inline notification badges -->
+    <!-- Update the header section in your templates (area.html, events.html, etc.) -->
     <header>
         <h1>Event Schedule</h1>
         <div class="menu">
@@ -555,9 +543,9 @@
                 <a href="map">Map</a>
                 <a href="{% url 'events' %}">Events</a>
                 
-                <!-- Profile link with date request notifications - inline style -->
+                <!-- Profile link with date request notifications -->
                 <a href="{% url 'profile' %}" class="nav-item">
-                    <span>Profile</span>
+                    Profile
                     {% if date_request_count > 0 %}
                         <span class="notification-badge">{{ date_request_count }}</span>
                     {% endif %}
@@ -565,9 +553,9 @@
                 
                 <a href="logout/">Logout</a>
                 
-                <!-- Friends link with friend request notifications - inline style -->
+                <!-- Friends link with friend request notifications -->
                 <a href="search_user" class="nav-item">
-                    <span>Friends</span>
+                    Friends
                     {% if friend_request_count > 0 %}
                         <span class="notification-badge">{{ friend_request_count }}</span>
                     {% endif %}
@@ -575,6 +563,7 @@
             </div>
         </div>
     </header>
+
     <div class="events-container">
         <div class="events-header">
             <h2>Community Events</h2>
@@ -1148,16 +1137,6 @@
                         friendBadge.className = 'notification-badge';
                         friendsLink.appendChild(friendBadge);
                         friendsLink.classList.add('nav-item');
-                        
-                        // Wrap existing text in span if not already wrapped
-                        const textNodes = Array.from(friendsLink.childNodes).filter(node => 
-                            node.nodeType === Node.TEXT_NODE && node.textContent.trim()
-                        );
-                        if (textNodes.length > 0) {
-                            const textSpan = document.createElement('span');
-                            textSpan.textContent = textNodes[0].textContent.trim();
-                            friendsLink.replaceChild(textSpan, textNodes[0]);
-                        }
                     }
                     friendBadge.textContent = friendCount;
                 } else if (friendBadge) {
@@ -1175,26 +1154,16 @@
                         dateBadge.className = 'notification-badge';
                         profileLink.appendChild(dateBadge);
                         profileLink.classList.add('nav-item');
-                        
-                        // Wrap existing text in span if not already wrapped
-                        const textNodes = Array.from(profileLink.childNodes).filter(node => 
-                            node.nodeType === Node.TEXT_NODE && node.textContent.trim()
-                        );
-                        if (textNodes.length > 0) {
-                            const textSpan = document.createElement('span');
-                            textSpan.textContent = textNodes[0].textContent.trim();
-                            profileLink.replaceChild(textSpan, textNodes[0]);
-                        }
                     }
                     dateBadge.textContent = dateCount;
                 } else if (dateBadge) {
                     dateBadge.remove();
                 }
             }
-          }
-      
-          // Function to fetch current notification counts
-          async function fetchNotificationCounts() {
+        }
+
+        // Function to fetch current notification counts
+        async function fetchNotificationCounts() {
             try {
                 const response = await fetch('/get_notification_counts/');
                 const data = await response.json();
@@ -1205,67 +1174,42 @@
             } catch (error) {
                 console.error('Error fetching notification counts:', error);
             }
-          }
-      
-          // Check for new notifications every 30 seconds
-          document.addEventListener('DOMContentLoaded', function() {
+        }
+
+        // Check for new notifications every 30 seconds
+        document.addEventListener('DOMContentLoaded', function() {
             // Initial load
             fetchNotificationCounts();
             
             // Set up periodic checking (every 30 seconds)
             setInterval(fetchNotificationCounts, 30000);
-          });
-      
-          // Optional: Add click handler to clear badges when navigating
-          document.addEventListener('DOMContentLoaded', function() {
-            // Clear date request badge when clicking on Profile
-            const profileLink = document.querySelector('a[href*="profile"]');
-            if (profileLink) {
-                profileLink.addEventListener('click', function() {
-                    // Optional: Mark date notifications as seen
-                    fetch('/mark_notifications_seen/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify({ type: 'date' })
-                    }).catch(console.error);
+        });
+
+        // Function to show notification sound/alert (optional)
+        function playNotificationSound() {
+            // You can add a notification sound here if desired
+            // const audio = new Audio('/static/sounds/notification.mp3');
+            // audio.play().catch(e => console.log('Could not play notification sound'));
+        }
+
+        // Function to show browser notification (optional)
+        function showBrowserNotification(title, message) {
+            if (Notification.permission === 'granted') {
+                new Notification(title, {
+                    body: message,
+                    icon: '/static/MainApp/icon.png' // Add your app icon
                 });
-            }
-            
-            // Clear friend request badge when clicking on Friends
-            const friendsLink = document.querySelector('a[href*="search_user"]');
-            if (friendsLink) {
-                friendsLink.addEventListener('click', function() {
-                    // Optional: Mark friend notifications as seen
-                    fetch('/mark_notifications_seen/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify({ type: 'friend' })
-                    }).catch(console.error);
-                });
-            }
-          });
-      
-          // Helper function to get CSRF token
-          function getCookie(name) {
-            let cookieValue = null;
-            if (document.cookie && document.cookie !== '') {
-                const cookies = document.cookie.split(';');
-                for (let i = 0; i < cookies.length; i++) {
-                    const cookie = cookies[i].trim();
-                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
-                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
-                        break;
+            } else if (Notification.permission !== 'denied') {
+                Notification.requestPermission().then(permission => {
+                    if (permission === 'granted') {
+                        new Notification(title, {
+                            body: message,
+                            icon: '/static/MainApp/icon.png'
+                        });
                     }
-                }
+                });
             }
-            return cookieValue;
-          }        
+        }
     </script>
 
 </body>
