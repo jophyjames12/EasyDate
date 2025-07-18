@@ -20,6 +20,15 @@ from django.core.files.base import ContentFile
 import logging
 from PIL import Image
 from django.core.files.storage import FileSystemStorage
+import random
+import smtplib
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+from django.shortcuts import render, redirect
+from django.contrib import messages
+
+from passlib.hash import pbkdf2_sha256
+from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -127,46 +136,178 @@ def login_view(request):
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
 
-# Signup view to handle user registration
+def send_otp_email(email, otp):
+    """Send OTP to user's email"""
+    try:
+        # Configure your email settings
+        smtp_server = settings.EMAIL_HOST
+        smtp_port = settings.EMAIL_PORT
+        sender_email = settings.EMAIL_HOST_USER
+        sender_password = settings.EMAIL_HOST_PASSWORD
+        
+        # Create message
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = email
+        message["Subject"] = "Email Verification - Your OTP Code"
+        
+        # Email body
+        body = f"""
+        Hi there!
+        
+        Your verification code is: {otp}
+        
+        This code will expire in 10 minutes.
+        
+        If you didn't request this code, please ignore this email.
+        
+        Best regards,
+        Your App Team
+        """
+        
+        message.attach(MIMEText(body, "plain"))
+        
+        # Send email
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls()
+            server.login(sender_email, sender_password)
+            server.send_message(message)
+        
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
+def generate_otp():
+    """Generate a 6-digit OTP"""
+    return str(random.randint(100000, 999999))
+
 def signup_view(request):
     # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
-        # Retrieve form data for user registration
-        username = request.POST['username']
-        email = request.POST['email']
-        password = request.POST['password']
-        confirm_password = request.POST['confirm_password']
-
-        # Check if passwords match
-        if password == confirm_password:
-            # Check if username or email already exists in MongoDB
-            if users_collection.find_one({"username": username}):
-                messages.error(request, "Username already exists")
-            elif users_collection.find_one({"email": email}):
-                messages.error(request, "Email already registered")
-            else:
-                # Hash the password and save the new user in MongoDB
-                hashed_password = pbkdf2_sha256.hash(password)
-                new_user = {
-                "username": username,
-                "email": email,
-                "password": hashed_password,
-                "login_method": "password"
-                }
-                users_collection.insert_one(new_user)
-
-                # Start session for the newly registered user
-                request.session['user_id'] = str(new_user['_id'])
-                request.session['account_created'] = True
-                return redirect('area')
-        else:
-            # Display error if passwords do not match
-            messages.error(request, "Passwords do not match")
+        # Check if this is OTP verification step
+        if request.POST.get('step') == 'verify_otp':
+            return handle_otp_verification(request)
+        
+        # This is the initial registration step
+        return handle_initial_registration(request)
+    
     return render(request, 'MainApp/signup.html')
 
+def handle_initial_registration(request):
+    """Handle the initial registration form submission"""
+    # Retrieve form data for user registration
+    username = request.POST['username']
+    email = request.POST['email']
+    password = request.POST['password']
+    confirm_password = request.POST['confirm_password']
+
+    # Check if passwords match
+    if password != confirm_password:
+        messages.error(request, "Passwords do not match")
+        return render(request, 'MainApp/signup.html')
+
+    # Check if username or email already exists in MongoDB
+    if users_collection.find_one({"username": username}):
+        messages.error(request, "Username already exists")
+        return render(request, 'MainApp/signup.html')
+    elif users_collection.find_one({"email": email}):
+        messages.error(request, "Email already registered")
+        return render(request, 'MainApp/signup.html')
+
+    # Generate OTP
+    otp = generate_otp()
+    
+    # Store user data and OTP in session temporarily
+    request.session['pending_user'] = {
+        'username': username,
+        'email': email,
+        'password': password,
+        'otp': otp,
+        'otp_created_at': datetime.now().isoformat()
+    }
+    
+    # Send OTP via email
+    if send_otp_email(email, otp):
+        messages.success(request, f"Verification code sent to {email}")
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+    else:
+        messages.error(request, "Failed to send verification email. Please try again.")
+        return render(request, 'MainApp/signup.html')
+
+def handle_otp_verification(request):
+    """Handle OTP verification step"""
+    entered_otp = request.POST.get('otp')
+    pending_user = request.session.get('pending_user')
+    
+    if not pending_user:
+        messages.error(request, "Session expired. Please start registration again.")
+        return render(request, 'MainApp/signup.html')
+    
+    # Check if OTP has expired (10 minutes)
+    otp_created_at = datetime.fromisoformat(pending_user['otp_created_at'])
+    if datetime.now() - otp_created_at > timedelta(minutes=10):
+        messages.error(request, "OTP has expired. Please start registration again.")
+        del request.session['pending_user']
+        return render(request, 'MainApp/signup.html')
+    
+    # Verify OTP
+    if entered_otp == pending_user['otp']:
+        # OTP is correct, create the user
+        hashed_password = pbkdf2_sha256.hash(pending_user['password'])
+        new_user = {
+            "username": pending_user['username'],
+            "email": pending_user['email'],
+            "password": hashed_password,
+            "login_method": "password",
+            "email_verified": True,
+            "created_at": datetime.now()
+        }
+        
+        result = users_collection.insert_one(new_user)
+        
+        # Start session for the newly registered user
+        request.session['user_id'] = str(result.inserted_id)
+        request.session['account_created'] = True
+        
+        # Clean up pending user data
+        del request.session['pending_user']
+        
+        messages.success(request, "Registration successful! Welcome!")
+        return redirect('area')
+    else:
+        messages.error(request, "Invalid OTP. Please try again.")
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+
+def resend_otp(request):
+    """Resend OTP to user's email"""
+    if request.method == 'POST':
+        pending_user = request.session.get('pending_user')
+        
+        if not pending_user:
+            messages.error(request, "Session expired. Please start registration again.")
+            return redirect('signup')
+        
+        # Generate new OTP
+        otp = generate_otp()
+        
+        # Update session with new OTP
+        pending_user['otp'] = otp
+        pending_user['otp_created_at'] = datetime.now().isoformat()
+        request.session['pending_user'] = pending_user
+        
+        # Send new OTP
+        if send_otp_email(pending_user['email'], otp):
+            messages.success(request, "New verification code sent!")
+        else:
+            messages.error(request, "Failed to send verification email. Please try again.")
+        
+        return render(request, 'MainApp/signup.html', {'show_otp_form': True})
+    
+    return redirect('signup')
 
 def logout_view(request):
     if 'user_id' in request.session:
@@ -927,7 +1068,7 @@ def fetch_overpass_places(lat, lon, amenity_type, radius=2000):
     except Exception as e:
         logger.error(f"Unexpected error fetching places for {amenity_type}: {e}")
         return []
-
+#-------------------------------------------------------------------------------------------------------
 # Profile view to show user preferences
 def profile_view(request):
     user = request.user
@@ -1057,7 +1198,7 @@ def get_osrm_route(request):
         return JsonResponse(geometry)
     except Exception as e:
         return JsonResponse({'error': str(e)}, status=500)
-    
+ #----------------------------------------------------------------------------------------------   
 def move_old_dates():
     """Move dates that have passed their due date to OldDates collection"""
     try:
@@ -1140,7 +1281,6 @@ def old_dates_view(request):
 
 # NEW FUNCTIONS FOR DATE LOCATION FEATURE
 
-@csrf_exempt
 def save_date_location(request):
     """
     Save selected location for a date request
@@ -1252,6 +1392,260 @@ def save_date_location(request):
     }, status=405)
 
 
+def auto_select_midpoint_restaurant(request):
+    """
+    Automatically select the closest restaurant to the midpoint between two users
+    """
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            request_id = data.get('request_id')
+            
+            if not request_id:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing request_id'
+                }, status=400)
+            
+            # Find the date request
+            date_request = DateReq.find_one({"_id": ObjectId(request_id)})
+            if not date_request:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Date request not found'
+                }, status=404)
+            
+            # Check permissions
+            is_sender = date_request.get('From') == name
+            is_receiver = date_request.get('To') == name
+            existing_location = date_request.get('date_location')
+
+            if not (is_sender or is_receiver):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Access denied'
+                }, status=403)
+
+            if is_receiver and not existing_location:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Only the sender can set the initial date location'
+                }, status=403)
+            
+            # Get partner info
+            partner = date_request["To"] if date_request["From"] == name else date_request["From"]
+            
+            # Get both users' locations
+            user_location = Location.find_one({'name': name})
+            partner_location = Location.find_one({'name': partner})
+            
+            if not user_location or not partner_location:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'User locations not found'
+                }, status=404)
+            
+            # Convert coordinates to float
+            try:
+                user_lat = float(user_location['lat'])
+                user_lon = float(user_location['lon'])
+                partner_lat = float(partner_location['lat'])
+                partner_lon = float(partner_location['lon'])
+            except (ValueError, TypeError):
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invalid location coordinates'
+                }, status=400)
+            
+            # Calculate route midpoint
+            route_midpoint_lat, route_midpoint_lon = get_route_midpoint(
+                user_lat, user_lon, partner_lat, partner_lon
+            )
+            
+            # Get combined preferences
+            preferred_tags = get_combined_preferences(name, partner)
+            if not preferred_tags:
+                preferred_tags = ['restaurant']
+            
+            # Find closest restaurant to midpoint
+            closest_restaurant = find_closest_restaurant(
+                route_midpoint_lat, route_midpoint_lon, preferred_tags
+            )
+            
+            if not closest_restaurant:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'No restaurants found near the midpoint'
+                }, status=404)
+            
+            # Prepare location data
+            location_data = {
+                'name': closest_restaurant['name'],
+                'lat': closest_restaurant['lat'],
+                'lon': closest_restaurant['lon'],
+                'address': closest_restaurant.get('address', ''),
+                'type': closest_restaurant.get('type', 'restaurant'),
+                'selected_by': name,
+                'selected_at': datetime.now(),
+                'auto_selected': True,  # Flag to indicate auto-selection
+                'distance_from_midpoint': closest_restaurant.get('distance', 0)
+            }
+            
+            # Update the date request with location
+            result = DateReq.update_one(
+                {"_id": ObjectId(request_id)},
+                {"$set": {"date_location": location_data}}
+            )
+            
+            if result.modified_count > 0:
+                return JsonResponse({
+                    'status': 'success',
+                    'message': f'Auto-selected restaurant: {closest_restaurant["name"]}',
+                    'location': location_data,
+                    'midpoint': {
+                        'lat': route_midpoint_lat,
+                        'lon': route_midpoint_lon
+                    }
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to update date location'
+                }, status=500)
+                
+        except Exception as e:
+            logger.error(f"Error auto-selecting restaurant: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+
+def get_route_midpoint(user_lat, user_lon, partner_lat, partner_lon):
+    """
+    Get the actual route midpoint between two locations
+    """
+    try:
+        import requests
+        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
+        response = requests.get(url, timeout=10)
+        
+        if response.status_code == 200:
+            data = response.json()
+            if data.get('routes') and len(data['routes']) > 0:
+                route = data['routes'][0]
+                if route.get('geometry') and route['geometry'].get('coordinates'):
+                    coords = route['geometry']['coordinates']
+                    # Get the actual midpoint of the route
+                    midpoint_index = len(coords) // 2
+                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                    return route_midpoint_lat, route_midpoint_lon
+    except Exception as e:
+        logger.warning(f"Failed to get route midpoint: {e}")
+    
+    # Fallback to coordinate midpoint
+    midpoint_lat = (user_lat + partner_lat) / 2
+    midpoint_lon = (user_lon + partner_lon) / 2
+    return midpoint_lat, midpoint_lon
+
+
+def find_closest_restaurant(midpoint_lat, midpoint_lon, preferred_tags):
+    """
+    Find the closest restaurant to the midpoint based on preferences
+    """
+    try:
+        # Map preferences to amenity tags
+        preference_to_amenity = {
+            'restaurant': 'restaurant',
+            'cafe': 'cafe', 
+            'bar': 'bar',
+            'club': 'club',
+            'shop': 'shop'
+        }
+        
+        # Convert preferences to amenity tags
+        amenity_tags = []
+        for pref in preferred_tags:
+            if pref in preference_to_amenity:
+                amenity_tags.append(preference_to_amenity[pref])
+        
+        # If no valid amenity tags, default to restaurant
+        if not amenity_tags:
+            amenity_tags = ['restaurant']
+        
+        # Fetch places for each preferred amenity type
+        all_places = []
+        for tag in amenity_tags:
+            places = fetch_overpass_places(midpoint_lat, midpoint_lon, tag)
+            all_places.extend(places)
+        
+        if not all_places:
+            return None
+        
+        # Calculate distances and find closest
+        closest_place = None
+        min_distance = float('inf')
+        
+        for place in all_places:
+            place_lat = place.get('lat') or (place.get('center', {}).get('lat'))
+            place_lon = place.get('lon') or (place.get('center', {}).get('lon'))
+            
+            if place_lat and place_lon:
+                # Calculate distance using Haversine formula
+                distance = calculate_distance(
+                    midpoint_lat, midpoint_lon, 
+                    float(place_lat), float(place_lon)
+                )
+                
+                if distance < min_distance:
+                    min_distance = distance
+                    closest_place = {
+                        'name': place.get('name', 'Unknown'),
+                        'lat': float(place_lat),
+                        'lon': float(place_lon),
+                        'address': place.get('address', ''),
+                        'type': place.get('amenity', 'restaurant'),
+                        'distance': distance
+                    }
+        
+        return closest_place
+        
+    except Exception as e:
+        logger.error(f"Error finding closest restaurant: {e}")
+        return None
+
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """
+    Calculate the great circle distance between two points on Earth (in km)
+    """
+    import math
+    
+    # Convert decimal degrees to radians
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    # Haversine formula
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.asin(math.sqrt(a))
+    
+    # Radius of earth in kilometers
+    r = 6371
+    
+    return c * r
+
+
 def get_user_upcoming_dates(request):
     """
     Get upcoming dates for the current user (both sent and received)
@@ -1283,7 +1677,8 @@ def get_user_upcoming_dates(request):
                 'partner': partner,
                 'status': date_req.get('status', ''),
                 'is_sender': is_sender,
-                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),  # Updated permission logic
+                'can_set_location': is_sender or (not is_sender and date_req.get('date_location') is not None),
+                'can_auto_select': is_sender or (not is_sender and date_req.get('date_location') is not None),  # NEW: Permission for auto-selection
                 'date_location': date_req.get('date_location', None)
             }
             processed_dates.append(date_info)
@@ -1303,7 +1698,7 @@ def get_user_upcoming_dates(request):
 
 def date_location_selection_view(request, request_id):
     """
-    View for selecting date location - enhanced map view
+    View for selecting date location - enhanced map view with auto-selection option
     """
     if not request.session.get('user_id'):
         return redirect('login')
@@ -1386,34 +1781,10 @@ def date_location_selection_view(request, request_id):
         current_location_copy['selected_at'] = current_location['selected_at'].isoformat() if isinstance(current_location['selected_at'], datetime) else str(current_location['selected_at'])
         current_location = current_location_copy
     
-    # NEW: Get route midpoint (not just coordinate midpoint)
-    route_midpoint_lat = None
-    route_midpoint_lon = None
-    
-    # Try to get actual route midpoint
-    try:
-        import requests
-        url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
-        response = requests.get(url, timeout=10)
-        
-        if response.status_code == 200:
-            data = response.json()
-            if data.get('routes') and len(data['routes']) > 0:
-                route = data['routes'][0]
-                if route.get('geometry') and route['geometry'].get('coordinates'):
-                    coords = route['geometry']['coordinates']
-                    # Get the actual midpoint of the route
-                    midpoint_index = len(coords) // 2
-                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
-                    logger.info(f"Route midpoint found: {route_midpoint_lat}, {route_midpoint_lon}")
-    except Exception as e:
-        logger.warning(f"Failed to get route midpoint: {e}")
-    
-    # Fallback to coordinate midpoint if route fails
-    if route_midpoint_lat is None or route_midpoint_lon is None:
-        route_midpoint_lat = (user_lat + partner_lat) / 2
-        route_midpoint_lon = (user_lon + partner_lon) / 2
-        logger.info(f"Using coordinate midpoint fallback: {route_midpoint_lat}, {route_midpoint_lon}")
+    # Get route midpoint
+    route_midpoint_lat, route_midpoint_lon = get_route_midpoint(
+        user_lat, user_lon, partner_lat, partner_lon
+    )
     
     # Prepare date info with location selection mode
     date_info_dict = {
@@ -1426,13 +1797,14 @@ def date_location_selection_view(request, request_id):
         'user_lon': user_lon,
         'partner_lat': partner_lat,
         'partner_lon': partner_lon,
-        'route_midpoint_lat': route_midpoint_lat,  # NEW: Actual route midpoint
-        'route_midpoint_lon': route_midpoint_lon,  # NEW: Actual route midpoint
+        'route_midpoint_lat': route_midpoint_lat,
+        'route_midpoint_lon': route_midpoint_lon,
         'preferred_tags': preferred_tags,
-        'mode': 'location_selection',  # Special mode for location selection
+        'mode': 'location_selection',
         'current_location': current_location,
-        'is_sender': is_sender,  # NEW: Add sender flag
-        'show_midpoint_route': not current_location  # NEW: Show midpoint route only if no location set
+        'is_sender': is_sender,
+        'show_midpoint_route': not current_location,
+        'can_auto_select': True  # NEW: Enable auto-selection feature
     }
     
     context = {
@@ -1483,7 +1855,8 @@ def get_date_location(request):
         return JsonResponse({
             'status': 'success',
             'date_location': date_location,
-            'can_modify': is_sender or (not is_sender and date_location is not None)  # Updated permission logic
+            'can_modify': is_sender or (not is_sender and date_location is not None),
+            'can_auto_select': is_sender or (not is_sender and date_location is not None)  # NEW: Auto-selection permission
         })
         
     except Exception as e:
@@ -1492,8 +1865,6 @@ def get_date_location(request):
             'status': 'error',
             'message': 'Failed to get date location'
         }, status=500)
-
-
 @csrf_exempt
 def remove_date_location(request):
     """

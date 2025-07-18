@@ -1,18 +1,17 @@
-from django.test import TestCase
-from MainApp.views import user_info
-from pymongo import MongoClient
-import requests
+import smtplib
+from email.mime.text import MIMEText
 
+smtp_server = 'smtp.gmail.com'
+smtp_port = 587
+sender_email ="newgateonepiece34@gmail.com"
+app_password ="imazxcmvdlmsqioi"
 
-def fetch_events():
-    url = "https://www.eventbriteapi.com/v3/events/search/"
-    params = {
-        "location.address": "New Delhi",
-        "location.within": "10km",
-        "token": "U2AXLKSCZKURLLLCDP"
-    }
-    response = requests.get(url, params=params)
-    return response.json().get("events", [])
-
-events = fetch_events()
-print(events)
+try:
+    server = smtplib.SMTP(smtp_server, smtp_port)
+    server.ehlo()
+    server.starttls()
+    server.login(sender_email, app_password)
+    # send your email
+    server.quit()
+except Exception as e:
+    print(f"Error: {e}")
