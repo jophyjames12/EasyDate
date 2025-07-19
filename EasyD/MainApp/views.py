@@ -960,7 +960,7 @@ def get_preferred_places(request):
         
         # If no preferences found, default to all available options
         if not preferred_tags:
-            preferred_tags = ['restaurant', 'cafe', 'bar', 'club', 'shop']
+            preferred_tags = ['restaurant', 'cafe', 'bar', 'club', 'Malls']
             logger.info("No preferences found, using default tags")
         
         # Map preferences to amenity tags
@@ -969,7 +969,7 @@ def get_preferred_places(request):
             'cafe': 'cafe', 
             'bar': 'bar',
             'club': 'club',
-            'shop': 'shop'
+            'malls': 'shop=mall'
         }
         
         # Convert preferences to amenity tags
@@ -1028,49 +1028,42 @@ def get_preferred_places(request):
         logger.error(f"Unexpected error: {e}")
         return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
 
-def fetch_overpass_places(lat, lon, amenity_type, radius=2000):
-    """Fetch places from Overpass API with enhanced debugging"""
-    
+def fetch_overpass_places(lat, lon, amenity_type=None, radius=3000):
     # Add coordinate validation
     if not (-90 <= lat <= 90) or not (-180 <= lon <= 180):
         logger.error(f"Invalid coordinates: lat={lat}, lon={lon}")
         return []
-    
-    query = f"""
-    [out:json][timeout:25];
-    (
-      node["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
-      way["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
-      relation["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
-    );
-    out center;
-    """
-    url = 'https://overpass-api.de/api/interpreter'
-    try:
-        logger.info(f"Querying Overpass API for {amenity_type} at {lat}, {lon}")
-        logger.debug(f"Query: {query}")
-        response = requests.post(url, data={'data': query}, timeout=30)
-        response.raise_for_status()
-        data = response.json()
-        elements = data.get('elements', [])
-        logger.info(f"Found {len(elements)} places for {amenity_type}")
-        # Log first few results for debugging
-        for i, element in enumerate(elements[:3]):
-            logger.debug(f"Place {i+1}: {element.get('tags', {}).get('name', 'Unnamed')} at {element.get('lat', 'N/A')}, {element.get('lon', 'N/A')}")
-        return elements
-        
-    except requests.exceptions.RequestException as e:
-        logger.error(f"Network error fetching places for {amenity_type}: {e}")
-        return []
-    except json.JSONDecodeError as e:
-        logger.error(f"JSON decode error for {amenity_type}: {e}")
-        return []
-    except Exception as e:
-        logger.error(f"Unexpected error fetching places for {amenity_type}: {e}")
-        return []
 
-#-------------------------------------------------------------------------------------------------------
-# Profile view to show user preferences
+    # DEBUG: Print what we're actually receiving
+    logger.info(f"DEBUG: amenity_type = '{amenity_type}', type = {type(amenity_type)}")
+    logger.info(f"DEBUG: amenity_type == 'malls': {amenity_type == 'malls'}")
+    logger.info(f"DEBUG: amenity_type is None: {amenity_type is None}")
+
+    # If searching for malls, use custom query
+    if amenity_type == "malls" or amenity_type is None:
+        logger.info("DEBUG: Using mall search query")
+        query = f"""
+        [out:json][timeout:200];
+        (
+          node["name"~"mall|shopping|plaza|center|centre|complex",i](around:{radius},{lat},{lon});
+          way["name"~"mall|shopping|plaza|center|centre|complex",i](around:{radius},{lat},{lon});
+          relation["name"~"mall|shopping|plaza|center|centre|complex",i](around:{radius},{lat},{lon});
+        );
+        out center;
+        """
+    else:
+        logger.info(f"DEBUG: Using amenity search for '{amenity_type}'")
+        # fallback: use amenity tag (e.g., amenity=restaurant, etc.)
+        query = f"""
+        [out:json][timeout:25];
+        (
+          node["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+          way["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+          relation["amenity"="{amenity_type}"](around:{radius},{lat},{lon});
+        );
+        out center;
+        """
+
 def profile_view(request):
     user = request.user
     preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
@@ -1400,92 +1393,58 @@ def auto_select_midpoint_restaurant(request):
     """
     if not request.session.get('user_id'):
         return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
-    
+
     userinfo(request)
-    
+
     if request.method == 'POST':
         try:
             data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
             request_id = data.get('request_id')
-            
+
             if not request_id:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Missing request_id'
-                }, status=400)
-            
-            # Find the date request
+                return JsonResponse({'status': 'error', 'message': 'Missing request_id'}, status=400)
+
             date_request = DateReq.find_one({"_id": ObjectId(request_id)})
             if not date_request:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Date request not found'
-                }, status=404)
-            
-            # Check permissions
+                return JsonResponse({'status': 'error', 'message': 'Date request not found'}, status=404)
+
             is_sender = date_request.get('From') == name
             is_receiver = date_request.get('To') == name
             existing_location = date_request.get('date_location')
 
             if not (is_sender or is_receiver):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Access denied'
-                }, status=403)
+                return JsonResponse({'status': 'error', 'message': 'Access denied'}, status=403)
 
             if is_receiver and not existing_location:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Only the sender can set the initial date location'
-                }, status=403)
-            
-            # Get partner info
+                return JsonResponse({'status': 'error', 'message': 'Only the sender can set the initial date location'}, status=403)
+
             partner = date_request["To"] if date_request["From"] == name else date_request["From"]
-            
-            # Get both users' locations
+
             user_location = Location.find_one({'name': name})
             partner_location = Location.find_one({'name': partner})
-            
+
             if not user_location or not partner_location:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'User locations not found'
-                }, status=404)
-            
-            # Convert coordinates to float
+                return JsonResponse({'status': 'error', 'message': 'User locations not found'}, status=404)
+
             try:
                 user_lat = float(user_location['lat'])
                 user_lon = float(user_location['lon'])
                 partner_lat = float(partner_location['lat'])
                 partner_lon = float(partner_location['lon'])
             except (ValueError, TypeError):
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Invalid location coordinates'
-                }, status=400)
-            
-            # Calculate route midpoint
-            route_midpoint_lat, route_midpoint_lon = get_route_midpoint(
-                user_lat, user_lon, partner_lat, partner_lon
-            )
-            
-            # Get combined preferences
+                return JsonResponse({'status': 'error', 'message': 'Invalid location coordinates'}, status=400)
+
+            route_midpoint_lat, route_midpoint_lon = get_route_midpoint(user_lat, user_lon, partner_lat, partner_lon)
+
             preferred_tags = get_combined_preferences(name, partner)
             if not preferred_tags:
                 preferred_tags = ['restaurant']
-            
-            # Find closest restaurant to midpoint
-            closest_restaurant = find_closest_restaurant(
-                route_midpoint_lat, route_midpoint_lon, preferred_tags
-            )
-            
+
+            closest_restaurant = find_closest_restaurant(route_midpoint_lat, route_midpoint_lon, preferred_tags)
+
             if not closest_restaurant:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'No restaurants found near the midpoint'
-                }, status=404)
-            
-            # Prepare location data
+                return JsonResponse({'status': 'error', 'message': 'No restaurants found near the midpoint'}, status=404)
+
             location_data = {
                 'name': closest_restaurant['name'],
                 'lat': closest_restaurant['lat'],
@@ -1494,43 +1453,27 @@ def auto_select_midpoint_restaurant(request):
                 'type': closest_restaurant.get('type', 'restaurant'),
                 'selected_by': name,
                 'selected_at': datetime.now(),
-                'auto_selected': True,  # Flag to indicate auto-selection
+                'auto_selected': True,
                 'distance_from_midpoint': closest_restaurant.get('distance', 0)
             }
-            
-            # Update the date request with location
-            result = DateReq.update_one(
-                {"_id": ObjectId(request_id)},
-                {"$set": {"date_location": location_data}}
-            )
-            
+
+            result = DateReq.update_one({"_id": ObjectId(request_id)}, {"$set": {"date_location": location_data}})
+
             if result.modified_count > 0:
                 return JsonResponse({
                     'status': 'success',
                     'message': f'Auto-selected restaurant: {closest_restaurant["name"]}',
                     'location': location_data,
-                    'midpoint': {
-                        'lat': route_midpoint_lat,
-                        'lon': route_midpoint_lon
-                    }
+                    'midpoint': {'lat': route_midpoint_lat, 'lon': route_midpoint_lon}
                 })
             else:
-                return JsonResponse({
-                    'status': 'error',
-                    'message': 'Failed to update date location'
-                }, status=500)
-                
+                return JsonResponse({'status': 'error', 'message': 'Failed to update date location'}, status=500)
+
         except Exception as e:
             logger.error(f"Error auto-selecting restaurant: {e}")
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Internal server error'
-            }, status=500)
-    
-    return JsonResponse({
-        'status': 'error',
-        'message': 'Only POST method allowed'
-    }, status=405)
+            return JsonResponse({'status': 'error', 'message': 'Internal server error'}, status=500)
+
+    return JsonResponse({'status': 'error', 'message': 'Only POST method allowed'}, status=405)
 
 
 def get_route_midpoint(user_lat, user_lon, partner_lat, partner_lon):
@@ -1541,91 +1484,90 @@ def get_route_midpoint(user_lat, user_lon, partner_lat, partner_lon):
         import requests
         url = f"https://router.project-osrm.org/route/v1/driving/{user_lon},{user_lat};{partner_lon},{partner_lat}?overview=full&geometries=geojson"
         response = requests.get(url, timeout=10)
-        
+
         if response.status_code == 200:
             data = response.json()
             if data.get('routes') and len(data['routes']) > 0:
-                route = data['routes'][0]
-                if route.get('geometry') and route['geometry'].get('coordinates'):
-                    coords = route['geometry']['coordinates']
-                    # Get the actual midpoint of the route
-                    midpoint_index = len(coords) // 2
-                    route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
-                    return route_midpoint_lat, route_midpoint_lon
+                coords = data['routes'][0]['geometry']['coordinates']
+                midpoint_index = len(coords) // 2
+                route_midpoint_lon, route_midpoint_lat = coords[midpoint_index]
+                return route_midpoint_lat, route_midpoint_lon
+
     except Exception as e:
         logger.warning(f"Failed to get route midpoint: {e}")
-    
-    # Fallback to coordinate midpoint
+
+    # Fallback to geographic midpoint
     midpoint_lat = (user_lat + partner_lat) / 2
     midpoint_lon = (user_lon + partner_lon) / 2
     return midpoint_lat, midpoint_lon
 
-
 def find_closest_restaurant(midpoint_lat, midpoint_lon, preferred_tags):
     """
-    Find the closest restaurant to the midpoint based on preferences
+    Find the closest place to the midpoint based on user preferences (restaurant, cafe, malls, etc.)
     """
     try:
-        # Map preferences to amenity tags
         preference_to_amenity = {
-            'restaurant': 'restaurant',
-            'cafe': 'cafe', 
-            'bar': 'bar',
-            'club': 'club',
-            'shop': 'shop'
+            'restaurant': 'amenity=restaurant',
+            'cafe': 'amenity=cafe',
+            'bar': 'amenity=bar',
+            'club': 'amenity=nightclub',
+            'malls': ['shop=mall', 'shop=shopping_centre']
         }
-        
-        # Convert preferences to amenity tags
+
         amenity_tags = []
         for pref in preferred_tags:
-            if pref in preference_to_amenity:
-                amenity_tags.append(preference_to_amenity[pref])
-        
-        # If no valid amenity tags, default to restaurant
+            tag_value = preference_to_amenity.get(pref)
+            if tag_value:
+                if isinstance(tag_value, list):
+                    amenity_tags.extend(tag_value)
+                else:
+                    amenity_tags.append(tag_value)
+
         if not amenity_tags:
-            amenity_tags = ['restaurant']
-        
-        # Fetch places for each preferred amenity type
+            amenity_tags = ['amenity=restaurant']
+
         all_places = []
         for tag in amenity_tags:
             places = fetch_overpass_places(midpoint_lat, midpoint_lon, tag)
             all_places.extend(places)
-        
+
         if not all_places:
             return None
-        
-        # Calculate distances and find closest
+
         closest_place = None
         min_distance = float('inf')
-        
+
         for place in all_places:
+            tags = place.get('tags', {})
             place_lat = place.get('lat') or (place.get('center', {}).get('lat'))
             place_lon = place.get('lon') or (place.get('center', {}).get('lon'))
-            
+
             if place_lat and place_lon:
-                # Calculate distance using Haversine formula
-                distance = calculate_distance(
-                    midpoint_lat, midpoint_lon, 
-                    float(place_lat), float(place_lon)
-                )
-                
+                distance = calculate_distance(midpoint_lat, midpoint_lon, float(place_lat), float(place_lon))
+
                 if distance < min_distance:
                     min_distance = distance
+                    address_parts = [
+                        tags.get('addr:housenumber'),
+                        tags.get('addr:street'),
+                        tags.get('addr:city')
+                    ]
+                    address = ', '.join(filter(None, address_parts))
+
                     closest_place = {
-                        'name': place.get('name', 'Unknown'),
+                        'name': tags.get('name', 'Unknown'),
                         'lat': float(place_lat),
                         'lon': float(place_lon),
-                        'address': place.get('address', ''),
-                        'type': place.get('amenity', 'restaurant'),
+                        'address': address,
+                        'type': tags.get('amenity') or tags.get('shop') or 'restaurant',
                         'distance': distance
                     }
-        
+
         return closest_place
-        
+
     except Exception as e:
         logger.error(f"Error finding closest restaurant: {e}")
         return None
-
 
 def calculate_distance(lat1, lon1, lat2, lon2):
     """
