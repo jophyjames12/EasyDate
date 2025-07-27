@@ -29,6 +29,9 @@ from django.contrib import messages
 from datetime import datetime, date, timedelta
 from passlib.hash import pbkdf2_sha256
 from datetime import datetime, timedelta
+from decouple import config
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +50,7 @@ Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
 
-GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
+GOOGLE_CLIENT_ID =config("GOOGLE_CLIENT_ID")  # Replace this
 @csrf_exempt
 def google_auth_view(request):
     if request.method != 'POST':
@@ -136,81 +139,76 @@ def login_view(request):
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
 
-def send_otp_email(email, otp):
-    """Send OTP to user's email"""
+def send_otp_email(request,to_email, otp):
+    """Send OTP using Brevo API"""
     try:
-        # Configure your email settings
-        smtp_server = settings.EMAIL_HOST
-        smtp_port = settings.EMAIL_PORT
-        sender_email = settings.EMAIL_HOST_USER
-        sender_password = settings.EMAIL_HOST_PASSWORD
-        
-        # Create message
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = email
-        message["Subject"] = "Email Verification - Your OTP Code"
-        
-        # Email body
-        body = f"""
-        Hi there!
-        
-        Your verification code is: {otp}
-        
-        This code will expire in 10 minutes.
-        
-        If you didn't request this code, please ignore this email.
-        
-        Best regards,
-        Your App Team
+        # Load Brevo configuration
+        api_key = config('BREVO_API_KEY')
+        sender_email = config('EMAIL_HOST_USER')
+        sender_name = config('BREVO_SENDER_NAME')
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+
+        # Email content
+        html_content = f"""
+        <html>
+            <body>
+                <h3>Hi there!</h3>
+                <p>Your verification code is: <strong>{otp}</strong></p>
+                <p>This code will expire in 10 minutes.</p>
+                <br>
+                <p>If you didn't request this code, please ignore this email.</p>
+                <p>Best regards,<br>EasyDate Team</p>
+            </body>
+        </html>
         """
-        
-        message.attach(MIMEText(body, "plain"))
-        
-        # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(message)
-        
+
+        # Build and send the email
+        email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email}],
+            sender={"email": sender_email, "name": sender_name},
+            subject="Email Verification - Your OTP Code",
+            html_content=html_content
+        ) 
+
+        api_instance.send_transac_email(email)
         return True
-    except Exception as e:
+
+    except ApiException as e:
         print(f"Error sending email: {e}")
         return False
+
 
 def generate_otp():
     """Generate a 6-digit OTP"""
     return str(random.randint(100000, 999999))
 
+
 def signup_view(request):
-    # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
-        # Check if this is OTP verification step
         if request.POST.get('step') == 'verify_otp':
             return handle_otp_verification(request)
-        
-        # This is the initial registration step
-        return handle_initial_registration(request)
-    
+        else:
+            return handle_initial_registration(request)
+
     return render(request, 'MainApp/signup.html')
+
 
 def handle_initial_registration(request):
     """Handle the initial registration form submission"""
-    # Retrieve form data for user registration
     username = request.POST['username']
     email = request.POST['email']
     password = request.POST['password']
     confirm_password = request.POST['confirm_password']
 
-    # Check if passwords match
     if password != confirm_password:
         messages.error(request, "Passwords do not match")
         return render(request, 'MainApp/signup.html')
 
-    # Check if username or email already exists in MongoDB
     if users_collection.find_one({"username": username}):
         messages.error(request, "Username already exists")
         return render(request, 'MainApp/signup.html')
@@ -218,10 +216,7 @@ def handle_initial_registration(request):
         messages.error(request, "Email already registered")
         return render(request, 'MainApp/signup.html')
 
-    # Generate OTP
     otp = generate_otp()
-    
-    # Store user data and OTP in session temporarily
     request.session['pending_user'] = {
         'username': username,
         'email': email,
@@ -229,34 +224,31 @@ def handle_initial_registration(request):
         'otp': otp,
         'otp_created_at': datetime.now().isoformat()
     }
-    
-    # Send OTP via email
-    if send_otp_email(email, otp):
+
+    if send_otp_email(request,email, otp):
         messages.success(request, f"Verification code sent to {email}")
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
     else:
         messages.error(request, "Failed to send verification email. Please try again.")
         return render(request, 'MainApp/signup.html')
 
+
 def handle_otp_verification(request):
     """Handle OTP verification step"""
     entered_otp = request.POST.get('otp')
     pending_user = request.session.get('pending_user')
-    
+
     if not pending_user:
         messages.error(request, "Session expired. Please start registration again.")
         return render(request, 'MainApp/signup.html')
-    
-    # Check if OTP has expired (10 minutes)
+
     otp_created_at = datetime.fromisoformat(pending_user['otp_created_at'])
     if datetime.now() - otp_created_at > timedelta(minutes=10):
         messages.error(request, "OTP has expired. Please start registration again.")
         del request.session['pending_user']
         return render(request, 'MainApp/signup.html')
-    
-    # Verify OTP
+
     if entered_otp == pending_user['otp']:
-        # OTP is correct, create the user
         hashed_password = pbkdf2_sha256.hash(pending_user['password'])
         new_user = {
             "username": pending_user['username'],
@@ -266,47 +258,40 @@ def handle_otp_verification(request):
             "email_verified": True,
             "created_at": datetime.now()
         }
-        
+
         result = users_collection.insert_one(new_user)
-        
-        # Start session for the newly registered user
         request.session['user_id'] = str(result.inserted_id)
         request.session['account_created'] = True
-        
-        # Clean up pending user data
         del request.session['pending_user']
-        
+
         messages.success(request, "Registration successful! Welcome!")
         return redirect('area')
     else:
         messages.error(request, "Invalid OTP. Please try again.")
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
 
+
 def resend_otp(request):
     """Resend OTP to user's email"""
     if request.method == 'POST':
         pending_user = request.session.get('pending_user')
-        
+
         if not pending_user:
             messages.error(request, "Session expired. Please start registration again.")
             return redirect('signup')
-        
-        # Generate new OTP
+
         otp = generate_otp()
-        
-        # Update session with new OTP
         pending_user['otp'] = otp
         pending_user['otp_created_at'] = datetime.now().isoformat()
         request.session['pending_user'] = pending_user
-        
-        # Send new OTP
-        if send_otp_email(pending_user['email'], otp):
+
+        if send_otp_email(request,pending_user['email'], otp):
             messages.success(request, "New verification code sent!")
         else:
             messages.error(request, "Failed to send verification email. Please try again.")
-        
+
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
-    
+
     return redirect('signup')
 
 def logout_view(request):
