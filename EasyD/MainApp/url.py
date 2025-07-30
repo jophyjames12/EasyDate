@@ -21,9 +21,10 @@ urlpatterns=[
     path("search_user/", views.search_user, name='search_user'),
     path('map/', views.map_view, name='map_view'),
     path('area/map/', views.map_view, name='map_view'),
-    path("profile/", views.profile, name="profile"),  # Profile URL
-    path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
     path('profile/', views.profile_view, name='profile'),
+    #path("profile/", views.profile, name="profile"),  # Profile URL
+    path('handle_date_request/', views.handle_date_request, name='handle_date_request'),
+    #path('profile/', views.profile_view, name='profile'),
     path('resend-otp/', views.resend_otp, name='resend_otp'),
     #path('rate_place/', views.rate_place, name='rate_place'),
     #path('api/places/', views.get_places, name='get_places'),
@@ -49,6 +50,11 @@ urlpatterns=[
     path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
     path('get_notification_counts/', views.get_notification_counts, name='get_notification_counts'),
     path('mark_notifications_seen/', views.mark_notifications_seen, name='mark_notifications_seen'),
+    #new
+    path('create_post/', views.create_post, name='create_post'),
+    path('toggle_like/', views.toggle_like_post, name='toggle_like_post'),
+    path('delete_post/', views.delete_post, name='delete_post'),
+    path('friend_profile/<str:friend_username>/', views.view_friend_profile, name='view_friend_profile'),
 ]
 
 if settings.DEBUG:

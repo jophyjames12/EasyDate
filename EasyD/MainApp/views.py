@@ -34,6 +34,7 @@ logger = logging.getLogger(__name__)
 
 # MongoDB connection
 client = MongoClient('mongodb://localhost:27017/')
+Posts = client.Dating.Posts
 db = client['UserDetails']
 users_collection = db['AccountHashing']
 FriendReq = db['Friendrequest']
@@ -46,6 +47,7 @@ Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
+Posts = db['Posts']  # New collection for posts
 
 GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
 @csrf_exempt
@@ -1063,11 +1065,149 @@ def fetch_overpass_places(lat, lon, amenity_type=None, radius=3000):
         );
         out center;
         """
-
+# Updated profile_view function - PRESERVES ALL ORIGINAL FEATURES
 def profile_view(request):
-    user = request.user
-    preferences = user.preferences.all()  # Assuming the `preferences` field is a Many-to-Many relation
-    return render(request, 'profile.html', {'user': user, 'preferences': preferences})
+    # Check if user is authenticated
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    # Get user information (this sets the global 'name' variable)
+    userinfo(request)
+    
+    # Debug: Print the username to console
+    print(f"DEBUG: Current user name: {name}")
+    
+    # Get date requests (sent) - using your actual collection name 'DateReq'
+    sent_requests = DateReq.find({"From": name, "status": "pending"})
+    sent_from = []
+    for req in sent_requests:
+        req_data = {
+            "username": req["To"],  # Changed from "to" to "username" to match template
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": True
+        }
+        sent_from.append(req_data)
+    
+    # Get date requests (received) - using your actual collection name 'DateReq'
+    received_requests = DateReq.find({"To": name, "status": "pending"})
+    received_from = []
+    for req in received_requests:
+        req_data = {
+            "username": req["From"],  # Changed from "from" to "username" to match template
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": req.get("date_location") is not None
+        }
+        received_from.append(req_data)
+    
+    # Get upcoming dates - using your actual collection name 'DateReq'
+    upcoming_dates = DateReq.find({
+        "$or": [
+            {"From": name, "status": "accepted"},
+            {"To": name, "status": "accepted"}
+        ]
+    })
+    
+    upcoming_dates_list = []
+    for req in upcoming_dates:
+        partner = req["To"] if req["From"] == name else req["From"]
+        is_sender = req["From"] == name
+        
+        date_data = {
+            "partner": partner,
+            "request_id": str(req["_id"]),
+            "date": req.get("date", ""),
+            "time": req.get("time", ""),
+            "date_location": req.get("date_location", None),
+            "can_set_location": is_sender or (not is_sender and req.get("date_location") is not None),
+            "is_sender": is_sender
+        }
+        upcoming_dates_list.append(date_data)
+    
+    # Get friend count - using your actual collection name 'Friendlist'
+    user_friendlist = Friendlist.find_one({"username": name})
+    friend_count = len(user_friendlist.get("friends", [])) if user_friendlist else 0
+    
+    # Get user profile information
+    user_profile = Profiles.find_one({"username": name})
+    bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
+    profile_picture = user_profile.get("profile_picture") if user_profile else None
+    
+    # Get user posts with privacy applied (user viewing their own profile)
+    try:
+        user_posts = list(Posts.find({"username": name}).sort("created_at", -1))
+        
+        # Apply privacy settings - user viewing their own posts
+        for post in user_posts:
+            post['id'] = str(post['_id'])
+            
+            # Format timestamp
+            if 'created_at' in post:
+                try:
+                    post['created_at_formatted'] = format_time_ago(post['created_at'])
+                except:
+                    post['created_at_formatted'] = "Recently"
+            else:
+                post['created_at_formatted'] = "Recently"
+            
+            # User is viewing their own posts - they can see like counts
+            post['likes'] = post.get('likes', 0)
+            post['show_like_count'] = True
+            
+            # Check if user liked their own post (for heart icon state)
+            liked_by = post.get('liked_by', [])
+            post['user_liked'] = name in liked_by
+        
+        post_count = len(user_posts)
+        
+        # Debug: Print posts info
+        print(f"DEBUG: Found {len(user_posts)} posts for user {name}")
+        print(f"DEBUG: Post count: {post_count}")
+        if user_posts:
+            print(f"DEBUG: First post: {user_posts[0]}")
+            
+    except Exception as e:
+        print(f"ERROR: Failed to get posts: {e}")
+        user_posts = []
+        post_count = 0
+    
+    # Get user preferences - using your actual collection name 'Preference'
+    user_preferences = []
+    try:
+        preferences_doc = Preference.find_one({"name": name})  # Note: using 'name' not 'username'
+        if preferences_doc:
+            user_preferences = preferences_doc.get('preferences', [])
+    except Exception as e:
+        print(f"ERROR: Failed to get preferences: {e}")
+        user_preferences = []
+    
+    # Prepare context for template
+    context = {
+        "sent_from": sent_from,
+        "received_from": received_from,
+        "upcoming_dates": upcoming_dates_list,
+        "name": name,
+        "friend_count": friend_count,
+        "post_count": post_count,
+        "bio": bio,
+        "profile_picture": profile_picture,
+        "posts": user_posts,  # This is crucial!
+        "preferences": user_preferences,
+        "user": {  # Create user object for template compatibility
+            "username": name,
+            "bio": bio,
+            "profile_picture": profile_picture
+        }
+    }
+    # Debug: Print context
+    print(f"DEBUG: Context contains {len(context['posts'])} posts")
+    
+    return render(request, 'MainApp/profile.html', context)
 
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
@@ -2524,3 +2664,377 @@ def mark_notifications_seen(request):
         'status': 'error',
         'message': 'Only POST method allowed'
     }, status=405)
+
+# Create post view
+@csrf_exempt
+def create_post(request):
+    if not request.session.get('user_id'):
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    
+    if request.method == 'POST':
+        try:
+            # Get the username from session (assuming you have this from userinfo)
+            userinfo(request)
+            username = name  # This should be set by your userinfo() function
+            
+            content = request.POST.get('content', '').strip()
+            post_image = request.FILES.get('image')
+            image_url = None
+            
+            # Handle image upload
+            if post_image:
+                # Validate file type
+                allowed_types = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif']
+                if post_image.content_type not in allowed_types:
+                    return JsonResponse({'error': 'Invalid image format'}, status=400)
+                
+                # Validate file size (5MB limit)
+                if post_image.size > 5 * 1024 * 1024:
+                    return JsonResponse({'error': 'Image too large (max 5MB)'}, status=400)
+                
+                # Create posts directory if it doesn't exist
+                upload_dir = os.path.join(settings.MEDIA_ROOT, 'posts')
+                if not os.path.exists(upload_dir):
+                    os.makedirs(upload_dir, mode=0o755)
+                
+                # Generate unique filename
+                file_extension = os.path.splitext(post_image.name)[1].lower()
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                unique_id = str(uuid.uuid4())[:8]
+                filename = f"{username}_{timestamp}_{unique_id}{file_extension}"
+                file_path = os.path.join(upload_dir, filename)
+                
+                # Save the file
+                try:
+                    with open(file_path, 'wb+') as destination:
+                        for chunk in post_image.chunks():
+                            destination.write(chunk)
+                    image_url = f"/media/posts/{filename}"
+                except Exception as e:
+                    return JsonResponse({'error': f'Failed to save image: {str(e)}'}, status=500)
+            
+            # Validate that post has content or image
+            if not content and not image_url:
+                return JsonResponse({'error': 'Post must have content or image'}, status=400)
+            
+            # Create post document
+            post_data = {
+                "username": username,
+                "content": content,
+                "image": image_url,
+                "created_at": datetime.now(),
+                "likes": 0,
+                "liked_by": []
+            }
+            
+            # Insert into MongoDB
+            result = Posts.insert_one(post_data)
+            
+            if result.inserted_id:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Post created successfully!',
+                    'post_id': str(result.inserted_id)
+                })
+            else:
+                return JsonResponse({'error': 'Failed to create post'}, status=500)
+                
+        except Exception as e:
+            return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+    
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+# Get posts for a user
+def get_user_posts(username, limit=20):
+    """Helper function to get posts for a specific user"""
+    try:
+        posts = list(Posts.find({"username": username}).sort("created_at", -1).limit(limit))
+        for post in posts:
+            post['id'] = str(post['_id'])  # Create 'id' field instead of using '_id'
+            # Format the timestamp for display
+            if 'created_at' in post:
+                post['created_at_formatted'] = format_time_ago(post['created_at'])
+        return posts
+    except Exception as e:
+        print(f"Error getting posts: {e}")
+        return []
+
+def format_time_ago(timestamp):
+    """Format timestamp to 'X minutes ago' format"""
+    from datetime import datetime, timezone
+    
+    if not isinstance(timestamp, datetime):
+        return "Unknown"
+    
+    # Make timestamp timezone aware if it isn't
+    if timestamp.tzinfo is None:
+        timestamp = timestamp.replace(tzinfo=timezone.utc)
+    
+    now = datetime.now(timezone.utc)
+    diff = now - timestamp
+    
+    if diff.total_seconds() < 60:
+        return "Just now"
+    elif diff.total_seconds() < 3600:
+        minutes = int(diff.total_seconds() / 60)
+        return f"{minutes}m ago"
+    elif diff.total_seconds() < 86400:
+        hours = int(diff.total_seconds() / 3600)
+        return f"{hours}h ago"
+    else:
+        days = int(diff.total_seconds() / 86400)
+        return f"{days}d ago"
+
+# Updated Like/unlike post function with privacy
+@csrf_exempt
+def toggle_like_post(request):
+    if not request.session.get('user_id'):
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            post_id = data.get('post_id')
+            
+            userinfo(request)
+            username = name
+            
+            # Find the post using ObjectId
+            from bson import ObjectId
+            post = Posts.find_one({"_id": ObjectId(post_id)})
+            
+            if not post:
+                return JsonResponse({'error': 'Post not found'}, status=404)
+            
+            liked_by = post.get('liked_by', [])
+            
+            if username in liked_by:
+                # Unlike the post
+                Posts.update_one(
+                    {"_id": ObjectId(post_id)},
+                    {
+                        "$pull": {"liked_by": username},
+                        "$inc": {"likes": -1}
+                    }
+                )
+                liked = False
+            else:
+                # Like the post
+                Posts.update_one(
+                    {"_id": ObjectId(post_id)},
+                    {
+                        "$addToSet": {"liked_by": username},
+                        "$inc": {"likes": 1}
+                    }
+                )
+                liked = True
+            
+            # Get updated post data
+            updated_post = Posts.find_one({"_id": ObjectId(post_id)})
+            
+            # Privacy check: Only return actual like count to post owner
+            is_owner = updated_post.get('username') == username
+            like_count = updated_post.get('likes', 0) if is_owner else 0
+            
+            return JsonResponse({
+                'success': True,
+                'liked': liked,
+                'likes': like_count,  # Will be 0 for non-owners, actual count for owners
+                'is_owner': is_owner  # Let frontend know if user is owner
+            })
+            
+        except Exception as e:
+            return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+    
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+# Add this function to your views.py
+
+@csrf_exempt
+def delete_post(request):
+    if not request.session.get('user_id'):
+        return JsonResponse({'error': 'Not authenticated'}, status=401)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            post_id = data.get('post_id')
+            
+            userinfo(request)
+            username = name
+            
+            # Find the post
+            from bson import ObjectId
+            post = Posts.find_one({"_id": ObjectId(post_id)})
+            
+            if not post:
+                return JsonResponse({'error': 'Post not found'}, status=404)
+            
+            # Check if the current user is the owner of the post
+            if post.get('username') != username:
+                return JsonResponse({'error': 'You can only delete your own posts'}, status=403)
+            
+            # Delete the image file if it exists
+            if post.get('image'):
+                try:
+                    image_path = post['image']
+                    # Remove /media/ from the beginning to get the relative path
+                    if image_path.startswith('/media/'):
+                        image_path = image_path[7:]  # Remove '/media/'
+                    
+                    full_path = os.path.join(settings.MEDIA_ROOT, image_path)
+                    if os.path.exists(full_path):
+                        os.remove(full_path)
+                        print(f"Deleted image file: {full_path}")
+                except Exception as e:
+                    print(f"Error deleting image file: {e}")
+                    # Continue with post deletion even if image deletion fails
+            
+            # Delete the post from database
+            result = Posts.delete_one({"_id": ObjectId(post_id)})
+            
+            if result.deleted_count > 0:
+                return JsonResponse({
+                    'success': True,
+                    'message': 'Post deleted successfully'
+                })
+            else:
+                return JsonResponse({'error': 'Failed to delete post'}, status=500)
+                
+        except Exception as e:
+            return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
+    
+    return JsonResponse({'error': 'Invalid request method'}, status=405)
+
+# View friend profile function - CORRECTED to preserve all original features
+def view_friend_profile(request, friend_username):
+    # Check if user is authenticated
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    # Get current user information
+    userinfo(request)
+    
+    # Verify that this person is actually in the user's friends list
+    user_friendlist = Friendlist.find_one({"username": name})
+    if not user_friendlist or friend_username not in user_friendlist.get("friends", []):
+        messages.error(request, "You can only view profiles of your friends.")
+        return redirect('search_user')
+    
+    # Get friend's profile information
+    friend_profile = Profiles.find_one({"username": friend_username})
+    friend_bio = friend_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if friend_profile else "Welcome to my profile! Let's connect and have some fun together."
+    friend_profile_picture = friend_profile.get("profile_picture", None) if friend_profile else None
+    
+    # Get friend's posts - PRESERVED original logic with privacy additions
+    try:
+        # First try to use the existing get_user_posts function if it exists
+        try:
+            friend_posts = get_user_posts(friend_username)
+        except:
+            # Fallback to direct database query (original logic preserved)
+            friend_posts = list(Posts.find({"username": friend_username}).sort("created_at", -1))
+            for post in friend_posts:
+                post['id'] = str(post['_id'])
+                # Format timestamp if available (original logic)
+                if 'created_at' in post:
+                    try:
+                        post['created_at_formatted'] = format_time_ago(post['created_at'])
+                    except:
+                        post['created_at_formatted'] = "Recently"
+                else:
+                    post['created_at_formatted'] = "Recently"
+        
+        # ONLY ADDITION: Apply privacy settings to existing posts
+        for post in friend_posts:
+            # Ensure post has ID (might already be set by get_user_posts)
+            if 'id' not in post:
+                post['id'] = str(post['_id'])
+            
+            # Privacy settings: Only show like details to post owner
+            is_owner = post.get('username') == name  # Current user viewing
+            
+            if is_owner:
+                # Current user owns this post - they can see likes
+                post['likes'] = post.get('likes', 0)
+                post['show_like_count'] = True
+            else:
+                # Current user viewing friend's posts - hide actual count
+                post['show_like_count'] = False
+                # Keep original likes data but mark as private
+            
+            # Check if current user liked this post (for heart icon state)
+            liked_by = post.get('liked_by', [])
+            post['user_liked'] = name in liked_by
+        
+        # DEBUG: Print posts info (preserved from original)
+        print(f"DEBUG: Found {len(friend_posts)} posts for user {friend_username}")
+        if friend_posts:
+            print(f"DEBUG: First post: {friend_posts[0]}")
+                
+    except Exception as e:
+        print(f"DEBUG - Error fetching friend's posts: {e}")
+        friend_posts = []
+    
+    # Get friend's friend count
+    friend_friendlist = Friendlist.find_one({"username": friend_username})
+    friend_friend_count = len(friend_friendlist.get("friends", [])) if friend_friendlist else 0
+    
+    # Check if there's already a pending date request between users
+    existing_date_request = DateReq.find_one({
+        "$or": [
+            {"From": name, "To": friend_username},
+            {"From": friend_username, "To": name}
+        ],
+        "status": "pending"
+    })
+    
+    has_pending_date_request = existing_date_request is not None
+    
+    # PRESERVED: All original context data
+    context = {
+        "friend_username": friend_username,
+        "friend_bio": friend_bio,
+        "friend_profile_picture": friend_profile_picture,
+        "friend_posts": friend_posts,
+        "friend_friend_count": friend_friend_count,
+        "post_count": len(friend_posts),
+        "current_user": name,
+        "has_pending_date_request": has_pending_date_request
+    }
+    
+    return render(request, 'MainApp/friend_profile.html', context)
+
+# Add this function to process posts with privacy settings
+def apply_privacy_to_posts(posts, current_username):
+    """Apply privacy settings to posts before sending to frontend"""
+    for post in posts:
+        post['id'] = str(post['_id'])
+        
+        # Check if current user is the post owner
+        is_owner = post.get('username') == current_username
+        
+        # Only include like details for post owners
+        if is_owner:
+            # Owner can see everything
+            post['likes'] = post.get('likes', 0)
+            post['liked_by'] = post.get('liked_by', [])
+        else:
+            # Non-owners can't see like count or who liked
+            post.pop('likes', None)
+            post.pop('liked_by', None)
+        
+        # Check if current user liked this post (for heart icon state)
+        liked_by = post.get('liked_by', [])
+        post['user_liked'] = current_username in liked_by
+        
+        # Format timestamp
+        if 'created_at' in post:
+            try:
+                post['created_at_formatted'] = format_time_ago(post['created_at'])
+            except:
+                post['created_at_formatted'] = "Recently"
+        else:
+            post['created_at_formatted'] = "Recently"
+    
+    return posts

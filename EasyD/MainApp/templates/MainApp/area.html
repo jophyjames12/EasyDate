@@ -348,6 +348,30 @@
       animation: pulse-notification 2s infinite;
     }
 
+    /* Menu button notification badge */
+    .menu-button-with-notification {
+        position: relative !important;
+    }
+
+    .menu-notification-badge {
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background-color: #ff4757;
+        color: white;
+        border-radius: 50%;
+        padding: 2px 6px;
+        font-size: 10px;
+        font-weight: bold;
+        min-width: 16px;
+        height: 16px;
+        line-height: 12px;
+        text-align: center;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        animation: pulse-notification 2s infinite;
+        z-index: 1001;
+    }
+
     /* Pulse animation for notification badge */
     @keyframes pulse-notification {
         0% {
@@ -436,6 +460,16 @@
             padding: 1px 4px;
             margin-left: 6px;
         }
+
+        .menu-notification-badge {
+            font-size: 9px;
+            min-width: 14px;
+            height: 14px;
+            line-height: 10px;
+            padding: 1px 4px;
+            top: -3px;
+            right: -3px;
+        }
         
         .dropdown-content {
             min-width: 100px;
@@ -485,7 +519,12 @@
   <header>
     <h1>Event Schedule</h1>
     <div class="menu">
-        <button onclick="toggleMenu()">☰ Menu</button>
+        <button onclick="toggleMenu()" class="menu-button-with-notification">
+            ☰ Menu
+            {% if date_request_count > 0 or friend_request_count > 0 %}
+                <span class="menu-notification-badge">{{ date_request_count|add:friend_request_count }}</span>
+            {% endif %}
+        </button>
         <div id="dropdown" class="dropdown-content">
             <a href="map">Map</a>
             <a href="{% url 'events' %}">Events</a>
@@ -726,6 +765,24 @@
               dateBadge.textContent = dateCount;
           } else if (dateBadge) {
               dateBadge.remove();
+          }
+      }
+
+      // Update menu button badge
+      const menuButton = document.querySelector('.menu-button-with-notification');
+      if (menuButton) {
+          const totalCount = friendCount + dateCount;
+          let menuBadge = menuButton.querySelector('.menu-notification-badge');
+          
+          if (totalCount > 0) {
+              if (!menuBadge) {
+                  menuBadge = document.createElement('span');
+                  menuBadge.className = 'menu-notification-badge';
+                  menuButton.appendChild(menuBadge);
+              }
+              menuBadge.textContent = totalCount;
+          } else if (menuBadge) {
+              menuBadge.remove();
           }
       }
     }

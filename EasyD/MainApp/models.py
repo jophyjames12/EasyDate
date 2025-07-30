@@ -18,3 +18,15 @@ class CustomUser(models.Model):
     def remove_friend(self, friend):
         self.friends.remove(friend)
         self.save()
+
+# Add this new Post model
+class Post(models.Model):
+    username = models.CharField(max_length=150)
+    content = models.TextField(blank=True)
+    image = models.CharField(max_length=500, blank=True)  # Store image path
+    created_at = models.DateTimeField(auto_now_add=True)
+    likes = models.IntegerField(default=0)
+    liked_by = models.JSONField(default=list)  # Store usernames who liked the post
+    
+    class Meta:
+        ordering = ['-created_at']  # Newest first
