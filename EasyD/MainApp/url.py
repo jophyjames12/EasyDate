@@ -55,6 +55,7 @@ urlpatterns=[
     path('toggle_like/', views.toggle_like_post, name='toggle_like_post'),
     path('delete_post/', views.delete_post, name='delete_post'),
     path('friend_profile/<str:friend_username>/', views.view_friend_profile, name='view_friend_profile'),
+    path('past-events/', views.past_events_view, name='past_events'),
 ]
 
 if settings.DEBUG:

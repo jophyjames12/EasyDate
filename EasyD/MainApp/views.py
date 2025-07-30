@@ -29,6 +29,9 @@ from django.contrib import messages
 from datetime import datetime, date, timedelta
 from passlib.hash import pbkdf2_sha256
 from datetime import datetime, timedelta
+from decouple import config
+import sib_api_v3_sdk
+from sib_api_v3_sdk.rest import ApiException
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +50,10 @@ Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
+OldEvents = db['OldEvents']
 Posts = db['Posts']  # New collection for posts
 
-GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"  # Replace this
+GOOGLE_CLIENT_ID =config("GOOGLE_CLIENT_ID")  # Replace this
 @csrf_exempt
 def google_auth_view(request):
     if request.method != 'POST':
@@ -138,81 +142,76 @@ def login_view(request):
             messages.error(request, "Invalid username or password")
     return render(request, 'MainApp/login.html')
 
-def send_otp_email(email, otp):
-    """Send OTP to user's email"""
+def send_otp_email(request,to_email, otp):
+    """Send OTP using Brevo API"""
     try:
-        # Configure your email settings
-        smtp_server = settings.EMAIL_HOST
-        smtp_port = settings.EMAIL_PORT
-        sender_email = settings.EMAIL_HOST_USER
-        sender_password = settings.EMAIL_HOST_PASSWORD
-        
-        # Create message
-        message = MIMEMultipart()
-        message["From"] = sender_email
-        message["To"] = email
-        message["Subject"] = "Email Verification - Your OTP Code"
-        
-        # Email body
-        body = f"""
-        Hi there!
-        
-        Your verification code is: {otp}
-        
-        This code will expire in 10 minutes.
-        
-        If you didn't request this code, please ignore this email.
-        
-        Best regards,
-        Your App Team
+        # Load Brevo configuration
+        api_key = config('BREVO_API_KEY')
+        sender_email = config('EMAIL_HOST_USER')
+        sender_name = config('BREVO_SENDER_NAME')
+        configuration = sib_api_v3_sdk.Configuration()
+        configuration.api_key['api-key'] = api_key
+        api_instance = sib_api_v3_sdk.TransactionalEmailsApi(sib_api_v3_sdk.ApiClient(configuration))
+
+        # Email content
+        html_content = f"""
+        <html>
+            <body>
+                <h3>Hi there!</h3>
+                <p>Your verification code is: <strong>{otp}</strong></p>
+                <p>This code will expire in 10 minutes.</p>
+                <br>
+                <p>If you didn't request this code, please ignore this email.</p>
+                <p>Best regards,<br>EasyDate Team</p>
+            </body>
+        </html>
         """
-        
-        message.attach(MIMEText(body, "plain"))
-        
-        # Send email
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls()
-            server.login(sender_email, sender_password)
-            server.send_message(message)
-        
+
+        # Build and send the email
+        email = sib_api_v3_sdk.SendSmtpEmail(
+            to=[{"email": to_email}],
+            sender={"email": sender_email, "name": sender_name},
+            subject="Email Verification - Your OTP Code",
+            html_content=html_content
+        ) 
+
+        api_instance.send_transac_email(email)
         return True
-    except Exception as e:
+
+    except ApiException as e:
         print(f"Error sending email: {e}")
         return False
+
 
 def generate_otp():
     """Generate a 6-digit OTP"""
     return str(random.randint(100000, 999999))
 
+
 def signup_view(request):
-    # Redirects logged-in users to the main area page
     if request.session.get('user_id'):
         return redirect('area_view')
 
     if request.method == 'POST':
-        # Check if this is OTP verification step
         if request.POST.get('step') == 'verify_otp':
             return handle_otp_verification(request)
-        
-        # This is the initial registration step
-        return handle_initial_registration(request)
-    
+        else:
+            return handle_initial_registration(request)
+
     return render(request, 'MainApp/signup.html')
+
 
 def handle_initial_registration(request):
     """Handle the initial registration form submission"""
-    # Retrieve form data for user registration
     username = request.POST['username']
     email = request.POST['email']
     password = request.POST['password']
     confirm_password = request.POST['confirm_password']
 
-    # Check if passwords match
     if password != confirm_password:
         messages.error(request, "Passwords do not match")
         return render(request, 'MainApp/signup.html')
 
-    # Check if username or email already exists in MongoDB
     if users_collection.find_one({"username": username}):
         messages.error(request, "Username already exists")
         return render(request, 'MainApp/signup.html')
@@ -220,10 +219,7 @@ def handle_initial_registration(request):
         messages.error(request, "Email already registered")
         return render(request, 'MainApp/signup.html')
 
-    # Generate OTP
     otp = generate_otp()
-    
-    # Store user data and OTP in session temporarily
     request.session['pending_user'] = {
         'username': username,
         'email': email,
@@ -231,34 +227,31 @@ def handle_initial_registration(request):
         'otp': otp,
         'otp_created_at': datetime.now().isoformat()
     }
-    
-    # Send OTP via email
-    if send_otp_email(email, otp):
+
+    if send_otp_email(request,email, otp):
         messages.success(request, f"Verification code sent to {email}")
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
     else:
         messages.error(request, "Failed to send verification email. Please try again.")
         return render(request, 'MainApp/signup.html')
 
+
 def handle_otp_verification(request):
     """Handle OTP verification step"""
     entered_otp = request.POST.get('otp')
     pending_user = request.session.get('pending_user')
-    
+
     if not pending_user:
         messages.error(request, "Session expired. Please start registration again.")
         return render(request, 'MainApp/signup.html')
-    
-    # Check if OTP has expired (10 minutes)
+
     otp_created_at = datetime.fromisoformat(pending_user['otp_created_at'])
     if datetime.now() - otp_created_at > timedelta(minutes=10):
         messages.error(request, "OTP has expired. Please start registration again.")
         del request.session['pending_user']
         return render(request, 'MainApp/signup.html')
-    
-    # Verify OTP
+
     if entered_otp == pending_user['otp']:
-        # OTP is correct, create the user
         hashed_password = pbkdf2_sha256.hash(pending_user['password'])
         new_user = {
             "username": pending_user['username'],
@@ -268,47 +261,40 @@ def handle_otp_verification(request):
             "email_verified": True,
             "created_at": datetime.now()
         }
-        
+
         result = users_collection.insert_one(new_user)
-        
-        # Start session for the newly registered user
         request.session['user_id'] = str(result.inserted_id)
         request.session['account_created'] = True
-        
-        # Clean up pending user data
         del request.session['pending_user']
-        
+
         messages.success(request, "Registration successful! Welcome!")
         return redirect('area')
     else:
         messages.error(request, "Invalid OTP. Please try again.")
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
 
+
 def resend_otp(request):
     """Resend OTP to user's email"""
     if request.method == 'POST':
         pending_user = request.session.get('pending_user')
-        
+
         if not pending_user:
             messages.error(request, "Session expired. Please start registration again.")
             return redirect('signup')
-        
-        # Generate new OTP
+
         otp = generate_otp()
-        
-        # Update session with new OTP
         pending_user['otp'] = otp
         pending_user['otp_created_at'] = datetime.now().isoformat()
         request.session['pending_user'] = pending_user
-        
-        # Send new OTP
-        if send_otp_email(pending_user['email'], otp):
+
+        if send_otp_email(request,pending_user['email'], otp):
             messages.success(request, "New verification code sent!")
         else:
             messages.error(request, "Failed to send verification email. Please try again.")
-        
+
         return render(request, 'MainApp/signup.html', {'show_otp_form': True})
-    
+
     return redirect('signup')
 
 def logout_view(request):
@@ -333,6 +319,10 @@ def area_view(request):
     # Move old dates to separate collection
     move_old_dates()
     
+    # Move old events to separate collection (ADD THIS LINE)
+    move_old_events()
+    
+    # Rest of your existing area_view code stays the same...
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -343,13 +333,12 @@ def area_view(request):
     if 'login_success' in request.session:
         del request.session['login_success']
     
-    # UPDATED: Fetch upcoming accepted dates that have a location set
+    # Fetch upcoming accepted dates for the current user
     upcoming_dates = list(DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
-        ],
-        "date_location": {"$exists": True, "$ne": None}  # Only include dates with location set
+        ]
     }))
     
     # Fetch old dates for the current user (last 10 for reference)
@@ -360,8 +349,17 @@ def area_view(request):
         ]
     }).sort("moved_at", -1).limit(10))
 
-    # NEW: Fetch recent approved events (last 3 for homepage display)
-    recent_events = list(Events.find({'status': 'approved'}).sort('created_at', -1).limit(3))
+    # Fetch recent approved events (last 3 for homepage display)
+    # UPDATE: Only show current/future events on homepage
+    today = date.today().strftime('%Y-%m-%d')
+    recent_events = list(Events.find({
+        'status': 'approved',
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('created_at', -1).limit(3))
     
     # Process recent events to add image URLs
     for event in recent_events:
@@ -371,6 +369,7 @@ def area_view(request):
         first_image = next(event_images, None)
         event['image'] = first_image['image_url'] if first_image else None
 
+    # Rest of your existing code for processing dates...
     # Process upcoming dates to get partner info
     processed_upcoming_dates = []
     for date_req in upcoming_dates:
@@ -405,8 +404,41 @@ def area_view(request):
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
         'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
-        'recent_events': recent_events,  # NEW: Add recent events
+        'recent_events': recent_events,  # Only current/future events
     })
+
+def past_events_view(request):
+    """View to display all past events for the user"""
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Move old events to separate collection
+    move_old_events()
+    
+    # Fetch all past events
+    past_events = list(OldEvents.find({
+        '$or': [
+            {'created_by': name},  # Events created by user
+            {'status': 'approved'}  # All approved past events (community events)
+        ]
+    }).sort("moved_at", -1))
+    
+    # Process past events to add image URLs
+    for event in past_events:
+        event['id'] = str(event.get('_id', event.get('original_id', '')))
+        # Get first image for display
+        event_id = str(event.get('_id', event.get('original_id', '')))
+        event_images = EventImages.find({'event_id': event_id}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    return render(request, 'MainApp/past_events.html', {
+        'past_events': past_events,
+        'name': name
+    })
+
 # View to handle user search and friend request functionality
 def search_user(request):
     userinfo(request)  # Retrieve logged-in user's info
@@ -1380,6 +1412,58 @@ def move_old_dates():
         
     except Exception as e:
         logger.error(f"Error in move_old_dates: {e}")
+        return 0
+
+def move_old_events():
+    """Move events that have passed their event date to OldEvents collection"""
+    try:
+        today = date.today()
+        old_events = Events.find({
+            "status": "approved",  # Only move approved events
+            "event_date": {"$exists": True, "$ne": ""}
+        })
+        
+        moved_count = 0
+        for event in old_events:
+            try:
+                # Parse the event date string (assuming format YYYY-MM-DD)
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date_obj = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date_obj = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            try:
+                                event_date_obj = datetime.strptime(event_date_str, '%d/%m/%Y').date()
+                            except ValueError:
+                                continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date_obj < today:
+                        # Add to OldEvents collection
+                        old_event_doc = dict(event)
+                        old_event_doc['moved_at'] = datetime.now()
+                        old_event_doc['original_id'] = event['_id']
+                        
+                        # Insert into OldEvents
+                        OldEvents.insert_one(old_event_doc)
+                        
+                        # Remove from Events
+                        Events.delete_one({"_id": event['_id']})
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} old events to OldEvents collection")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_old_events: {e}")
         return 0
     
 def old_dates_view(request):
@@ -2567,32 +2651,61 @@ def events_view(request):
     
     userinfo(request)
     
+    # Move old events to separate collection
+    move_old_events()
+    
     # Check if user is admin (Faisal or Jophy)
     is_admin = name in ['Faisal', 'Jophy']
     
-    # Get approved events for everyone to see
-    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    # Get current approved events (future events only)
+    today = date.today().strftime('%Y-%m-%d')
+    approved_events = list(Events.find({
+        'status': 'approved',
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('event_date', 1))  # Sort by date ascending
     
-    # Get user's own events
-    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    # Get user's own current events
+    user_events = list(Events.find({
+        'created_by': name,
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('created_at', -1))
     
     # Get pending events for admin
     pending_events = []
     if is_admin:
         pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
     
+    # Get past events for the current user
+    past_events = list(OldEvents.find({
+        '$or': [
+            {'created_by': name},  # Events created by user
+            {'status': 'approved'}  # All approved past events (community events)
+        ]
+    }).sort('moved_at', -1))
+    
     # Process events to add image URLs
-    for event in approved_events + user_events + pending_events:
-        event['id'] = str(event['_id'])
-        # Get first image for display
-        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
-        first_image = next(event_images, None)
-        event['image'] = first_image['image_url'] if first_image else None
+    for event_list in [approved_events, user_events, pending_events, past_events]:
+        for event in event_list:
+            event['id'] = str(event.get('_id', event.get('original_id', '')))
+            # Get first image for display
+            event_id = str(event.get('_id', event.get('original_id', '')))
+            event_images = EventImages.find({'event_id': event_id}).limit(1)
+            first_image = next(event_images, None)
+            event['image'] = first_image['image_url'] if first_image else None
     
     context = {
         'approved_events': approved_events,
         'user_events': user_events,
         'pending_events': pending_events,
+        'past_events': past_events,  # Add past events to context
         'is_admin': is_admin,
         'name': name
     }

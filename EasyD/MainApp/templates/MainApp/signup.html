@@ -130,10 +130,12 @@
                 <form method="post">
                     {% csrf_token %}
                     <input type="hidden" name="step" value="verify_otp">
+                    <input type="hidden" name="email" value="{{ email }}">
                     <input type="text" name="otp" class="otp-input" placeholder="000000" maxlength="6" required pattern="[0-9]{6}" title="Please enter a 6-digit number">
                     <br>
                     <button type="submit" style="margin-top: 15px; padding: 12px 30px; font-size: 16px;">Verify Code</button>
                 </form>
+                
                 
                 <p class="otp-info">Code expires in 10 minutes</p>
                 
