@@ -49,6 +49,7 @@ Location=db['Location']
 Profiles = db['Profiles']  # New collection for storing profile info
 Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
+OldEvents = db['OldEvents']
 
 GOOGLE_CLIENT_ID =config("GOOGLE_CLIENT_ID")  # Replace this
 @csrf_exempt
@@ -316,6 +317,10 @@ def area_view(request):
     # Move old dates to separate collection
     move_old_dates()
     
+    # Move old events to separate collection (ADD THIS LINE)
+    move_old_events()
+    
+    # Rest of your existing area_view code stays the same...
     # Retrieve session flags for success messages
     account_created = request.session.get('account_created', False)
     login_success = request.session.get('login_success', False)
@@ -326,13 +331,12 @@ def area_view(request):
     if 'login_success' in request.session:
         del request.session['login_success']
     
-    # UPDATED: Fetch upcoming accepted dates that have a location set
+    # Fetch upcoming accepted dates for the current user
     upcoming_dates = list(DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
-        ],
-        "date_location": {"$exists": True, "$ne": None}  # Only include dates with location set
+        ]
     }))
     
     # Fetch old dates for the current user (last 10 for reference)
@@ -343,8 +347,17 @@ def area_view(request):
         ]
     }).sort("moved_at", -1).limit(10))
 
-    # NEW: Fetch recent approved events (last 3 for homepage display)
-    recent_events = list(Events.find({'status': 'approved'}).sort('created_at', -1).limit(3))
+    # Fetch recent approved events (last 3 for homepage display)
+    # UPDATE: Only show current/future events on homepage
+    today = date.today().strftime('%Y-%m-%d')
+    recent_events = list(Events.find({
+        'status': 'approved',
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('created_at', -1).limit(3))
     
     # Process recent events to add image URLs
     for event in recent_events:
@@ -354,6 +367,7 @@ def area_view(request):
         first_image = next(event_images, None)
         event['image'] = first_image['image_url'] if first_image else None
 
+    # Rest of your existing code for processing dates...
     # Process upcoming dates to get partner info
     processed_upcoming_dates = []
     for date_req in upcoming_dates:
@@ -388,8 +402,41 @@ def area_view(request):
         'upcoming_dates': processed_upcoming_dates,
         'old_dates': processed_old_dates,
         'accepted_dates': processed_upcoming_dates,  # Keep for backward compatibility
-        'recent_events': recent_events,  # NEW: Add recent events
+        'recent_events': recent_events,  # Only current/future events
     })
+
+def past_events_view(request):
+    """View to display all past events for the user"""
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # Move old events to separate collection
+    move_old_events()
+    
+    # Fetch all past events
+    past_events = list(OldEvents.find({
+        '$or': [
+            {'created_by': name},  # Events created by user
+            {'status': 'approved'}  # All approved past events (community events)
+        ]
+    }).sort("moved_at", -1))
+    
+    # Process past events to add image URLs
+    for event in past_events:
+        event['id'] = str(event.get('_id', event.get('original_id', '')))
+        # Get first image for display
+        event_id = str(event.get('_id', event.get('original_id', '')))
+        event_images = EventImages.find({'event_id': event_id}).limit(1)
+        first_image = next(event_images, None)
+        event['image'] = first_image['image_url'] if first_image else None
+    
+    return render(request, 'MainApp/past_events.html', {
+        'past_events': past_events,
+        'name': name
+    })
+
 # View to handle user search and friend request functionality
 def search_user(request):
     userinfo(request)  # Retrieve logged-in user's info
@@ -1225,6 +1272,58 @@ def move_old_dates():
         
     except Exception as e:
         logger.error(f"Error in move_old_dates: {e}")
+        return 0
+
+def move_old_events():
+    """Move events that have passed their event date to OldEvents collection"""
+    try:
+        today = date.today()
+        old_events = Events.find({
+            "status": "approved",  # Only move approved events
+            "event_date": {"$exists": True, "$ne": ""}
+        })
+        
+        moved_count = 0
+        for event in old_events:
+            try:
+                # Parse the event date string (assuming format YYYY-MM-DD)
+                event_date_str = event.get('event_date', '')
+                if event_date_str:
+                    # Handle different date formats
+                    try:
+                        event_date_obj = datetime.strptime(event_date_str, '%Y-%m-%d').date()
+                    except ValueError:
+                        try:
+                            event_date_obj = datetime.strptime(event_date_str, '%m/%d/%Y').date()
+                        except ValueError:
+                            try:
+                                event_date_obj = datetime.strptime(event_date_str, '%d/%m/%Y').date()
+                            except ValueError:
+                                continue  # Skip if date format is not recognized
+                    
+                    # Check if event date has passed
+                    if event_date_obj < today:
+                        # Add to OldEvents collection
+                        old_event_doc = dict(event)
+                        old_event_doc['moved_at'] = datetime.now()
+                        old_event_doc['original_id'] = event['_id']
+                        
+                        # Insert into OldEvents
+                        OldEvents.insert_one(old_event_doc)
+                        
+                        # Remove from Events
+                        Events.delete_one({"_id": event['_id']})
+                        moved_count += 1
+                        
+            except Exception as e:
+                logger.error(f"Error processing event {event.get('_id')}: {e}")
+                continue
+        
+        logger.info(f"Moved {moved_count} old events to OldEvents collection")
+        return moved_count
+        
+    except Exception as e:
+        logger.error(f"Error in move_old_events: {e}")
         return 0
     
 def old_dates_view(request):
@@ -2412,32 +2511,61 @@ def events_view(request):
     
     userinfo(request)
     
+    # Move old events to separate collection
+    move_old_events()
+    
     # Check if user is admin (Faisal or Jophy)
     is_admin = name in ['Faisal', 'Jophy']
     
-    # Get approved events for everyone to see
-    approved_events = list(Events.find({'status': 'approved'}).sort('created_at', -1))
+    # Get current approved events (future events only)
+    today = date.today().strftime('%Y-%m-%d')
+    approved_events = list(Events.find({
+        'status': 'approved',
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('event_date', 1))  # Sort by date ascending
     
-    # Get user's own events
-    user_events = list(Events.find({'created_by': name}).sort('created_at', -1))
+    # Get user's own current events
+    user_events = list(Events.find({
+        'created_by': name,
+        '$or': [
+            {'event_date': {'$gte': today}},  # Future events
+            {'event_date': {'$exists': False}},  # Events without date
+            {'event_date': ""}  # Events with empty date
+        ]
+    }).sort('created_at', -1))
     
     # Get pending events for admin
     pending_events = []
     if is_admin:
         pending_events = list(Events.find({'status': 'pending'}).sort('created_at', -1))
     
+    # Get past events for the current user
+    past_events = list(OldEvents.find({
+        '$or': [
+            {'created_by': name},  # Events created by user
+            {'status': 'approved'}  # All approved past events (community events)
+        ]
+    }).sort('moved_at', -1))
+    
     # Process events to add image URLs
-    for event in approved_events + user_events + pending_events:
-        event['id'] = str(event['_id'])
-        # Get first image for display
-        event_images = EventImages.find({'event_id': str(event['_id'])}).limit(1)
-        first_image = next(event_images, None)
-        event['image'] = first_image['image_url'] if first_image else None
+    for event_list in [approved_events, user_events, pending_events, past_events]:
+        for event in event_list:
+            event['id'] = str(event.get('_id', event.get('original_id', '')))
+            # Get first image for display
+            event_id = str(event.get('_id', event.get('original_id', '')))
+            event_images = EventImages.find({'event_id': event_id}).limit(1)
+            first_image = next(event_images, None)
+            event['image'] = first_image['image_url'] if first_image else None
     
     context = {
         'approved_events': approved_events,
         'user_events': user_events,
         'pending_events': pending_events,
+        'past_events': past_events,  # Add past events to context
         'is_admin': is_admin,
         'name': name
     }

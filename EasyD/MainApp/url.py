@@ -49,6 +49,7 @@ urlpatterns=[
     path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
     path('get_notification_counts/', views.get_notification_counts, name='get_notification_counts'),
     path('mark_notifications_seen/', views.mark_notifications_seen, name='mark_notifications_seen'),
+    path('past-events/', views.past_events_view, name='past_events'),
 ]
 
 if settings.DEBUG:
