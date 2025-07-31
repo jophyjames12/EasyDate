@@ -428,24 +428,28 @@
         /* Button Styles Updates */
         .popup-buttons {
             display: flex;
-            gap: 8px;
+            flex-wrap: wrap;
+            gap: 5px;
             margin-top: 10px;
         }
 
         .place-buttons {
             display: flex;
-            gap: 8px;
+            flex-wrap: wrap;
+            gap: 5px;
             margin-top: 8px;
         }
 
         .popup-btn {
-            padding: 8px 12px;
+            padding: 6px 10px;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 500;
             transition: background-color 0.3s ease;
+            flex: 1;
+            min-width: 80px;
         }
 
         .popup-directions-btn {
@@ -899,6 +903,81 @@
 
             // Make the function globally available
             window.showReviews = showReviews;
+
+            // FIXED: Function to create enhanced popup content with persistent buttons
+            function createEnhancedPopupContent(placeName, amenity, lat, lon, isDateLocation = false, placeData = {}) {
+                const cuisine = placeData.tags?.cuisine || "";
+                const phone = placeData.tags?.phone || "";
+                const website = placeData.tags?.website || "";
+                const openingHours = placeData.tags?.opening_hours || "";
+                
+                let popupContent = `<div>`;
+                
+                // Show special header if this is the selected date location
+                if (isDateLocation) {
+                    popupContent += `<div style="color: #9c27b0; font-weight: bold; margin-bottom: 8px;">📍 Selected Date Location</div>`;
+                }
+                
+                popupContent += `<b>${placeName}</b><br>`;
+                popupContent += `<i>${amenity}</i><br>`;
+                if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
+                if (phone) popupContent += `Phone: ${phone}<br>`;
+                if (website) popupContent += `<a href="${website}" target="_blank">Website</a><br>`;
+                if (openingHours) popupContent += `Hours: ${openingHours}<br>`;
+
+                // Add distance if user location is available
+                if (userMarker) {
+                    const userPos = userMarker.getLatLng();
+                    const dist = distance(userPos.lat, userPos.lng, lat, lon);
+                    popupContent += `Distance: ${(dist / 1000).toFixed(2)} km<br>`;
+                }
+
+                // Add buttons container
+                popupContent += `<div class="popup-buttons">`;
+
+                // FIXED: Always enable directions button in date mode or when markers exist
+                const canShowDirections = userMarker || partnerMarker || dateInfo;
+                popupContent += `<button class="popup-btn popup-directions-btn" 
+                    onclick="showDirections(${lat}, ${lon}, '${placeName.replace(/'/g, "\\'")}');" 
+                    ${!canShowDirections ? 'disabled' : ''}>
+                    🗺️ Directions
+                </button>`;
+
+                // ALWAYS show reviews button (for restaurants and cafes)
+                if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
+                    popupContent += `<button class="popup-btn popup-reviews-btn" 
+                        onclick="showReviews(${lat}, ${lon}, '${placeName.replace(/'/g, "\\'")}');">
+                        ⭐ Reviews
+                    </button>`;
+                }
+
+                // Add location-specific buttons
+                if (locationSelectionMode && currentRequestId) {
+                    const address = [
+                        placeData.tags?.['addr:street'],
+                        placeData.tags?.['addr:city'],
+                        placeData.tags?.['addr:postcode']
+                    ].filter(Boolean).join(', ');
+                    
+                    if (isDateLocation) {
+                        // If this is the selected date location, show Remove Location button
+                        popupContent += `<button class="popup-btn" style="background: #dc3545; color: white;" 
+                            onclick="removeDateLocation();">
+                            🗑️ Remove Location
+                        </button>`;
+                    } else {
+                        // If this is not the selected date location, show Change/Set button
+                        const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
+                        popupContent += `<button class="popup-btn" style="background: #9c27b0; color: white;" 
+                            onclick="setDateLocation('${currentRequestId}', '${placeName.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
+                            ${buttonText}
+                        </button>`;
+                    }
+                }
+
+                popupContent += `</div></div>`;
+                return popupContent;
+            }
             
             // NEW: Route management
             const activeRoutes = new Map(); // Store active routes with IDs
@@ -954,7 +1033,7 @@
                 }
             }
 
-            // UPDATED: Function to show current date location with enhanced messaging
+            // FIXED: Function to show current date location with ALL buttons
             function showCurrentDateLocation(location) {
                 if (!location || !location.lat || !location.lon) return;
                 
@@ -972,22 +1051,15 @@
                     icon: currentLocationIcon
                 }).addTo(map);
                 
-                const isCurrentUserLocation = location.selected_by === '{{ name }}';
-                const actionText = isCurrentUserLocation ? 'selected' : 'chosen';
-                
-                const popupContent = `
-                    <div>
-                        <b>📍 Current Date Location</b><br>
-                        <strong>${location.name}</strong><br>
-                        ${location.address ? `${location.address}<br>` : ''}
-                        <small style="color: #666;">Location ${actionText} by ${location.selected_by}</small><br>
-                        <div style="margin-top: 10px;">
-                            <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
-                                Remove Location
-                            </button>
-                        </div>
-                    </div>
-                `;
+                // FIXED: Use the enhanced popup content with ALL buttons
+                const popupContent = createEnhancedPopupContent(
+                    location.name, 
+                    location.type || 'restaurant', 
+                    location.lat, 
+                    location.lon, 
+                    true, // isDateLocation = true
+                    { tags: { amenity: location.type || 'restaurant' } }
+                );
                 
                 selectedLocationMarker.bindPopup(popupContent).openPopup();
             }
@@ -1117,7 +1189,7 @@
                 }
             }
 
-            // UPDATED: Function to set date location with enhanced success messaging
+            // FIXED: Updated setDateLocation function with enhanced popup
             async function setDateLocation(requestId, placeName, lat, lon, address, placeType) {
                 try {
                     const response = await fetch('/save_date_location/', {
@@ -1158,21 +1230,39 @@
                             icon: selectedIcon
                         }).addTo(map);
                         
-                        const actionText = hasExistingLocation ? 'changed' : 'set';
-                        const popupContent = `
-                            <div>
-                                <b>📍 ${hasExistingLocation ? 'Updated' : 'Selected'} Date Location</b><br>
-                                <strong>${placeName}</strong><br>
-                                ${address ? `${address}<br>` : ''}
-                                <div style="margin-top: 10px;">
-                                    <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
-                                        Remove Location
-                                    </button>
-                                </div>
-                            </div>
-                        `;
+                        // FIXED: Use enhanced popup content with ALL buttons
+                        const popupContent = createEnhancedPopupContent(
+                            placeName, 
+                            placeType, 
+                            lat, 
+                            lon, 
+                            true, // isDateLocation = true
+                            { tags: { amenity: placeType } }
+                        );
                         
                         selectedLocationMarker.bindPopup(popupContent).openPopup();
+                        
+                        // Update all other place markers to not be date locations
+                        placeMarkers.forEach(marker => {
+                            const markerPos = marker.getLatLng();
+                            if (Math.abs(markerPos.lat - lat) >= 0.0001 || Math.abs(markerPos.lng - lon) >= 0.0001) {
+                                // This is not the selected location, update its popup
+                                const markerPlaceData = marker.placeData || { tags: {} };
+                                const markerName = markerPlaceData.tags?.name || "Unnamed place";
+                                const markerAmenity = markerPlaceData.tags?.amenity || "Unknown type";
+                                
+                                const newPopupContent = createEnhancedPopupContent(
+                                    markerName, 
+                                    markerAmenity, 
+                                    markerPos.lat, 
+                                    markerPos.lng, 
+                                    false, // isDateLocation = false
+                                    markerPlaceData
+                                );
+                                
+                                marker.setPopupContent(newPopupContent);
+                            }
+                        });
                         
                         // UPDATED: Enhanced success message
                         const successMessage = hasExistingLocation 
@@ -1251,6 +1341,25 @@
                                 <p>Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.</p>
                             `;
                         }
+                        
+                        // Update all place markers to show "Set as Date Location" instead of "Change to Here"
+                        placeMarkers.forEach(marker => {
+                            const markerPlaceData = marker.placeData || { tags: {} };
+                            const markerName = markerPlaceData.tags?.name || "Unnamed place";
+                            const markerAmenity = markerPlaceData.tags?.amenity || "Unknown type";
+                            const markerPos = marker.getLatLng();
+                            
+                            const newPopupContent = createEnhancedPopupContent(
+                                markerName, 
+                                markerAmenity, 
+                                markerPos.lat, 
+                                markerPos.lng, 
+                                false, // isDateLocation = false
+                                markerPlaceData
+                            );
+                            
+                            marker.setPopupContent(newPopupContent);
+                        });
                         
                     } else {
                         alert(`Error: ${data.message}`);
@@ -1445,10 +1554,20 @@
                 // Get routes from both users (if available)
                 const routes = [];
                 
-                // Route from user 1
+                // FIXED: More robust user location detection
+                let userLat, userLon;
                 if (userMarker) {
                     const userPos = userMarker.getLatLng();
-                    const userRoute = await getRoute(userPos.lat, userPos.lng, destLat, destLon);
+                    userLat = userPos.lat;
+                    userLon = userPos.lng;
+                } else if (dateInfo && dateInfo.user_lat && dateInfo.user_lon) {
+                    userLat = dateInfo.user_lat;
+                    userLon = dateInfo.user_lon;
+                }
+                
+                // Route from user if we have user coordinates
+                if (userLat && userLon) {
+                    const userRoute = await getRoute(userLat, userLon, destLat, destLon);
                     if (userRoute) {
                         routes.push({
                             id: ++routeIdCounter,
@@ -1461,20 +1580,39 @@
                     }
                 }
                 
-                // Route from user 2 (partner) - only in date mode
-                if (partnerMarker && dateInfo) {
+                // FIXED: More robust partner location detection
+                let partnerLat, partnerLon, partnerName;
+                if (partnerMarker) {
                     const partnerPos = partnerMarker.getLatLng();
-                    const partnerRoute = await getRoute(partnerPos.lat, partnerPos.lng, destLat, destLon);
+                    partnerLat = partnerPos.lat;
+                    partnerLon = partnerPos.lng;
+                    partnerName = dateInfo ? dateInfo.partner : 'Partner';
+                } else if (dateInfo && dateInfo.partner_lat && dateInfo.partner_lon) {
+                    partnerLat = dateInfo.partner_lat;
+                    partnerLon = dateInfo.partner_lon;
+                    partnerName = dateInfo.partner;
+                }
+                
+                // Route from partner if we have partner coordinates
+                if (partnerLat && partnerLon && partnerName) {
+                    const partnerRoute = await getRoute(partnerLat, partnerLon, destLat, destLon);
                     if (partnerRoute) {
                         routes.push({
                             id: ++routeIdCounter,
-                            name: `${dateInfo.partner}'s Route`,
+                            name: `${partnerName}'s Route`,
                             color: '#dc3545', // Red for partner
                             route: partnerRoute,
-                            from: dateInfo.partner,
+                            from: partnerName,
                             to: placeName
                         });
                     }
+                }
+                
+                // If no routes were found, show error message
+                if (routes.length === 0) {
+                    alert('Unable to calculate routes. Please make sure your location is set.');
+                    routeControls.style.display = 'none';
+                    return;
                 }
                 
                 // Add routes to map
@@ -1632,45 +1770,45 @@
                 return R * c;
             }
 
-async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
-    let query;
-    
-    // Special handling for malls - simplified and faster
-    if (tag === 'malls') {
-    query = `
-        [out:json][timeout:20];
-        (
-          way["shop"="mall"](around:1500,${lat},${lon});
-        );
-        out center;
-    `;} 
-    else {
-        // Default amenity search for other tags
-        query = `
-            [out:json][timeout:25];
-            (
-              node["amenity"="${tag}"](around:2000,${lat},${lon});
-              way["amenity"="${tag}"](around:2000,${lat},${lon});
-            );
-            out center;
-        `;
-    }
-    
-    const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-    try {
-        console.log('Fetching places from:', url);
-        const response = await fetch(url);
-        const data = await response.json();
-        console.log('Received data:', data);
-        return data.elements || [];
-    } catch (error) {
-        console.error('Error fetching places:', error);
-        displayError("Failed to fetch nearby places.");
-        return [];
-    }
-}            
+            async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
+                let query;
+                
+                // Special handling for malls - simplified and faster
+                if (tag === 'malls') {
+                query = `
+                    [out:json][timeout:20];
+                    (
+                      way["shop"="mall"](around:1500,${lat},${lon});
+                    );
+                    out center;
+                `;} 
+                else {
+                    // Default amenity search for other tags
+                    query = `
+                        [out:json][timeout:25];
+                        (
+                          node["amenity"="${tag}"](around:2000,${lat},${lon});
+                          way["amenity"="${tag}"](around:2000,${lat},${lon});
+                        );
+                        out center;
+                    `;
+                }
+                
+                const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+                try {
+                    console.log('Fetching places from:', url);
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    console.log('Received data:', data);
+                    return data.elements || [];
+                } catch (error) {
+                    console.error('Error fetching places:', error);
+                    displayError("Failed to fetch nearby places.");
+                    return [];
+                }
+            }            
 
-async function fetchPreferredPlaces(lat, lon, partnerName) {
+            async function fetchPreferredPlaces(lat, lon, partnerName) {
                 try {
                     const url = `/get_preferred_places/?lat=${lat}&lon=${lon}&partner=${encodeURIComponent(partnerName)}`;
                     console.log('Fetching preferred places from:', url);
@@ -1700,7 +1838,7 @@ async function fetchPreferredPlaces(lat, lon, partnerName) {
                 }
             }
 
-            // UPDATED: Enhanced displayPlaces function with improved location selection messaging
+            // FIXED: Enhanced displayPlaces function using the new popup system
             function displayPlaces(places, userLat, userLon) {
                 clearPlaceMarkers();
                 const placeDetails = document.getElementById('place-details');
@@ -1738,60 +1876,14 @@ async function fetchPreferredPlaces(lat, lon, partnerName) {
                     
                     const name = place.tags?.name || "Unnamed place";
                     const amenity = place.tags?.amenity || "Unknown type";
-                    const cuisine = place.tags?.cuisine || "";
-                    const phone = place.tags?.phone || "";
-                    const website = place.tags?.website || "";
-                    const openingHours = place.tags?.opening_hours || "";
                     
-                    // UPDATED: Enhanced popup with improved location selection button text
-                    let popupContent = `<div><b>${name}</b><br>`;
-                    popupContent += `<i>${amenity}</i><br>`;
-                    if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
-                    if (phone) popupContent += `Phone: ${phone}<br>`;
-                    if (website) popupContent += `<a href="${website}" target="_blank">Website</a><br>`;
-                    if (openingHours) popupContent += `Hours: ${openingHours}<br>`;
-
-                    if (userLat && userLon) {
-                        const dist = distance(userLat, userLon, lat, lon);
-                        popupContent += `Distance: ${(dist / 1000).toFixed(2)} km<br>`;
-                    }
-
-                    // Add buttons container
-                    popupContent += `<div class="popup-buttons">`;
-
-                    // Add directions button
-                    const canShowDirections = userMarker || partnerMarker;
-                    popupContent += `<button class="popup-btn popup-directions-btn" 
-                        onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
-                        ${!canShowDirections ? 'disabled' : ''}>
-                        🗺️ Directions
-                    </button>`;
-
-                    // UPDATED: Add location selection button with improved text
-                    if (locationSelectionMode && currentRequestId) {
-                        const address = [
-                            place.tags?.['addr:street'],
-                            place.tags?.['addr:city'],
-                            place.tags?.['addr:postcode']
-                        ].filter(Boolean).join(', ');
-                        
-                        const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
-                        
-                        popupContent += `<button class="popup-btn popup-location-btn" 
-                            onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
-                            ${buttonText}
-                        </button>`;
-                    }
-
-                    // Add reviews button (only for restaurants and cafes)
-                    if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
-                        popupContent += `<button class="popup-btn popup-reviews-btn" 
-                            onclick="showReviews(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');">
-                            ⭐ Reviews
-                        </button>`;
-                    }
-
-                    popupContent += `</div></div>`;
+                    // Check if this is the current date location
+                    const isDateLocation = selectedLocationMarker && 
+                        Math.abs(lat - selectedLocationMarker.getLatLng().lat) < 0.0001 && 
+                        Math.abs(lon - selectedLocationMarker.getLatLng().lng) < 0.0001;
+                    
+                    // FIXED: Use enhanced popup content with persistent buttons
+                    const popupContent = createEnhancedPopupContent(name, amenity, lat, lon, isDateLocation, place);
                     
                     // Create custom colored marker based on amenity type
                     const markerColor = getMarkerColor(amenity);
@@ -1801,59 +1893,29 @@ async function fetchPreferredPlaces(lat, lon, partnerName) {
                         icon: customIcon
                     }).addTo(map).bindPopup(popupContent);
                     
+                    // Store place data with the marker for later reference
+                    marker.placeData = place;
+                    
                     placeMarkers.push(marker);
                     
-                    // UPDATED: Enhanced place details list with improved location selection button
+                    // Add to place details list
                     if (placeDetails) {
                         const div = document.createElement('div');
                         div.className = 'place-item';
                         
                         let placeHTML = `
-                            <strong>${name}</strong><br>
+                            <strong>${name}</strong>
+                            ${isDateLocation ? '<span style="color: #9c27b0; font-weight: bold;"> (Selected Date Location)</span>' : ''}
+                            <br>
                             <span style="color: #666;">${amenity}</span>
-                            ${cuisine ? `<br><span style="color: #888;">Cuisine: ${cuisine}</span>` : ''}
                             ${userLat && userLon ? `<br><span style="color: #888;">Distance: ${(distance(userLat, userLon, lat, lon) / 1000).toFixed(2)} km</span>` : ''}
-                            <br><div class="place-buttons">
-                                <button class="popup-btn popup-directions-btn" 
-                                    onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
-                                    ${!canShowDirections ? 'disabled' : ''}>
-                                    🗺️ Directions
-                                </button>
                         `;
                         
-                        // UPDATED: Add location selection button with improved text
-                        if (locationSelectionMode && currentRequestId) {
-                            const address = [
-                                place.tags?.['addr:street'],
-                                place.tags?.['addr:city'],
-                                place.tags?.['addr:postcode']
-                            ].filter(Boolean).join(', ');
-                            
-                            const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
-                            
-                            placeHTML += `<button class="popup-btn popup-location-btn" 
-                                onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
-                                ${buttonText}
-                            </button>`;
-                        }
-                        
-                        // Add reviews button for restaurants/cafes
-                        if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
-                            placeHTML += `<button class="popup-btn popup-reviews-btn" 
-                                onclick="showReviews(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');">
-                                ⭐ Reviews
-                            </button>`;
-                        }
-                        
-                        placeHTML += `</div>`;
                         div.innerHTML = placeHTML;
                         
                         div.addEventListener('click', (e) => {
-                            // Only zoom to location if not clicking the button
-                            if (!e.target.classList.contains('popup-btn')) {
-                                map.setView([lat, lon], 18);
-                                marker.openPopup();
-                            }
+                            map.setView([lat, lon], 18);
+                            marker.openPopup();
                         });
                         placeDetails.appendChild(div);
                     }
