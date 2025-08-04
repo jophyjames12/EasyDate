@@ -567,6 +567,310 @@
                 z-index: 1001;
             }
         }
+        /* Fixed Modal styles for invite friends - Replace your existing modal CSS */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 9999; /* Increased z-index */
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+            /* FIXED: Use flexbox for proper centering */
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.show {
+            display: flex; /* Use flex when showing */
+        }
+
+        .modal-content {
+            background-color: white;
+            /* FIXED: Remove margin auto, use flexbox centering instead */
+            margin: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            /* ADDED: Animation support */
+            transform: translateY(0);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        /* ADDED: Animation for modal appearance */
+        .modal.show .modal-content {
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-header {
+            padding: 20px;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-title {
+            margin: 0;
+            font-size: 18px;
+            font-weight: bold;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #6c757d;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 50%;
+            /* ADDED: Better hover effect */
+            transition: all 0.2s ease;
+        }
+
+        .modal-close:hover {
+            background: #f8f9fa;
+            color: #495057;
+            transform: scale(1.1);
+        }
+
+        .modal-body {
+            padding: 20px;
+        }
+
+        .modal-footer {
+            padding: 20px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+        }
+
+        .modal-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 14px;
+            /* ADDED: Better button transitions */
+            transition: all 0.2s ease;
+        }
+
+        .modal-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+
+        .modal-btn-cancel:hover {
+            background: #545b62;
+        }
+
+        .modal-btn-post {
+            background: #007bff;
+            color: white;
+        }
+
+        .modal-btn-post:hover {
+            background: #0056b3;
+        }
+
+        .modal-btn-post:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+
+        /* Friends invite list styles */
+        .friends-invite-section {
+            margin-top: 20px;
+        }
+
+        .friends-invite-section h4 {
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .friends-invite-list {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 10px;
+            /* ADDED: Better scrollbar styling */
+            scrollbar-width: thin;
+            scrollbar-color: #007bff #f1f1f1;
+        }
+
+        .friends-invite-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .friends-invite-list::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 3px;
+        }
+
+        .friends-invite-list::-webkit-scrollbar-thumb {
+            background: #007bff;
+            border-radius: 3px;
+        }
+
+        .friend-invite-item {
+            display: flex;
+            align-items: center;
+            padding: 8px 0;
+            border-bottom: 1px solid #f8f9fa;
+            /* ADDED: Better hover effect */
+            transition: background-color 0.2s ease;
+        }
+
+        .friend-invite-item:hover {
+            background-color: #f8f9fa;
+            border-radius: 4px;
+        }
+
+        .friend-invite-item:last-child {
+            border-bottom: none;
+        }
+
+        .friend-invite-item input[type="checkbox"] {
+            margin-right: 10px;
+            /* ADDED: Better checkbox styling */
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+
+        .friend-invite-item label {
+            cursor: pointer;
+            user-select: none;
+            flex: 1;
+            /* ADDED: Better label styling */
+            font-size: 14px;
+            line-height: 1.4;
+        }
+
+        .friend-invite-item label:hover {
+            color: #007bff;
+        }
+
+        /* Add invite button to event cards */
+        .event-actions {
+            padding: 15px;
+            border-top: 1px solid #e9ecef;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        .invite-btn {
+            background: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .invite-btn:hover {
+            background: #218838;
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        /* ADDED: Loading state styles */
+        .loading-friends {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+            font-style: italic;
+        }
+
+        .loading-friends::before {
+            content: '⏳';
+            margin-right: 8px;
+        }
+
+        /* ADDED: Empty state styles */
+        .no-friends-to-invite {
+            text-align: center;
+            padding: 30px 20px;
+            color: #666;
+        }
+
+        .no-friends-to-invite::before {
+            content: '👥';
+            font-size: 32px;
+            display: block;
+            margin-bottom: 10px;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .modal-content {
+                width: 95%;
+                max-height: 90vh;
+                margin: 0;
+            }
+            
+            .modal-header {
+                padding: 15px;
+            }
+            
+            .modal-body {
+                padding: 15px;
+            }
+            
+            .modal-footer {
+                flex-direction: column;
+                padding: 15px;
+            }
+            
+            .modal-btn {
+                width: 100%;
+                margin-bottom: 5px;
+            }
+            
+            .modal-btn:last-child {
+                margin-bottom: 0;
+            }
+            
+            .friends-invite-list {
+                max-height: 150px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -654,6 +958,14 @@
                                 </div>
                                 {% if event.location %}
                                     <div class="event-location">📍 {{ event.location }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="event-actions">
+                                <!-- Only show invite button for approved events or user's own events -->
+                                {% if event.status == 'approved' or event.created_by == name %}
+                                    <button class="invite-btn" onclick="openInviteFriendsModal('{{ event.id }}', '{{ event.name|escapejs }}')">
+                                        👥 Invite Friends
+                                    </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -767,6 +1079,14 @@
                                 </div>
                                 {% if event.location %}
                                     <div class="event-location">📍 {{ event.location }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="event-actions">
+                                <!-- Only show invite button for approved events or user's own events -->
+                                {% if event.status == 'approved' or event.created_by == name %}
+                                    <button class="invite-btn" onclick="openInviteFriendsModal('{{ event.id }}', '{{ event.name|escapejs }}')">
+                                        👥 Invite Friends
+                                    </button>
                                 {% endif %}
                             </div>
                         </div>
@@ -1294,8 +1614,209 @@
                 }
             }
             return cookieValue;
-          }        
+          }
+          // Function to open invite friends modal
+            function openInviteFriendsModal(eventId, eventName) {
+                document.getElementById('inviteEventId').value = eventId;
+                document.getElementById('inviteEventName').textContent = eventName;
+                
+                // Load friends list
+                loadFriendsForInvitation(eventId);
+                
+                // Show modal with proper centering
+                const modal = document.getElementById('inviteFriendsModal');
+                modal.style.display = 'flex'; // FIXED: Use flex for centering
+                modal.classList.add('show'); // Add show class for animation
+                
+                // Prevent body scrolling when modal is open
+                document.body.style.overflow = 'hidden';
+                
+                // Focus management for accessibility
+                setTimeout(() => {
+                    const closeBtn = modal.querySelector('.modal-close');
+                    if (closeBtn) closeBtn.focus();
+                }, 100);
+            }
+
+            // Function to load friends for invitation
+            async function loadFriendsForInvitation(eventId) {
+                const container = document.getElementById('friendsInviteList');
+                
+                // Show loading state
+                container.innerHTML = '<div class="loading-friends">Loading friends list...</div>';
+                
+                try {
+                    const response = await fetch(`/get_user_friends_for_invitation/?event_id=${eventId}`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        displayFriendsForInvitation(data.friends);
+                    } else {
+                        console.error('Error loading friends:', data.message);
+                        container.innerHTML = '<div class="no-friends-to-invite">Error loading friends list.</div>';
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    container.innerHTML = '<div class="no-friends-to-invite">Failed to load friends list.</div>';
+                }
+            }
+
+            // Function to display friends in the modal
+            function displayFriendsForInvitation(friends) {
+                const container = document.getElementById('friendsInviteList');
+                container.innerHTML = '';
+                
+                if (friends.length === 0) {
+                    container.innerHTML = '<div class="no-friends-to-invite">You have no friends to invite.</div>';
+                    return;
+                }
+                
+                friends.forEach(friend => {
+                    const div = document.createElement('div');
+                    div.className = 'friend-invite-item';
+                    
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.id = `friend_${friend.username}`;
+                    checkbox.value = friend.username;
+                    checkbox.name = 'selected_friends';
+                    checkbox.disabled = friend.already_invited;
+                    
+                    const label = document.createElement('label');
+                    label.htmlFor = `friend_${friend.username}`;
+                    label.textContent = friend.username;
+                    
+                    if (friend.already_invited) {
+                        label.textContent += ' (Already invited)';
+                        label.style.color = '#666';
+                        label.style.fontStyle = 'italic';
+                        div.style.opacity = '0.6';
+                    }
+                    
+                    div.appendChild(checkbox);
+                    div.appendChild(label);
+                    container.appendChild(div);
+                });
+            }
+
+           // Function to send invitations
+            async function sendEventInvitations() {
+                const eventId = document.getElementById('inviteEventId').value;
+                const checkboxes = document.querySelectorAll('input[name="selected_friends"]:checked');
+                const selectedFriends = Array.from(checkboxes).map(cb => cb.value);
+                
+                if (selectedFriends.length === 0) {
+                    alert('Please select at least one friend to invite.');
+                    return;
+                }
+                
+                const sendButton = document.getElementById('sendInvitationsBtn');
+                const originalText = sendButton.textContent;
+                sendButton.disabled = true;
+                sendButton.textContent = 'Sending...';
+                
+                try {
+                    const response = await fetch('/send_event_invitation/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken')
+                        },
+                        body: JSON.stringify({
+                            event_id: eventId,
+                            friend_usernames: selectedFriends
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        alert(data.message);
+                        closeInviteFriendsModal();
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error sending invitations:', error);
+                    alert('Failed to send invitations. Please try again.');
+                } finally {
+                    sendButton.disabled = false;
+                    sendButton.textContent = originalText;
+                }
+            }
+
+            // Function to close invite modal
+            function closeInviteFriendsModal() {
+                const modal = document.getElementById('inviteFriendsModal');
+                modal.classList.remove('show'); // Remove show class for animation
+                
+                // Use timeout to allow animation to complete before hiding
+                setTimeout(() => {
+                    modal.style.display = 'none';
+                    document.body.style.overflow = ''; // Restore body scrolling
+                }, 300);
+                
+                // Clear the friends list
+                document.getElementById('friendsInviteList').innerHTML = '';
+            }
+
+            // IMPROVED: Close modal when clicking outside
+            window.addEventListener('click', function(event) {
+                const modal = document.getElementById('inviteFriendsModal');
+                if (event.target === modal) {
+                    closeInviteFriendsModal();
+                }
+            });
+
+            // ADDED: Close modal on ESC key
+            document.addEventListener('keydown', function(event) {
+                if (event.key === 'Escape') {
+                    const modal = document.getElementById('inviteFriendsModal');
+                    if (modal && modal.classList.contains('show')) {
+                        closeInviteFriendsModal();
+                    }
+                }
+            });
+
+            // ADDED: Prevent modal content clicks from closing the modal
+            document.addEventListener('DOMContentLoaded', function() {
+                const modal = document.getElementById('inviteFriendsModal');
+                if (modal) {
+                    const modalContent = modal.querySelector('.modal-content');
+                    if (modalContent) {
+                        modalContent.addEventListener('click', function(e) {
+                            e.stopPropagation(); // Prevent event bubbling
+                        });
+                    }
+                }
+            });     
     </script>
+    <div id="inviteFriendsModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Invite Friends to Event</h3>
+                <button onclick="closeInviteFriendsModal()" class="modal-close" type="button" aria-label="Close Modal">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p>Invite friends to: <strong id="inviteEventName">Loading...</strong></p>
+                <input type="hidden" id="inviteEventId">
+                
+                <div class="friends-invite-section">
+                    <h4>Select Friends to Invite:</h4>
+                    <div id="friendsInviteList" class="friends-invite-list">
+                        <div class="loading-friends">Loading friends list...</div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button onclick="closeInviteFriendsModal()" type="button" class="modal-btn modal-btn-cancel">Cancel</button>
+                <button onclick="sendEventInvitations()" id="sendInvitationsBtn" type="button" class="modal-btn modal-btn-post">Send Invitations</button>
+            </div>
+        </div>
+    </div>
 
 </body>
 </html>

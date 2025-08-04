@@ -52,8 +52,273 @@ Events = db['Events']  # New collection for events
 EventImages = db['EventImages']  # New collection for event images
 OldEvents = db['OldEvents']
 Posts = db['Posts']  # New collection for posts
+EventInvitations = db['EventInvitations']
 
 GOOGLE_CLIENT_ID =config("GOOGLE_CLIENT_ID")  # Replace this
+@csrf_exempt
+def send_event_invitation(request):
+    """Send event invitation to friends"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+            event_id = data.get('event_id')
+            friend_usernames = data.get('friend_usernames', [])  # List of friend usernames
+            
+            if not event_id or not friend_usernames:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing event_id or friend_usernames'
+                }, status=400)
+            
+            # Verify event exists and user has permission to invite
+            event = Events.find_one({"_id": ObjectId(event_id)})
+            if not event:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Event not found'
+                }, status=404)
+            
+            # Check if user is the creator or if event is approved (public events)
+            if event.get('created_by') != name and event.get('status') != 'approved':
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'You can only invite friends to your own events or approved public events'
+                }, status=403)
+            
+            # Get user's friends list to verify friendships
+            user_friendlist = Friendlist.find_one({"username": name})
+            user_friends = user_friendlist.get("friends", []) if user_friendlist else []
+            
+            invited_count = 0
+            already_invited = []
+            not_friends = []
+            
+            for friend_username in friend_usernames:
+                # Check if they are friends
+                if friend_username not in user_friends:
+                    not_friends.append(friend_username)
+                    continue
+                
+                # Check if invitation already exists
+                existing_invitation = EventInvitations.find_one({
+                    "event_id": event_id,
+                    "to_user": friend_username,
+                    "status": {"$in": ["pending", "accepted"]}
+                })
+                
+                if existing_invitation:
+                    already_invited.append(friend_username)
+                    continue
+                
+                # Create invitation
+                invitation_data = {
+                    "event_id": event_id,
+                    "event_name": event.get('name', 'Unknown Event'),
+                    "from_user": name,
+                    "to_user": friend_username,
+                    "status": "pending",
+                    "sent_at": datetime.now(),
+                    "event_date": event.get('event_date', ''),
+                    "event_time": event.get('event_time', ''),
+                    "event_location": event.get('location', '')
+                }
+                
+                EventInvitations.insert_one(invitation_data)
+                invited_count += 1
+            
+            # Prepare response message
+            message_parts = []
+            if invited_count > 0:
+                message_parts.append(f"Successfully invited {invited_count} friend(s)")
+            if already_invited:
+                message_parts.append(f"Already invited: {', '.join(already_invited)}")
+            if not_friends:
+                message_parts.append(f"Not in friends list: {', '.join(not_friends)}")
+            
+            return JsonResponse({
+                'status': 'success',
+                'message': '. '.join(message_parts),
+                'invited_count': invited_count
+            })
+            
+        except Exception as e:
+            logger.error(f"Error sending event invitation: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+@csrf_exempt
+def handle_event_invitation(request):
+    """Handle accept/reject of event invitation"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body) if request.content_type == 'application/json' else request.POST
+            invitation_id = data.get('invitation_id')
+            action = data.get('action')  # 'accept' or 'reject'
+            
+            if not invitation_id or action not in ['accept', 'reject']:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Missing invitation_id or invalid action'
+                }, status=400)
+            
+            # Find the invitation
+            invitation = EventInvitations.find_one({"_id": ObjectId(invitation_id)})
+            if not invitation:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Invitation not found'
+                }, status=404)
+            
+            # Verify user is the recipient
+            if invitation.get('to_user') != name:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Access denied'
+                }, status=403)
+            
+            # Update invitation status
+            update_data = {
+                "status": action + "ed",  # "accepted" or "rejected"
+                "responded_at": datetime.now()
+            }
+            
+            result = EventInvitations.update_one(
+                {"_id": ObjectId(invitation_id)},
+                {"$set": update_data}
+            )
+            
+            if result.modified_count > 0:
+                event_name = invitation.get('event_name', 'Unknown Event')
+                message = f"Event invitation {action}ed: {event_name}"
+                
+                return JsonResponse({
+                    'status': 'success',
+                    'message': message
+                })
+            else:
+                return JsonResponse({
+                    'status': 'error',
+                    'message': 'Failed to update invitation'
+                }, status=500)
+                
+        except Exception as e:
+            logger.error(f"Error handling event invitation: {e}")
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Internal server error'
+            }, status=500)
+    
+    return JsonResponse({
+        'status': 'error',
+        'message': 'Only POST method allowed'
+    }, status=405)
+
+@csrf_exempt
+def get_user_friends_for_invitation(request):
+    """Get user's friends list for event invitation"""
+    if not request.session.get('user_id'):
+        return JsonResponse({'status': 'error', 'message': 'Not authenticated'}, status=401)
+    
+    userinfo(request)
+    
+    try:
+        event_id = request.GET.get('event_id')
+        if not event_id:
+            return JsonResponse({
+                'status': 'error',
+                'message': 'Missing event_id'
+            }, status=400)
+        
+        # Get user's friends
+        user_friendlist = Friendlist.find_one({"username": name})
+        friends = user_friendlist.get("friends", []) if user_friendlist else []
+        
+        # Get already invited friends for this event
+        already_invited = list(EventInvitations.find({
+            "event_id": event_id,
+            "from_user": name,
+            "status": {"$in": ["pending", "accepted"]}
+        }))
+        
+        invited_usernames = [inv['to_user'] for inv in already_invited]
+        
+        # Filter out already invited friends
+        available_friends = [
+            {
+                'username': friend,
+                'already_invited': friend in invited_usernames
+            }
+            for friend in friends
+        ]
+        
+        return JsonResponse({
+            'status': 'success',
+            'friends': available_friends
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting friends for invitation: {e}")
+        return JsonResponse({
+            'status': 'error',
+            'message': 'Internal server error'
+        }, status=500)
+
+# Update the profile_view function to include event invitations
+def profile_view(request):
+    """Updated profile view with event invitations"""
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    userinfo(request)
+    
+    # ... existing code for date requests, etc. ...
+    
+    # Get event invitations (received)
+    event_invitations = list(EventInvitations.find({
+        "to_user": name,
+        "status": "pending"
+    }).sort("sent_at", -1))
+    
+    # Get accepted events (upcoming events from invitations)
+    accepted_event_invitations = list(EventInvitations.find({
+        "to_user": name,
+        "status": "accepted"
+    }))
+    
+    # Get full event details for accepted invitations
+    upcoming_events = []
+    for invitation in accepted_event_invitations:
+        event = Events.find_one({"_id": ObjectId(invitation['event_id'])})
+        if event:
+            # Check if event is still upcoming
+            if event.get('event_date'):
+                try:
+                    event_date = datetime.strptime(event['event_date'], '%Y-%m-%d').date()
+                    if event_date >= date.today():
+                        upcoming_events.append({
+                            'event': event,
+                            'invitation': invitation
+                        })
+                except ValueError:
+                    pass
+
 @csrf_exempt
 def google_auth_view(request):
     if request.method != 'POST':
@@ -1099,6 +1364,34 @@ def fetch_overpass_places(lat, lon, amenity_type=None, radius=3000):
         """
 # Updated profile_view function - PRESERVES ALL ORIGINAL FEATURES
 def profile_view(request):
+    # Get event invitations (received) - ADD THIS
+    event_invitations = list(EventInvitations.find({
+        "to_user": name,
+        "status": "pending"
+    }).sort("sent_at", -1))
+    
+    # Get accepted events (upcoming events from invitations) - ADD THIS
+    accepted_event_invitations = list(EventInvitations.find({
+        "to_user": name,
+        "status": "accepted"
+    }))
+    
+    # Get full event details for accepted invitations - ADD THIS
+    upcoming_events = []
+    for invitation in accepted_event_invitations:
+        event = Events.find_one({"_id": ObjectId(invitation['event_id'])})
+        if event:
+            # Check if event is still upcoming
+            if event.get('event_date'):
+                try:
+                    event_date = datetime.strptime(event['event_date'], '%Y-%m-%d').date()
+                    if event_date >= date.today():
+                        upcoming_events.append({
+                            'event': event,
+                            'invitation': invitation
+                        })
+                except ValueError:
+                    pass
     # Check if user is authenticated
     if not request.session.get('user_id'):
         return redirect('login')
@@ -1217,12 +1510,15 @@ def profile_view(request):
     except Exception as e:
         print(f"ERROR: Failed to get preferences: {e}")
         user_preferences = []
+
     
     # Prepare context for template
     context = {
         "sent_from": sent_from,
         "received_from": received_from,
         "upcoming_dates": upcoming_dates_list,
+        "event_invitations": event_invitations,
+        "upcoming_events": upcoming_events,
         "name": name,
         "friend_count": friend_count,
         "post_count": post_count,

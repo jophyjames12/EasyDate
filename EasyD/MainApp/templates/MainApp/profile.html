@@ -826,6 +826,45 @@
                 flex-wrap: wrap;
             }
         }
+        /* Additional styles for event invitations */
+        .request-item {
+            transition: all 0.3s ease;
+        }
+
+        .request-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .request-item[style*="border-left-color: #17a2b8"] {
+            background: linear-gradient(135deg, rgba(23, 162, 184, 0.05), rgba(23, 162, 184, 0.02));
+        }
+
+        .request-item[style*="border-left-color: #28a745"] {
+            background: linear-gradient(135deg, rgba(40, 167, 69, 0.05), rgba(40, 167, 69, 0.02));
+        }
+
+        .action-buttons .btn {
+            transition: all 0.3s ease;
+        }
+
+        .action-buttons .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* Mobile responsiveness */
+        @media (max-width: 768px) {
+            .action-buttons {
+                flex-direction: column;
+                gap: 8px;
+            }
+            
+            .action-buttons .btn {
+                width: 100%;
+                text-align: center;
+            }
+        }
     </style>
 </head>
 <body>
@@ -1153,6 +1192,80 @@
         </div>
     </div>
 
+    {% if event_invitations %}
+    <div class="date-requests">
+        <h2 class="section-title">🎉 Event Invitations</h2>
+        <ul class="request-list">
+            {% for invitation in event_invitations %}
+                <li class="request-item" style="border-left-color: #17a2b8;">
+                    <div class="request-header">
+                        <div class="request-from">Event: {{ invitation.event_name }}</div>
+                        <div class="status-badge" style="background: linear-gradient(135deg, #d1ecf1, #bee5eb); color: #0c5460;">Invitation</div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        <p><strong>👤 Invited by:</strong> {{ invitation.from_user }}</p>
+                        <p><strong>📅 Event Date:</strong> {{ invitation.event_date|default:"Not specified" }}</p>
+                        <p><strong>⏰ Event Time:</strong> {{ invitation.event_time|default:"Not specified" }}</p>
+                        {% if invitation.event_location %}
+                            <p><strong>📍 Location:</strong> {{ invitation.event_location }}</p>
+                        {% endif %}
+                        <p style="color: #666; font-size: 14px;"><strong>Invited:</strong> {{ invitation.sent_at|date:"M j, Y g:i A" }}</p>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <button onclick="handleEventInvitation('{{ invitation._id }}', 'accept')" class="btn btn-accept">
+                            ✅ Accept Invitation
+                        </button>
+                        <button onclick="handleEventInvitation('{{ invitation._id }}', 'reject')" class="btn btn-reject">
+                            ❌ Decline Invitation
+                        </button>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
+    <!-- Upcoming Events Section (add after event invitations) -->
+    {% if upcoming_events %}
+    <div class="date-requests">
+        <h2 class="section-title">🎪 Your Upcoming Events</h2>
+        <ul class="request-list">
+            {% for event_data in upcoming_events %}
+                <li class="request-item" style="border-left-color: #28a745;">
+                    <div class="request-header">
+                        <div class="request-from">{{ event_data.event.name }}</div>
+                        <div class="status-badge" style="background: linear-gradient(135deg, #d4edda, #c3e6cb); color: #155724;">Attending</div>
+                    </div>
+                    
+                    <div style="margin-bottom: 15px;">
+                        {% if event_data.event.description %}
+                            <p><strong>📋 Description:</strong> {{ event_data.event.description|truncatechars:100 }}</p>
+                        {% endif %}
+                        <p><strong>📅 Date:</strong> {{ event_data.event.event_date|default:"Not specified" }}</p>
+                        <p><strong>⏰ Time:</strong> {{ event_data.event.event_time|default:"Not specified" }}</p>
+                        {% if event_data.event.location %}
+                            <p><strong>📍 Location:</strong> {{ event_data.event.location }}</p>
+                        {% endif %}
+                        <p><strong>👤 Created by:</strong> {{ event_data.event.created_by }}</p>
+                        <p style="color: #666; font-size: 14px;"><strong>Accepted:</strong> {{ event_data.invitation.responded_at|date:"M j, Y g:i A" }}</p>
+                    </div>
+                    
+                    <div class="action-buttons">
+                        <a href="{% url 'events' %}" class="btn btn-secondary">
+                            👁️ View All Events
+                        </a>
+                        <button onclick="cancelEventAttendance('{{ event_data.invitation._id }}')" class="btn btn-remove" style="background: #ffc107; color: #212529;">
+                            🚫 Cancel Attendance
+                        </button>
+                    </div>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% endif %}
+
     <!-- Create Post Modal -->
     <div id="createPostModal" class="modal">
         <div class="modal-content">
@@ -1456,6 +1569,77 @@
         } catch (error) {
             console.error('Error removing date location:', error);
             alert('Failed to remove date location. Please try again.');
+        }
+    }
+    // Function to handle event invitation (accept/reject)
+    async function handleEventInvitation(invitationId, action) {
+        const actionText = action === 'accept' ? 'accepting' : 'declining';
+        
+        if (!confirm(`Are you sure you want to ${action} this event invitation?`)) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/handle_event_invitation/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    invitation_id: invitationId,
+                    action: action
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert(data.message);
+                // Reload the page to update the display
+                window.location.reload();
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+            
+        } catch (error) {
+            console.error('Error handling invitation:', error);
+            alert(`Failed to ${action} invitation. Please try again.`);
+        }
+    }
+
+    // Function to cancel event attendance
+    async function cancelEventAttendance(invitationId) {
+        if (!confirm('Are you sure you want to cancel your attendance for this event?')) {
+            return;
+        }
+        
+        try {
+            const response = await fetch('/handle_event_invitation/', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCookie('csrftoken')
+                },
+                body: JSON.stringify({
+                    invitation_id: invitationId,
+                    action: 'reject'  // This will change status to rejected
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (data.status === 'success') {
+                alert('Event attendance cancelled successfully!');
+                // Reload the page to update the display
+                window.location.reload();
+            } else {
+                alert(`Error: ${data.message}`);
+            }
+            
+        } catch (error) {
+            console.error('Error cancelling attendance:', error);
+            alert('Failed to cancel attendance. Please try again.');
         }
     }
     </script>

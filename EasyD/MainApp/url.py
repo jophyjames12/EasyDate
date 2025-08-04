@@ -9,7 +9,6 @@ urlpatterns=[
     path('login/', views.login_view, name='login'),
     path("area/",views.area_view, name='area' ),
     path('signup/', views.signup_view, name='signup'),
-    path('auth/google/', views.google_auth_view, name='google_auth'),
     path('logout/', views.logout_view, name='logout'),
     path('area/logout/', views.logout_view, name='logout'),
     path("home/",views.home,name="home"),
@@ -57,6 +56,10 @@ urlpatterns=[
     path('delete_post/', views.delete_post, name='delete_post'),
     path('friend_profile/<str:friend_username>/', views.view_friend_profile, name='view_friend_profile'),
     path('past-events/', views.past_events_view, name='past_events'),
+
+    path('send_event_invitation/', views.send_event_invitation, name='send_event_invitation'),
+    path('handle_event_invitation/', views.handle_event_invitation, name='handle_event_invitation'),
+    path('get_user_friends_for_invitation/', views.get_user_friends_for_invitation, name='get_user_friends_for_invitation'),
 ]
 
 if settings.DEBUG:
