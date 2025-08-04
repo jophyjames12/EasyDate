@@ -1,0 +1,148 @@
+/* profile.css */
+
+/* General styling */
+body {
+    font-family: Arial, sans-serif;
+    background-color: #f4f4f9;
+    margin: 0;
+    padding: 0;
+}
+
+h1, h2 {
+    text-align: center;
+    color: #333;
+}
+
+h1 {
+    margin-top: 20px;
+    font-size: 2em;
+}
+
+/* Date Requests Section */
+.date-requests {
+    background-color: #fff;
+    margin: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.date-requests h2 {
+    color: #2d2d2d;
+    margin-bottom: 15px;
+}
+
+.date-requests ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.date-requests li {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+
+.date-requests form {
+    display: inline-block;
+    margin-top: 10px;
+}
+
+.date-requests button {
+    background-color: #28a745;
+    color: white;
+    padding: 8px 15px;
+    margin: 0 5px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.date-requests button:hover {
+    background-color: #218838;
+}
+
+.date-requests span {
+    color: #555;
+    font-size: 14px;
+}
+
+/* Friend Requests Section */
+.friend-requests {
+    background-color: #fff;
+    margin: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.friend-requests h2 {
+    color: #2d2d2d;
+    margin-bottom: 15px;
+}
+
+.friend-requests ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.friend-requests li {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+
+.friend-requests .inline-form {
+    display: inline-block;
+    margin-left: 10px;
+}
+
+.friend-requests button {
+    background-color: #007bff;
+    color: white;
+    padding: 8px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+}
+
+.friend-requests button:hover {
+    background-color: #0056b3;
+}
+
+/* Friends List Section */
+.friends-list {
+    background-color: #fff;
+    margin: 20px;
+    padding: 15px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.friends-list h2 {
+    color: #2d2d2d;
+    margin-bottom: 15px;
+}
+
+.friends-list ul {
+    list-style-type: none;
+    padding: 0;
+}
+
+.friends-list li {
+    background-color: #f9f9f9;
+    border: 1px solid #ddd;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+}
+
+/* No requests or friends found */
+p {
+    text-align: center;
+    color: #888;
+}

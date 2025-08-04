@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    {% load static %}  <!-- Load the static template tag library -->
+    {% load static %}
     <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
-    <!-- Google Sign-In API -->
-    
 </head>
 <body>
     <div class="auth-container">
@@ -19,6 +17,12 @@
                 {% endfor %}
             </div>
         {% endif %}
+        
+        <!-- Debug info - Remove in production -->
+        <script>
+            console.log('Current origin:', window.location.origin);
+            console.log('Current href:', window.location.href);
+        </script>
         
         <!-- Google Sign-In Button -->
         <div class="google-signin-container" style="margin-bottom: 20px; text-align: center;">
@@ -51,41 +55,82 @@
             <label for="password">Password</label>
             <input type="password" id="password" name="password" required>
 
-            <button onclick="location.href='/area/'" type="submit">Login</button>
+            <button type="submit">Login</button> <!-- FIXED: Removed onclick -->
         </form>
         <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
     </div>
 
-    <!-- Include the JavaScript file just before the closing </body> tag -->
-    <script src="{% static 'MainApp/file.js' %}"></script>
+    <!-- Load Google Sign-In BEFORE your custom script -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <script>
+        // Wait for the page to fully load
+        window.onload = function() {
+            console.log('Page loaded, initializing Google Sign-In...');
+            
+            // Initialize Google Sign-In
+            if (typeof google !== 'undefined' && google.accounts) {
+                console.log('Google Sign-In library loaded successfully');
+            } else {
+                console.error('Google Sign-In library not loaded');
+            }
+        };
+        
         // Handle Google Sign-In response
         function handleCredentialResponse(response) {
+            console.log('Google Sign-In response received');
+            
+            // Debug the response
+            if (!response.credential) {
+                console.error('No credential in response');
+                alert('Google Sign-In failed: No credential received');
+                return;
+            }
+            
+            // Get CSRF token
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+            
             // Send the credential to your Django backend
             fetch('/auth/google/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    'X-CSRFToken': csrfToken
                 },
                 body: JSON.stringify({
                     'credential': response.credential
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Server response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Server response data:', data);
                 if (data.success) {
                     window.location.href = '/area/';
                 } else {
-                    alert('Google Sign-In failed. Please try again.');
+                    alert('Google Sign-In failed: ' + (data.error || 'Unknown error'));
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred during sign-in.');
+                alert('An error occurred during sign-in. Please check the console for details.');
             });
         }
+        
+        // Error handler for Google Sign-In
+        window.addEventListener('error', function(event) {
+            if (event.message && event.message.includes('GSI_LOGGER')) {
+                console.error('Google Sign-In Error:', event.message);
+            }
+        });
     </script>
+    
+    <!-- Load your custom JavaScript file AFTER Google Sign-In -->
+    <script src="{% static 'MainApp/file.js' %}"></script>
 </body>
 </html>

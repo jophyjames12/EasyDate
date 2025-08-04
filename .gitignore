@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Compiled bytecode
 __pycache__/
 *.pyc
@@ -16,3 +17,13 @@ tempCodeRunnerFile.js
 # Dependency management files (these should not be ignored)
 # Pipfile
 # Pipfile.lock
+=======
+EasyD/MainApp/_pycache_/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+.env
+>>>>>>> a3455e691f6f31289682b09973495cb78e7e049a
