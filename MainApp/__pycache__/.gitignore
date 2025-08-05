@@ -1,0 +1,8 @@
+EasyD/MainApp/_pycache_/
+*.pyc
+*.pyo
+
+# Virtual environment
+.venv/
+venv/
+.env

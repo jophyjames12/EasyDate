@@ -56,6 +56,10 @@ urlpatterns=[
     path('delete_post/', views.delete_post, name='delete_post'),
     path('friend_profile/<str:friend_username>/', views.view_friend_profile, name='view_friend_profile'),
     path('past-events/', views.past_events_view, name='past_events'),
+
+    path('send_event_invitation/', views.send_event_invitation, name='send_event_invitation'),
+    path('handle_event_invitation/', views.handle_event_invitation, name='handle_event_invitation'),
+    path('get_user_friends_for_invitation/', views.get_user_friends_for_invitation, name='get_user_friends_for_invitation'),
 ]
 
 if settings.DEBUG:

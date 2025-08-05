@@ -1,0 +1,2260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{% if date_info %}Date Map - {{ date_info.date }}{% else %}Search Places and Rate{% endif %}</title>
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
+    <style>
+        /* Keep your existing CSS exactly as is */
+        #map { height: 600px; width: 100%; }
+        #place-details { margin-top: 20px; }
+        .place-item { cursor: pointer; padding: 5px; border: 1px solid #ddd; margin-bottom: 5px; }
+        .place-item:hover { background-color: #f9f9f9; }
+        select, input, button { margin: 10px 0; padding: 5px; }
+        #search-results { border: 1px solid #ccc; max-height: 150px; overflow-y: auto; margin-top: 5px; }
+        .search-result { padding: 5px; cursor: pointer; }
+        .search-result:hover { background-color: #e0e0e0; }
+        .search-container {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            margin: 10px 0;
+        }
+        #error-message { color: red; margin-top: 10px; }
+        #location-status { color: green; margin-top: 5px; font-size: 12px; }
+        
+        /* Date context styles */
+        .date-info {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        
+        .date-info h2 {
+            margin: 0 0 10px 0;
+            font-size: 1.5em;
+        }
+        
+        .date-info p {
+            margin: 5px 0;
+            font-size: 1.1em;
+        }
+        
+        .back-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        
+        .back-btn:hover {
+            background: #0056b3;
+        }
+
+        /* Color legend */
+        .color-legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 12px;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+        
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid #ccc;
+        }
+
+        /* NEW: Route control styles */
+        .route-controls {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            z-index: 1000;
+            max-width: 250px;
+        }
+
+        .route-controls h4 {
+            margin: 0 0 10px 0;
+            font-size: 14px;
+        }
+
+        .route-controls button {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+
+        .route-controls button:hover {
+            background: #c82333;
+        }
+
+        /* Enhanced popup styles */
+        .leaflet-popup-content {
+            margin: 8px 12px;
+            line-height: 1.4;
+        }
+
+        .popup-directions-btn {
+            background: #28a745;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            width: 100%;
+        }
+
+        .popup-directions-btn:hover {
+            background: #218838;
+        }
+
+        .popup-directions-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .route-controls button.restore-btn {
+            background: #28a745;
+        }
+
+        .route-controls button.restore-btn:hover {
+            background: #218838;
+        }
+
+        /* Route legend */
+        .route-legend {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 11px;
+        }
+
+        .route-legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
+        }
+
+        .route-legend-line {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+            border-radius: 1px;
+        }
+        /* Reviews Modal Styles */
+        .reviews-modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
+        }
+
+        .reviews-modal-content {
+            background-color: white;
+            margin: 5% auto;
+            padding: 0;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 80vh;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            animation: modalSlideIn 0.3s ease-out;
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .reviews-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .reviews-header h3 {
+            margin: 0;
+            font-size: 1.3em;
+            font-weight: 600;
+        }
+
+        .reviews-close {
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .reviews-close:hover {
+            color: #ffeb3b;
+        }
+
+        .reviews-body {
+            padding: 20px;
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        /* Place Summary Styles */
+        .place-summary {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+
+        .rating-summary {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .rating-stars {
+            font-size: 24px;
+        }
+
+        .rating-text {
+            font-size: 1.1em;
+        }
+
+        .place-info {
+            margin: 8px 0;
+            font-size: 0.95em;
+            color: #666;
+        }
+
+        .place-info strong {
+            color: #333;
+        }
+
+        .place-info a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .place-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* Star Rating Styles */
+        .star {
+            color: #ffc107;
+            font-size: inherit;
+            margin-right: 2px;
+        }
+
+        .star.full {
+            color: #ffc107;
+        }
+
+        .star.half {
+            color: #ffc107;
+            opacity: 0.5;
+        }
+
+        .star.empty {
+            color: #e0e0e0;
+        }
+
+        /* Reviews Section Styles */
+        .reviews-section h4 {
+            margin: 20px 0 15px 0;
+            color: #333;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+
+        .review-item {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
+        }
+
+        .review-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+        }
+
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .review-author {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .author-photo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .author-photo-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .author-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .review-rating {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+        }
+
+        .review-time {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .review-text {
+            color: #555;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+
+        /* Loading Styles */
+        .reviews-loading {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Error Styles */
+        .reviews-error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .no-reviews {
+            text-align: center;
+            padding: 30px 20px;
+            color: #666;
+        }
+
+        /* Button Styles Updates */
+        .popup-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .place-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .popup-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+
+        .popup-directions-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .popup-directions-btn:hover {
+            background: #218838;
+        }
+
+        .popup-directions-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .popup-reviews-btn {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .popup-reviews-btn:hover {
+            background: #e0a800;
+        }
+
+        /* UPDATED: Location Selection Styles */
+        .location-selection-instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .location-selection-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+
+        .location-selection-instructions p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        /* UPDATED: Enhanced instruction styles for different user roles */
+        .location-selection-instructions.sender-mode {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+
+        .location-selection-instructions.sender-mode h4 {
+            color: #2e7d32;
+        }
+
+        .location-selection-instructions.receiver-mode {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+
+        .location-selection-instructions.receiver-mode h4 {
+            color: #ef6c00;
+        }
+
+        .popup-location-btn {
+            background: #9c27b0;
+            color: white;
+        }
+
+        .popup-location-btn:hover {
+            background: #7b1fa2;
+        }
+
+        .selected-location-marker {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* UPDATED: Role-based styling */
+        .user-role-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .user-role-indicator.sender {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .user-role-indicator.receiver {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .reviews-modal-content {
+                width: 95%;
+                margin: 10% auto;
+                max-height: 85vh;
+            }
+            
+            .reviews-header {
+                padding: 15px;
+            }
+            
+            .reviews-header h3 {
+                font-size: 1.1em;
+            }
+            
+            .reviews-body {
+                padding: 15px;
+            }
+            
+            .rating-summary {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .review-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
+            }
+            
+            .popup-buttons,
+            .place-buttons {
+                flex-direction: column;
+                gap: 5px;
+            }
+            
+            .popup-btn {
+                width: 100%;
+            }
+
+            .location-selection-instructions {
+                margin: 5px;
+                padding: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    {% if date_info %}
+    <!-- UPDATED: Enhanced Date Context Header with Role Information -->
+    <div class="date-info">
+        <h2>Date with {{ date_info.partner }}
+            {% if location_selection_mode %}
+                <span class="user-role-indicator {% if date_info.current_location %}receiver{% else %}sender{% endif %}">
+                    {% if date_info.current_location %}Changing Location{% else %}Setting Location{% endif %}
+                </span>
+            {% endif %}
+        </h2>
+        <p><strong>Date:</strong> {{ date_info.date }}</p>
+        <p><strong>Time:</strong> {{ date_info.time }}</p>
+        {% if date_info.current_location %}
+            <p><strong>📍 Meeting at:</strong> {{ date_info.current_location.name }}</p>
+            <p>Routes shown from both locations to your date spot!</p>
+        {% elif location_selection_mode %}
+            {% if date_info.current_location %}
+                <p>🔄 Choose a different meeting location from the places below</p>
+            {% else %}
+                <p>📍 Select a meeting location from the places below</p>
+            {% endif %}
+        {% else %}
+            <p>Map shows both your locations and the midpoint</p>
+        {% endif %}
+    </div>
+    
+    <button class="back-btn" onclick="window.history.back()">← Back to {% if location_selection_mode %}Profile{% else %}Schedule{% endif %}</button>
+    {% else %}
+    <h1>Search Places and Rate</h1>
+    {% endif %}
+    
+    <!-- NEW: Route Controls -->
+    <div class="route-controls" id="route-controls" style="display: none;">
+        <h4>Active Routes</h4>
+        <div id="route-list"></div>
+        <button onclick="clearAllRoutes()">Clear All Routes</button>
+        <button class="restore-btn" onclick="restoreMidpointRoute()" id="restore-midpoint-btn" style="display: none;">Restore Midpoint Route</button>
+    </div>
+    
+    <button id="locate-btn">Locate Me</button>
+    <div id="location-status"></div>
+    
+    <div class="search-container">
+        <label for="manual-location">Set Location Manually:</label>
+        <input type="text" id="manual-location" placeholder="Enter location" />
+        <div id="search-results"></div>
+    </div>
+    <label for="tag">Search by Tag:</label>
+    <select id="tag">
+        <option value="restaurant">Restaurant</option>
+        <option value="cafe">Cafe</option>
+        <option value="bar">Bar</option>
+        <option value="club">Club</option>
+        <option value="malls">malls</option>
+    </select>
+    <label for="ambiance">Select Ambiance:</label>
+    <select id="ambiance">
+        <option value="any">Any</option>
+        <option value="chill">Chill</option>
+        <option value="lively">Lively</option>
+        <option value="romantic">Romantic</option>
+        <option value="fun">Fun</option>
+    </select>
+    <label for="sort">Sort by:</label>
+    <select id="sort">
+        <option value="distance">Distance</option>
+        <option value="reviews">Reviews</option>
+    </select>
+    <button id="search-btn">Search</button>
+    
+    <div id="error-message"></div>
+    <div id="map"></div>
+    <div id="place-details"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const map = L.map('map').setView([20.5937, 78.9629], 5);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 19,
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+
+            let userMarker = null;
+            let partnerMarker = null;
+            let midpointMarker = null;
+            const placeMarkers = [];
+
+            // Global variable to store reviews modal
+            let reviewsModal = null;
+
+            // UPDATED: Global variables for location selection mode with enhanced role support
+            let locationSelectionMode = false;
+            let currentRequestId = null;
+            let selectedLocationMarker = null;
+            let midpointRouteLayer = null;
+            let midpointRouteData = null;
+            let isUserSender = false; // Track if current user is sender
+            let hasExistingLocation = false; // Track if location already exists
+
+            // Function to create reviews modal
+            function createReviewsModal() {
+                if (reviewsModal) {
+                    document.body.removeChild(reviewsModal);
+                }
+                
+                reviewsModal = document.createElement('div');
+                reviewsModal.className = 'reviews-modal';
+                reviewsModal.style.display = 'none';
+                reviewsModal.innerHTML = `
+                    <div class="reviews-modal-content">
+                        <div class="reviews-header">
+                            <h3 id="reviews-title">Loading...</h3>
+                            <span class="reviews-close">&times;</span>
+                        </div>
+                        <div class="reviews-body" id="reviews-body">
+                            <div class="reviews-loading">Loading reviews...</div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.appendChild(reviewsModal);
+                
+                // Close modal event
+                reviewsModal.querySelector('.reviews-close').addEventListener('click', () => {
+                    reviewsModal.style.display = 'none';
+                });
+                
+                // Close modal when clicking outside
+                reviewsModal.addEventListener('click', (e) => {
+                    if (e.target === reviewsModal) {
+                        reviewsModal.style.display = 'none';
+                    }
+                });
+                
+                return reviewsModal;
+            }
+
+            // Function to generate star rating HTML
+            function generateStarRating(rating) {
+                const fullStars = Math.floor(rating);
+                const hasHalfStar = rating % 1 !== 0;
+                const emptyStars = 5 - fullStars - (hasHalfStar ? 1 : 0);
+                
+                let starsHTML = '';
+                
+                // Full stars
+                for (let i = 0; i < fullStars; i++) {
+                    starsHTML += '<span class="star full">★</span>';
+                }
+                
+                // Half star
+                if (hasHalfStar) {
+                    starsHTML += '<span class="star half">★</span>';
+                }
+                
+                // Empty stars
+                for (let i = 0; i < emptyStars; i++) {
+                    starsHTML += '<span class="star empty">☆</span>';
+                }
+                
+                return starsHTML;
+            }
+
+            // Function to fetch reviews from backend
+            async function fetchReviews(lat, lon, placeName) {
+                try {
+                    const response = await fetch(`/get_reviews/?lat=${lat}&lon=${lon}&name=${encodeURIComponent(placeName)}`);
+                    const data = await response.json();
+                    return data;
+                } catch (error) {
+                    console.error('Error fetching reviews:', error);
+                    return {
+                        status: 'error',
+                        message: 'Failed to fetch reviews'
+                    };
+                }
+            }
+
+            // Function to display reviews in modal
+            function displayReviews(reviewsData, placeName) {
+                if (!reviewsModal) {
+                    createReviewsModal();
+                }
+                
+                const title = document.getElementById('reviews-title');
+                const body = document.getElementById('reviews-body');
+                
+                if (reviewsData.status === 'error') {
+                    title.textContent = `${placeName} - Reviews Not Available`;
+                    body.innerHTML = `
+                        <div class="reviews-error">
+                            <p>Sorry, we couldn't load reviews for this place.</p>
+                            <p class="error-message">${reviewsData.message}</p>
+                        </div>
+                    `;
+                    reviewsModal.style.display = 'block';
+                    return;
+                }
+                
+                title.textContent = reviewsData.place_name;
+                
+                let bodyHTML = '';
+                
+                // Place summary
+                bodyHTML += `
+                    <div class="place-summary">
+                        <div class="rating-summary">
+                            <div class="rating-stars">${generateStarRating(reviewsData.rating)}</div>
+                            <div class="rating-text">
+                                <strong>${reviewsData.rating}</strong> (${reviewsData.total_ratings} reviews)
+                            </div>
+                        </div>
+                `;
+                
+                // Additional place info
+                if (reviewsData.address) {
+                    bodyHTML += `<p class="place-info"><strong>Address:</strong> ${reviewsData.address}</p>`;
+                }
+                if (reviewsData.phone) {
+                    bodyHTML += `<p class="place-info"><strong>Phone:</strong> ${reviewsData.phone}</p>`;
+                }
+                if (reviewsData.website) {
+                    bodyHTML += `<p class="place-info"><strong>Website:</strong> <a href="${reviewsData.website}" target="_blank">${reviewsData.website}</a></p>`;
+                }
+                
+                bodyHTML += `</div>`;
+                
+                // Reviews section
+                if (reviewsData.reviews && reviewsData.reviews.length > 0) {
+                    bodyHTML += `<div class="reviews-section">
+                        <h4>Recent Reviews</h4>
+                    `;
+                    
+                    reviewsData.reviews.forEach(review => {
+                        bodyHTML += `
+                            <div class="review-item">
+                                <div class="review-header">
+                                    <div class="review-author">
+                                        ${review.profile_photo_url ? 
+                                            `<img src="${review.profile_photo_url}" alt="${review.author_name}" class="author-photo">` : 
+                                            '<div class="author-photo-placeholder">👤</div>'
+                                        }
+                                        <span class="author-name">${review.author_name}</span>
+                                    </div>
+                                    <div class="review-rating">
+                                        ${generateStarRating(review.rating)}
+                                        <span class="review-time">${review.time}</span>
+                                    </div>
+                                </div>
+                                <div class="review-text">${review.text}</div>
+                            </div>
+                        `;
+                    });
+                    
+                    bodyHTML += `</div>`;
+                } else {
+                    bodyHTML += `<div class="no-reviews">
+                        <p>No reviews available for this place.</p>
+                    </div>`;
+                }
+                
+                body.innerHTML = bodyHTML;
+                reviewsModal.style.display = 'block';
+            }
+
+            // Function to show reviews (called from buttons)
+            async function showReviews(lat, lon, placeName) {
+                // Create modal if it doesn't exist
+                if (!reviewsModal) {
+                    createReviewsModal();
+                }
+                
+                // Show loading state
+                const title = document.getElementById('reviews-title');
+                const body = document.getElementById('reviews-body');
+                
+                title.textContent = `${placeName} - Loading Reviews...`;
+                body.innerHTML = `
+                    <div class="reviews-loading">
+                        <div class="loading-spinner"></div>
+                        <p>Fetching reviews from Google Maps...</p>
+                    </div>
+                `;
+                
+                reviewsModal.style.display = 'block';
+                
+                // Fetch and display reviews
+                const reviewsData = await fetchReviews(lat, lon, placeName);
+                displayReviews(reviewsData, placeName);
+            }
+
+            // Make the function globally available
+            window.showReviews = showReviews;
+            
+            // NEW: Route management
+            const activeRoutes = new Map(); // Store active routes with IDs
+            let routeIdCounter = 0;
+
+            const dateInfo = {% if date_info_json %}{{ date_info_json|safe }}{% else %}null{% endif %};
+            
+            // UPDATED: Initialize location selection mode if enabled with enhanced role tracking and route midpoint
+            if (dateInfo && dateInfo.mode === 'location_selection') {
+                locationSelectionMode = true;
+                currentRequestId = dateInfo.request_id;
+                hasExistingLocation = !!dateInfo.current_location;
+                isUserSender = dateInfo.is_sender;
+                
+                // Update page title and add enhanced instructions
+                if (hasExistingLocation) {
+                    document.title = `Change Date Location - ${dateInfo.partner}`;
+                } else {
+                    document.title = `Select Date Location - ${dateInfo.partner}`;
+                }
+                
+                // UPDATED: Add enhanced location selection instructions with role-based styling
+                const instructionsDiv = document.createElement('div');
+                instructionsDiv.className = `location-selection-instructions ${hasExistingLocation ? 'receiver-mode' : 'sender-mode'}`;
+
+                let instructionHTML = '';
+                if (hasExistingLocation) {
+                    instructionHTML = `
+                        <h4>🔄 Change Date Location</h4>
+                        <p>You can select a different meeting location if you prefer somewhere else than <strong>${dateInfo.current_location.name}</strong>.</p>
+                        <p>Use the search button to find places, then click on any place marker to choose a new location.</p>
+                    `;
+                } else {
+                    instructionHTML = `
+                        <h4>📍 Select Date Location</h4>
+                        <p>Choose where you'd like to meet ${dateInfo.partner} for your date.</p>
+                        <p>The map shows the route between you and ${dateInfo.partner}, with the route midpoint marked in green.</p>
+                        <p>Use the search button to find places near the route, then click on any place marker to set it as your meeting location.</p>
+                    `;
+                }
+                
+                instructionsDiv.innerHTML = instructionHTML;
+                document.body.insertBefore(instructionsDiv, document.getElementById('map'));
+                
+                // Show current location if exists
+                if (dateInfo.current_location) {
+                    showCurrentDateLocation(dateInfo.current_location);
+                }
+                
+                // NEW: Setup midpoint route and markers for first-time selection
+                if (!hasExistingLocation && dateInfo.show_midpoint_route) {
+                    setupFirstTimeLocationSelection(dateInfo);
+                }
+            }
+
+            // UPDATED: Function to show current date location with enhanced messaging
+            function showCurrentDateLocation(location) {
+                if (!location || !location.lat || !location.lon) return;
+                
+                // Create a special marker for current date location
+                const currentLocationIcon = L.icon({
+                    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34],
+                    shadowSize: [41, 41]
+                });
+                
+                selectedLocationMarker = L.marker([location.lat, location.lon], {
+                    icon: currentLocationIcon
+                }).addTo(map);
+                
+                const isCurrentUserLocation = location.selected_by === '{{ name }}';
+                const actionText = isCurrentUserLocation ? 'selected' : 'chosen';
+                
+                const popupContent = `
+                    <div>
+                        <b>📍 Current Date Location</b><br>
+                        <strong>${location.name}</strong><br>
+                        ${location.address ? `${location.address}<br>` : ''}
+                        <small style="color: #666;">Location ${actionText} by ${location.selected_by}</small><br>
+                        <div style="margin-top: 10px;">
+                            <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
+                                Remove Location
+                            </button>
+                        </div>
+                    </div>
+                `;
+                
+                selectedLocationMarker.bindPopup(popupContent).openPopup();
+            }
+
+            // NEW: Function to setup first-time location selection with ROUTE midpoint
+            async function setupFirstTimeLocationSelection(dateInfo) {
+                const { user_lat, user_lon, partner_lat, partner_lon, route_midpoint_lat, route_midpoint_lon, partner } = dateInfo;
+                
+                // Add user marker (blue)
+                userMarker = L.marker([user_lat, user_lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    }),
+                    draggable: true
+                }).addTo(map).bindPopup("Your Location");
+
+                userMarker.on('dragend', e => {
+                    const { lat, lng } = e.target.getLatLng();
+                    updateLocationInDB(lat, lng, 'marker drag');
+                    userMarker.setPopupContent("Location updated by dragging!").openPopup();
+                });
+
+                // Add partner marker (red)
+                partnerMarker = L.marker([partner_lat, partner_lon], {
+                    icon: L.icon({
+                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                        iconSize: [25, 41],
+                        iconAnchor: [12, 41],
+                        popupAnchor: [1, -34],
+                        shadowSize: [41, 41]
+                    }),
+                    draggable: false
+                }).addTo(map).bindPopup(`${partner}'s Location`);
+
+                // Get and display the actual route
+                try {
+                    const response = await fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`);
+                    const geojson = await response.json();
+                    
+                    if (geojson && geojson.coordinates) {
+                        // Show the route line
+                        const routeLine = L.geoJSON(geojson, {
+                            style: {
+                                color: '#28a745',
+                                weight: 4,
+                                opacity: 0.8,
+                                dashArray: '5, 5'
+                            }
+                        }).addTo(map);
+
+                        // Store as midpoint route for restoration
+                        storeMidpointRoute(routeLine, geojson);
+
+                        // Use the ACTUAL route midpoint calculated on the backend
+                        const actualMidLat = route_midpoint_lat;
+                        const actualMidLon = route_midpoint_lon;
+
+                        // Add midpoint marker at the ACTUAL route midpoint
+                        midpointMarker = L.marker([actualMidLat, actualMidLon], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowSize: [41, 41]
+                            }),
+                            draggable: false
+                        }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
+
+                        // Fit map to show all markers and route
+                        const latlngs = geojson.coordinates.map(coord => [coord[1], coord[0]]);
+                        latlngs.push([user_lat, user_lon], [partner_lat, partner_lon], [actualMidLat, actualMidLon]);
+                        map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+
+                        // Store the ACTUAL route midpoint coordinates for search
+                        window.routeMidLat = actualMidLat;
+                        window.routeMidLon = actualMidLon;
+                        
+                        console.log(`Route midpoint set to: ${actualMidLat}, ${actualMidLon}`);
+                        
+                    } else {
+                        throw new Error("No route data received");
+                    }
+                    
+                } catch (err) {
+                    console.error("Failed to load route, using backend-calculated midpoint:", err);
+                    
+                    // Use the backend-calculated midpoint (which could be route or coordinate midpoint)
+                    midpointMarker = L.marker([route_midpoint_lat, route_midpoint_lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        }),
+                        draggable: false
+                    }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
+
+                    // Fit map to show all markers
+                    const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
+                    map.fitBounds(group.getBounds().pad(0.1));
+
+                    // Store coordinates for search
+                    window.routeMidLat = route_midpoint_lat;
+                    window.routeMidLon = route_midpoint_lon;
+                }
+                
+                // Auto-search for places at the ACTUAL route midpoint
+                console.log(`Searching for places at route midpoint: ${window.routeMidLat}, ${window.routeMidLon}`);
+                
+                if (dateInfo.preferred_tags && dateInfo.preferred_tags.length > 0) {
+                    // Search using preferred places at route midpoint
+                    const places = await fetchPreferredPlaces(window.routeMidLat, window.routeMidLon, partner);
+                    displayPlaces(places, user_lat, user_lon);
+                } else {
+                    // Fallback to restaurant search at route midpoint
+                    await searchNearbyPlaces(window.routeMidLat, window.routeMidLon, 'restaurant');
+                }
+            }
+
+            // UPDATED: Function to set date location with enhanced success messaging
+            async function setDateLocation(requestId, placeName, lat, lon, address, placeType) {
+                try {
+                    const response = await fetch('/save_date_location/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                        body: JSON.stringify({
+                            request_id: requestId,
+                            place_name: placeName,
+                            place_lat: lat,
+                            place_lon: lon,
+                            place_address: address,
+                            place_type: placeType
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // Remove existing selected location marker
+                        if (selectedLocationMarker) {
+                            map.removeLayer(selectedLocationMarker);
+                        }
+                        
+                        // Create new marker for selected location
+                        const selectedIcon = L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        });
+                        
+                        selectedLocationMarker = L.marker([lat, lon], {
+                            icon: selectedIcon
+                        }).addTo(map);
+                        
+                        const actionText = hasExistingLocation ? 'changed' : 'set';
+                        const popupContent = `
+                            <div>
+                                <b>📍 ${hasExistingLocation ? 'Updated' : 'Selected'} Date Location</b><br>
+                                <strong>${placeName}</strong><br>
+                                ${address ? `${address}<br>` : ''}
+                                <div style="margin-top: 10px;">
+                                    <button onclick="removeDateLocation()" class="popup-btn" style="background: #dc3545; color: white;">
+                                        Remove Location
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                        
+                        selectedLocationMarker.bindPopup(popupContent).openPopup();
+                        
+                        // UPDATED: Enhanced success message
+                        const successMessage = hasExistingLocation 
+                            ? `Date location changed to ${placeName}!` 
+                            : `Date location set to ${placeName}!`;
+                        alert(successMessage);
+                        
+                        // Update the mode to reflect that location now exists
+                        hasExistingLocation = true;
+                        
+                        // Update instructions
+                        const instructions = document.querySelector('.location-selection-instructions');
+                        if (instructions) {
+                            instructions.className = 'location-selection-instructions receiver-mode';
+                            instructions.innerHTML = `
+                                <h4>🔄 Date Location Set</h4>
+                                <p>Date location is now set to <strong>${placeName}</strong>.</p>
+                                <p>You can select a different location or go back to your profile.</p>
+                            `;
+                        }
+                        
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error setting date location:', error);
+                    alert('Failed to set date location. Please try again.');
+                }
+            }
+
+            // UPDATED: Function to remove date location with enhanced messaging
+            async function removeDateLocation() {
+                if (!currentRequestId) return;
+                
+                const confirmMessage = hasExistingLocation 
+                    ? 'Are you sure you want to remove the current date location?' 
+                    : 'Are you sure you want to remove the date location?';
+                
+                if (!confirm(confirmMessage)) {
+                    return;
+                }
+                
+                try {
+                    const response = await fetch('/remove_date_location/', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-CSRFToken': getCookie('csrftoken'),
+                        },
+                        body: JSON.stringify({
+                            request_id: currentRequestId
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.status === 'success') {
+                        // Remove the selected location marker
+                        if (selectedLocationMarker) {
+                            map.removeLayer(selectedLocationMarker);
+                            selectedLocationMarker = null;
+                        }
+                        
+                        alert('Date location removed successfully!');
+                        
+                        // Update state
+                        hasExistingLocation = false;
+                        
+                        // Update instructions
+                        const instructions = document.querySelector('.location-selection-instructions');
+                        if (instructions) {
+                            instructions.className = 'location-selection-instructions sender-mode';
+                            instructions.innerHTML = `
+                                <h4>📍 Select Date Location</h4>
+                                <p>Click on any place marker or use the "Set as Date Location" button to choose where you'd like to meet ${dateInfo.partner}.</p>
+                            `;
+                        }
+                        
+                    } else {
+                        alert(`Error: ${data.message}`);
+                    }
+                    
+                } catch (error) {
+                    console.error('Error removing date location:', error);
+                    alert('Failed to remove date location. Please try again.');
+                }
+            }
+
+            // Make functions globally available
+            window.setDateLocation = setDateLocation;
+            window.removeDateLocation = removeDateLocation;
+            
+            // Updated function to get marker color based on amenity type
+            function getMarkerColor(amenity) {
+                const colorMap = {
+                    'restaurant': 'orange',
+                    'food_court': 'orange',
+                    'fast_food': 'orange',
+                    'cafe': 'yellow',
+                    'bakery': 'yellow',
+                    'ice_cream': 'yellow',
+                    'bar': 'violet',
+                    'pub': 'violet',
+                    'club': 'red',
+                    'nightclub': 'red',
+                    'shop': 'grey',
+                    'marketplace': 'grey',
+                    'shopping': 'grey',
+                    'mall': 'grey',
+                    'supermarket': 'grey',
+                    'convenience': 'grey',
+                    'department_store': 'grey',
+                    'boutique': 'grey',
+                    'pharmacy': 'grey',
+                    'bookstore': 'grey',
+                    'electronics': 'grey',
+                    'hardware': 'grey',
+                    'florist': 'grey',
+                    'jewelry': 'grey',
+                    'optician': 'grey',
+                    'shoe_store': 'grey',
+                    'clothing': 'grey',
+                    'gift_shop': 'grey'
+                };
+                return colorMap[amenity] || 'black';
+            }
+
+            // Custom icon creation function
+            function createColoredIcon(color) {
+                const colorMapping = {
+                    'orange': '#FF6B35',
+                    'yellow': '#FFBF00', 
+                    'violet': '#8E44AD',
+                    'red': '#E91E63',
+                    'grey': '#607D8B',
+                    'black': '#2C3E50'
+                };
+
+                const actualColor = colorMapping[color] || color;
+                
+                const svgIcon = `
+                    <svg width="25" height="41" viewBox="0 0 25 41" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12.5 0C5.596 0 0 5.596 0 12.5C0 19.404 12.5 41 12.5 41S25 19.404 25 12.5C25 5.596 19.404 0 12.5 0Z" 
+                              fill="${actualColor}" stroke="white" stroke-width="2"/>
+                        <circle cx="12.5" cy="12.5" r="6" fill="white"/>
+                    </svg>
+                `;
+                
+                return L.divIcon({
+                    html: svgIcon,
+                    className: 'custom-marker',
+                    iconSize: [25, 41],
+                    iconAnchor: [12, 41],
+                    popupAnchor: [1, -34]
+                });
+            }
+
+            // NEW: Route functions
+            async function getRoute(startLat, startLon, endLat, endLon) {
+                try {
+                    // Using OSRM public API for routing
+                    const url = `https://router.project-osrm.org/route/v1/driving/${startLon},${startLat};${endLon},${endLat}?overview=full&geometries=geojson`;
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    
+                    if (data.routes && data.routes.length > 0) {
+                        return {
+                            geometry: data.routes[0].geometry,
+                            distance: data.routes[0].distance,
+                            duration: data.routes[0].duration
+                        };
+                    }
+                    return null;
+                } catch (error) {
+                    console.error('Error fetching route:', error);
+                    return null;
+                }
+            }
+
+            // NEW: Function to show routes from both users to the date location
+            async function showRoutesToDateLocation(userLat, userLon, partnerLat, partnerLon, dateLat, dateLon, locationName, partnerName) {
+                try {
+                    // Get route from user to date location
+                    const userRoute = await getRoute(userLat, userLon, dateLat, dateLon);
+                    
+                    // Get route from partner to date location
+                    const partnerRoute = await getRoute(partnerLat, partnerLon, dateLat, dateLon);
+                    
+                    if (userRoute) {
+                        const userRouteLine = L.geoJSON(userRoute.geometry, {
+                            style: {
+                                color: '#007bff', // Blue for user
+                                weight: 4,
+                                opacity: 0.8
+                            }
+                        }).addTo(map);
+                        
+                        // Store as midpoint route for restoration
+                        storeMidpointRoute(userRouteLine, userRoute);
+                        
+                        // Add route info to controls
+                        const routeData = {
+                            id: ++routeIdCounter,
+                            name: 'Your Route to Date',
+                            color: '#007bff',
+                            route: userRoute,
+                            from: 'You',
+                            to: locationName
+                        };
+                        
+                        activeRoutes.set(routeData.id, {
+                            layer: userRouteLine,
+                            data: routeData
+                        });
+                    }
+                    
+                    if (partnerRoute) {
+                        const partnerRouteLine = L.geoJSON(partnerRoute.geometry, {
+                            style: {
+                                color: '#dc3545', // Red for partner
+                                weight: 4,
+                                opacity: 0.8,
+                                dashArray: '10, 10' // Dashed line for partner
+                            }
+                        }).addTo(map);
+                        
+                        const routeData = {
+                            id: ++routeIdCounter,
+                            name: `${partnerName}'s Route to Date`,
+                            color: '#dc3545',
+                            route: partnerRoute,
+                            from: partnerName,
+                            to: locationName
+                        };
+                        
+                        activeRoutes.set(routeData.id, {
+                            layer: partnerRouteLine,
+                            data: routeData
+                        });
+                    }
+                    
+                    // Show route controls
+                    document.getElementById('route-controls').style.display = 'block';
+                    updateRouteControls();
+                    
+                } catch (error) {
+                    console.error('Error showing routes to date location:', error);
+                }
+            }
+
+            async function showDirections(destLat, destLon, placeName) {
+                const routeList = document.getElementById('route-list');
+                const routeControls = document.getElementById('route-controls');
+                const restoreBtn = document.getElementById('restore-midpoint-btn');
+                
+                // FIRST: Hide midpoint route if it exists
+                if (midpointRouteLayer) {
+                    map.removeLayer(midpointRouteLayer);
+                    restoreBtn.style.display = 'inline-block'; // Show restore button
+                }
+                
+                // Clear existing destination routes
+                activeRoutes.forEach(route => map.removeLayer(route.layer));
+                activeRoutes.clear();
+                
+                // Show route controls
+                routeControls.style.display = 'block';
+                
+                // Get routes from both users (if available)
+                const routes = [];
+                
+                // Route from user 1
+                if (userMarker) {
+                    const userPos = userMarker.getLatLng();
+                    const userRoute = await getRoute(userPos.lat, userPos.lng, destLat, destLon);
+                    if (userRoute) {
+                        routes.push({
+                            id: ++routeIdCounter,
+                            name: 'Your Route',
+                            color: '#007bff', // Blue for user
+                            route: userRoute,
+                            from: 'You',
+                            to: placeName
+                        });
+                    }
+                }
+                
+                // Route from user 2 (partner) - only in date mode
+                if (partnerMarker && dateInfo) {
+                    const partnerPos = partnerMarker.getLatLng();
+                    const partnerRoute = await getRoute(partnerPos.lat, partnerPos.lng, destLat, destLon);
+                    if (partnerRoute) {
+                        routes.push({
+                            id: ++routeIdCounter,
+                            name: `${dateInfo.partner}'s Route`,
+                            color: '#dc3545', // Red for partner
+                            route: partnerRoute,
+                            from: dateInfo.partner,
+                            to: placeName
+                        });
+                    }
+                }
+                
+                // Add routes to map
+                routes.forEach(routeData => {
+                    const routeLayer = L.geoJSON(routeData.route.geometry, {
+                        style: {
+                            color: routeData.color,
+                            weight: 4,
+                            opacity: 0.8,
+                            dashArray: routeData.name.includes('Your') ? null : '10, 10' // Dashed line for partner
+                        }
+                    }).addTo(map);
+                    
+                    // Store route reference
+                    activeRoutes.set(routeData.id, {
+                        layer: routeLayer,
+                        data: routeData
+                    });
+                });
+                
+                // Update route controls
+                updateRouteControls();
+                
+                // Fit map to show all routes
+                if (routes.length > 0) {
+                    const group = new L.featureGroup(Array.from(activeRoutes.values()).map(r => r.layer));
+                    map.fitBounds(group.getBounds().pad(0.1));
+                }
+            }
+
+            // NEW: Function to restore midpoint route
+            window.restoreMidpointRoute = function() {
+                if (midpointRouteData && midpointRouteLayer) {
+                    // Re-add the midpoint route to the map
+                    midpointRouteLayer.addTo(map);
+                    
+                    // Hide the restore button
+                    document.getElementById('restore-midpoint-btn').style.display = 'none';
+                    
+                    // Fit map to show midpoint route
+                    map.fitBounds(midpointRouteLayer.getBounds().pad(0.1));
+                }
+            };
+
+            // NEW: Function to store midpoint route
+            function storeMidpointRoute(routeLayer, routeData) {
+                midpointRouteLayer = routeLayer;
+                midpointRouteData = routeData;
+            }
+
+            // NEW: Route management functions
+            window.removeRoute = function(routeId) {
+                if (activeRoutes.has(routeId)) {
+                    const route = activeRoutes.get(routeId);
+                    map.removeLayer(route.layer);
+                    activeRoutes.delete(routeId);
+                    updateRouteControls();
+                }
+            };
+
+            window.clearAllRoutes = function() {
+                activeRoutes.forEach(route => map.removeLayer(route.layer));
+                activeRoutes.clear();
+                
+                // Restore midpoint route when clearing all routes
+                if (midpointRouteData && midpointRouteLayer) {
+                    midpointRouteLayer.addTo(map);
+                    document.getElementById('restore-midpoint-btn').style.display = 'none';
+                    
+                    // Fit map to show midpoint route
+                    map.fitBounds(midpointRouteLayer.getBounds().pad(0.1));
+                }
+                
+                updateRouteControls();
+            };
+
+            function updateRouteControls() {
+                const routeList = document.getElementById('route-list');
+                const routeControls = document.getElementById('route-controls');
+                
+                routeList.innerHTML = '';
+                
+                if (activeRoutes.size === 0) {
+                    routeControls.style.display = 'none';
+                } else {
+                    // Rebuild route list
+                    activeRoutes.forEach(route => {
+                        const routeInfo = document.createElement('div');
+                        routeInfo.innerHTML = `
+                            <div style="margin-bottom: 8px; font-size: 11px;">
+                                <strong>${route.data.name}</strong><br>
+                                <span style="color: ${route.data.color};">● ${route.data.from} → ${route.data.to}</span><br>
+                                Distance: ${(route.data.route.distance / 1000).toFixed(1)} km<br>
+                                Duration: ${Math.round(route.data.route.duration / 60)} min
+                                <button onclick="removeRoute(${route.data.id})" style="margin-left: 5px; padding: 2px 5px; font-size: 10px;">×</button>
+                            </div>
+                        `;
+                        routeList.appendChild(routeInfo);
+                    });
+                }
+            }
+            
+            // Utility: get CSRF cookie
+            function getCookie(name) {
+                let cookieValue = null;
+                if (document.cookie && document.cookie !== '') {
+                    const cookies = document.cookie.split(';');
+                    for (let i = 0; i < cookies.length; i++) {
+                        const cookie = cookies[i].trim();
+                        if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                            cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                            break;
+                        }
+                    }
+                }
+                return cookieValue;
+            }
+
+            // Helper to update location in DB
+            function updateLocationInDB(lat, lon, source) {
+                fetch('/update_location/', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'X-CSRFToken': getCookie('csrftoken'),
+                    },
+                    body: `latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}`
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if(data.status === 'success') {
+                        console.log(`Location updated successfully via ${source}`);
+                        alert('Your location has been updated!');
+                    } else {
+                        console.error('Location update failed:', data.message);
+                        alert('Failed to update location: ' + data.message);
+                    }
+                })
+                .catch(err => {
+                    console.error('Error updating location:', err);
+                    alert('Error updating location');
+                });
+            }
+
+            // Functions for fetching & displaying places
+            function distance(lat1, lon1, lat2, lon2) {
+                const R = 6371000;
+                const toRad = x => x * Math.PI / 180;
+                const dLat = toRad(lat2 - lat1);
+                const dLon = toRad(lon2 - lon1);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                          Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+                return R * c;
+            }
+
+async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
+    let query;
+    
+    // Special handling for malls - simplified and faster
+    if (tag === 'malls') {
+    query = `
+        [out:json][timeout:20];
+        (
+          way["shop"="mall"](around:1500,${lat},${lon});
+        );
+        out center;
+    `;} 
+    else {
+        // Default amenity search for other tags
+        query = `
+            [out:json][timeout:25];
+            (
+              node["amenity"="${tag}"](around:2000,${lat},${lon});
+              way["amenity"="${tag}"](around:2000,${lat},${lon});
+            );
+            out center;
+        `;
+    }
+    
+    const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+    try {
+        console.log('Fetching places from:', url);
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log('Received data:', data);
+        return data.elements || [];
+    } catch (error) {
+        console.error('Error fetching places:', error);
+        displayError("Failed to fetch nearby places.");
+        return [];
+    }
+}            
+
+async function fetchPreferredPlaces(lat, lon, partnerName) {
+                try {
+                    const url = `/get_preferred_places/?lat=${lat}&lon=${lon}&partner=${encodeURIComponent(partnerName)}`;
+                    console.log('Fetching preferred places from:', url);
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    console.log('Received preferred places data:', data);
+                    
+                    if (data.status === 'success') {
+                        return data.places || [];
+                    } else {
+                        console.error('Error from preferred places API:', data.message);
+                        displayError(data.message || "Failed to fetch preferred places.");
+                        return [];
+                    }
+                } catch (error) {
+                    console.error('Error fetching preferred places:', error);
+                    displayError("Failed to fetch preferred places.");
+                    return [];
+                }
+            }
+
+            function clearPlaceMarkers() {
+                placeMarkers.forEach(marker => map.removeLayer(marker));
+                placeMarkers.length = 0;
+                if (document.getElementById('place-details')) {
+                    document.getElementById('place-details').innerHTML = '';
+                }
+            }
+
+            // UPDATED: Enhanced displayPlaces function with improved location selection messaging
+            function displayPlaces(places, userLat, userLon) {
+                clearPlaceMarkers();
+                const placeDetails = document.getElementById('place-details');
+                
+                if (places.length === 0) {
+                    if (placeDetails) {
+                        placeDetails.innerHTML = '<p>No places found nearby. Try a different search radius or location.</p>';
+                    }
+                    return;
+                }
+
+                console.log('Displaying', places.length, 'places');
+                
+                // Sort places by distance if user location is available
+                if (userLat && userLon) {
+                    places.sort((a, b) => {
+                        const latA = a.lat || (a.center && a.center.lat);
+                        const lonA = a.lon || (a.center && a.center.lon);
+                        const latB = b.lat || (b.center && b.center.lat);
+                        const lonB = b.lon || (b.center && b.center.lon);
+                        
+                        if (!latA || !lonA || !latB || !lonB) return 0;
+                        
+                        const distA = distance(userLat, userLon, latA, lonA);
+                        const distB = distance(userLat, userLon, latB, lonB);
+                        return distA - distB;
+                    });
+                }
+
+                places.forEach((place, index) => {
+                    const lat = place.lat || (place.center && place.center.lat);
+                    const lon = place.lon || (place.center && place.center.lon);
+                    
+                    if (!lat || !lon) return;
+                    
+                    const name = place.tags?.name || "Unnamed place";
+                    const amenity = place.tags?.amenity || "Unknown type";
+                    const cuisine = place.tags?.cuisine || "";
+                    const phone = place.tags?.phone || "";
+                    const website = place.tags?.website || "";
+                    const openingHours = place.tags?.opening_hours || "";
+                    
+                    // UPDATED: Enhanced popup with improved location selection button text
+                    let popupContent = `<div><b>${name}</b><br>`;
+                    popupContent += `<i>${amenity}</i><br>`;
+                    if (cuisine) popupContent += `Cuisine: ${cuisine}<br>`;
+                    if (phone) popupContent += `Phone: ${phone}<br>`;
+                    if (website) popupContent += `<a href="${website}" target="_blank">Website</a><br>`;
+                    if (openingHours) popupContent += `Hours: ${openingHours}<br>`;
+
+                    if (userLat && userLon) {
+                        const dist = distance(userLat, userLon, lat, lon);
+                        popupContent += `Distance: ${(dist / 1000).toFixed(2)} km<br>`;
+                    }
+
+                    // Add buttons container
+                    popupContent += `<div class="popup-buttons">`;
+
+                    // Add directions button
+                    const canShowDirections = userMarker || partnerMarker;
+                    popupContent += `<button class="popup-btn popup-directions-btn" 
+                        onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
+                        ${!canShowDirections ? 'disabled' : ''}>
+                        🗺️ Directions
+                    </button>`;
+
+                    // UPDATED: Add location selection button with improved text
+                    if (locationSelectionMode && currentRequestId) {
+                        const address = [
+                            place.tags?.['addr:street'],
+                            place.tags?.['addr:city'],
+                            place.tags?.['addr:postcode']
+                        ].filter(Boolean).join(', ');
+                        
+                        const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
+                        
+                        popupContent += `<button class="popup-btn popup-location-btn" 
+                            onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
+                            ${buttonText}
+                        </button>`;
+                    }
+
+                    // Add reviews button (only for restaurants and cafes)
+                    if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
+                        popupContent += `<button class="popup-btn popup-reviews-btn" 
+                            onclick="showReviews(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');">
+                            ⭐ Reviews
+                        </button>`;
+                    }
+
+                    popupContent += `</div></div>`;
+                    
+                    // Create custom colored marker based on amenity type
+                    const markerColor = getMarkerColor(amenity);
+                    const customIcon = createColoredIcon(markerColor);
+                    
+                    const marker = L.marker([lat, lon], {
+                        icon: customIcon
+                    }).addTo(map).bindPopup(popupContent);
+                    
+                    placeMarkers.push(marker);
+                    
+                    // UPDATED: Enhanced place details list with improved location selection button
+                    if (placeDetails) {
+                        const div = document.createElement('div');
+                        div.className = 'place-item';
+                        
+                        let placeHTML = `
+                            <strong>${name}</strong><br>
+                            <span style="color: #666;">${amenity}</span>
+                            ${cuisine ? `<br><span style="color: #888;">Cuisine: ${cuisine}</span>` : ''}
+                            ${userLat && userLon ? `<br><span style="color: #888;">Distance: ${(distance(userLat, userLon, lat, lon) / 1000).toFixed(2)} km</span>` : ''}
+                            <br><div class="place-buttons">
+                                <button class="popup-btn popup-directions-btn" 
+                                    onclick="showDirections(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');" 
+                                    ${!canShowDirections ? 'disabled' : ''}>
+                                    🗺️ Directions
+                                </button>
+                        `;
+                        
+                        // UPDATED: Add location selection button with improved text
+                        if (locationSelectionMode && currentRequestId) {
+                            const address = [
+                                place.tags?.['addr:street'],
+                                place.tags?.['addr:city'],
+                                place.tags?.['addr:postcode']
+                            ].filter(Boolean).join(', ');
+                            
+                            const buttonText = hasExistingLocation ? '🔄 Change to Here' : '📍 Set as Date Location';
+                            
+                            placeHTML += `<button class="popup-btn popup-location-btn" 
+                                onclick="setDateLocation('${currentRequestId}', '${name.replace(/'/g, "\\'")}', ${lat}, ${lon}, '${address.replace(/'/g, "\\'")}', '${amenity}');">
+                                ${buttonText}
+                            </button>`;
+                        }
+                        
+                        // Add reviews button for restaurants/cafes
+                        if (amenity === 'restaurant' || amenity === 'cafe' || amenity === 'bar' || amenity === 'fast_food') {
+                            placeHTML += `<button class="popup-btn popup-reviews-btn" 
+                                onclick="showReviews(${lat}, ${lon}, '${name.replace(/'/g, "\\'")}');">
+                                ⭐ Reviews
+                            </button>`;
+                        }
+                        
+                        placeHTML += `</div>`;
+                        div.innerHTML = placeHTML;
+                        
+                        div.addEventListener('click', (e) => {
+                            // Only zoom to location if not clicking the button
+                            if (!e.target.classList.contains('popup-btn')) {
+                                map.setView([lat, lon], 18);
+                                marker.openPopup();
+                            }
+                        });
+                        placeDetails.appendChild(div);
+                    }
+                });
+
+                console.log('Added', placeMarkers.length, 'place markers to map');
+            }
+
+            // Make showDirections available globally
+            window.showDirections = showDirections;
+
+            // Rest of your existing code remains the same...
+            async function searchNearbyPlaces(lat, lon, tag = 'restaurant') {
+                console.log('Searching for places near:', lat, lon, 'tag:', tag);
+                const places = await fetchNearbyPlaces(lat, lon, tag);
+                displayPlaces(places, lat, lon);
+            }
+
+            async function searchPreferredPlaces(lat, lon, partnerName) {
+                console.log('Searching for preferred places near:', lat, lon, 'partner:', partnerName);
+                const places = await fetchPreferredPlaces(lat, lon, partnerName);
+                displayPlaces(places, lat, lon);
+            }
+
+            function displayError(message) {
+                const errorMessage = document.getElementById('error-message');
+                if (errorMessage) {
+                    errorMessage.textContent = message;
+                    setTimeout(() => (errorMessage.textContent = ''), 5000);
+                }
+            }
+
+            function displayLocationStatus(message) {
+                const locationStatus = document.getElementById('location-status');
+                if (locationStatus) {
+                    locationStatus.textContent = message;
+                    setTimeout(() => (locationStatus.textContent = ''), 3000);
+                }
+            }
+
+            // UPDATED: Enhanced date mode initialization (without auto-search)
+            if (dateInfo) {
+                // DATE MAP MODE
+                console.log('Date info mode:', dateInfo);
+                
+                const { user_lat, user_lon, partner_lat, partner_lon, partner, has_date_location, current_location } = dateInfo;
+                
+                if (user_lat && user_lon && partner_lat && partner_lon) {
+                    // User marker (blue)
+                    userMarker = L.marker([user_lat, user_lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        }),
+                        draggable: true
+                    }).addTo(map).bindPopup("Your Location").openPopup();
+
+                    userMarker.on('dragend', e => {
+                        const { lat, lng } = e.target.getLatLng();
+                        updateLocationInDB(lat, lng, 'marker drag');
+                        userMarker.setPopupContent("Location updated by dragging!").openPopup();
+                    });
+
+                    // Partner marker (red)
+                    partnerMarker = L.marker([partner_lat, partner_lon], {
+                        icon: L.icon({
+                            iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-red.png',
+                            shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                            iconSize: [25, 41],
+                            iconAnchor: [12, 41],
+                            popupAnchor: [1, -34],
+                            shadowSize: [41, 41]
+                        }),
+                        draggable: false
+                    }).addTo(map).bindPopup(`${partner}'s Location`);
+
+                    // NEW: Check if there's a date location set
+                    if (has_date_location && current_location) {
+                        // Show the date location marker
+                        const dateLocationMarker = L.marker([current_location.lat, current_location.lon], {
+                            icon: L.icon({
+                                iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-violet.png',
+                                shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                iconSize: [25, 41],
+                                iconAnchor: [12, 41],
+                                popupAnchor: [1, -34],
+                                shadowSize: [41, 41]
+                            }),
+                            draggable: false
+                        }).addTo(map).bindPopup(`📍 Date Location: ${current_location.name}`);
+
+                        // Show routes from both users to the date location
+                        showRoutesToDateLocation(user_lat, user_lon, partner_lat, partner_lon, current_location.lat, current_location.lon, current_location.name, partner);
+                        
+                        // Fit map to show all markers
+                        const group = new L.featureGroup([userMarker, partnerMarker, dateLocationMarker]);
+                        map.fitBounds(group.getBounds().pad(0.1));
+                        
+                        // Store location coordinates for search
+                        window.routeMidLat = current_location.lat;
+                        window.routeMidLon = current_location.lon;
+                    } else {
+                        // No date location set, show midpoint route (existing behavior without auto-search)
+                        const midLat = (user_lat + partner_lat) / 2;
+                        const midLon = (user_lon + partner_lon) / 2;
+
+                        // Try to get route first, then fall back to simple midpoint
+                        fetch(`/get-route/?user_lat=${user_lat}&user_lon=${user_lon}&partner_lat=${partner_lat}&partner_lon=${partner_lon}`)
+                            .then(res => res.json())
+                            .then(geojson => {
+                                const routeLine = L.geoJSON(geojson, {
+                                    style: {
+                                        color: '#28a745',
+                                        weight: 4,
+                                        opacity: 0.8,
+                                        dashArray: '5, 5'
+                                    }
+                                }).addTo(map);
+
+                                storeMidpointRoute(routeLine, geojson);
+
+                                const coords = geojson.coordinates;
+                                const midpointIndex = Math.floor(coords.length / 2);
+                                const [routeMidLon, routeMidLat] = coords[midpointIndex];
+
+                                midpointMarker = L.marker([routeMidLat, routeMidLon], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                        iconSize: [25, 41],
+                                        iconAnchor: [12, 41],
+                                        popupAnchor: [1, -34],
+                                        shadowSize: [41, 41]
+                                    }),
+                                    draggable: false
+                                }).addTo(map).bindPopup("Route Midpoint - Perfect meeting spot!");
+
+                                const latlngs = coords.map(coord => [coord[1], coord[0]]);
+                                map.fitBounds(L.latLngBounds(latlngs).pad(0.1));
+
+                                window.routeMidLat = routeMidLat;
+                                window.routeMidLon = routeMidLon;
+                                
+                                // REMOVED: Auto-search functionality - user must click search button
+                                console.log("Route loaded. Click search to find places.");
+                            })
+                            .catch(err => {
+                                console.error("Failed to load route:", err);
+                                
+                                midpointMarker = L.marker([midLat, midLon], {
+                                    icon: L.icon({
+                                        iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-green.png',
+                                        shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+                                        iconSize: [25, 41],
+                                        iconAnchor: [12, 41],
+                                        popupAnchor: [1, -34],
+                                        shadowSize: [41, 41]
+                                    }),
+                                    draggable: false
+                                }).addTo(map).bindPopup("Midpoint - Perfect meeting spot!");
+
+                                const group = new L.featureGroup([userMarker, partnerMarker, midpointMarker]);
+                                map.fitBounds(group.getBounds().pad(0.1));
+
+                                window.routeMidLat = midLat;
+                                window.routeMidLon = midLon;
+                                
+                                // REMOVED: Auto-search functionality - user must click search button
+                                console.log("Coordinate midpoint loaded. Click search to find places.");
+                            });
+                    }
+
+                    // Add search functionality for date mode (manual search only)
+                    const searchBtn = document.getElementById('search-btn');
+                    const tagSelect = document.getElementById('tag');
+                    
+                    if (searchBtn) {
+                        searchBtn.addEventListener('click', async () => {
+                            const searchLat = window.routeMidLat || (user_lat + partner_lat) / 2;
+                            const searchLon = window.routeMidLon || (user_lon + partner_lon) / 2;
+                            const selectedTag = tagSelect.value;
+                            
+                            console.log('Searching for places:', searchLat, searchLon, 'tag:', selectedTag);
+                            await searchNearbyPlaces(searchLat, searchLon, selectedTag);
+                        });
+                    }
+
+                } else {
+                    alert("Unable to load location data for this date. Make sure both users have set their locations.");
+                }
+            } else {
+                // REGULAR MAP MODE
+                console.log('Regular map mode');
+                
+                const locateBtn = document.getElementById('locate-btn');
+                const manualLocationInput = document.getElementById('manual-location');
+                const searchResultsContainer = document.getElementById('search-results');
+                const tagSelect = document.getElementById('tag');
+                const ambianceSelect = document.getElementById('ambiance');
+                const sortSelect = document.getElementById('sort');
+                const searchBtn = document.getElementById('search-btn');
+
+                function addUserMarker(lat, lon, popupText = "You are here") {
+                    if (userMarker) {
+                        userMarker.setLatLng([lat, lon]).setPopupContent(popupText).openPopup();
+                    } else {
+                        userMarker = L.marker([lat, lon], { draggable: true })
+                            .addTo(map)
+                            .bindPopup(popupText)
+                            .openPopup();
+
+                        userMarker.on("dragend", function (e) {
+                            const position = e.target.getLatLng();
+                            map.setView([position.lat, position.lng], 15);
+                            userMarker.setLatLng(position).setPopupContent("Location updated by dragging!").openPopup();
+                            updateLocationInDB(position.lat, position.lng, 'marker drag');
+                        });
+                    }
+                }
+
+                function locateUser() {
+                    displayLocationStatus('Getting your location...');
+                    
+                    if (navigator.geolocation) {
+                        navigator.geolocation.getCurrentPosition(
+                            (position) => {
+                                const lat = position.coords.latitude;
+                                const lon = position.coords.longitude;
+                                map.setView([lat, lon], 15);
+                                addUserMarker(lat, lon, "You are here");
+                                updateLocationInDB(lat, lon, 'GPS location');
+                                
+                                // Removed automatic search - user must click search button
+                                displayLocationStatus('Location found! Click "Search" to find places.');
+                            },
+                            (error) => {
+                                console.error('Geolocation error:', error);
+                                displayError("Unable to access your location.");
+                                fallbackGeoJS();
+                            },
+                            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+                        );
+                    } else {
+                        displayError("Geolocation not supported by this browser.");
+                        fallbackGeoJS();
+                    }
+                }
+
+                function fallbackGeoJS() {
+                    displayLocationStatus('Getting approximate location...');
+                    
+                    fetch("https://get.geojs.io/v1/ip/geo.json")
+                        .then(res => res.json())
+                        .then(data => {
+                            const lat = parseFloat(data.latitude);
+                            const lon = parseFloat(data.longitude);
+                            map.setView([lat, lon], 12);
+                            addUserMarker(lat, lon, "Approx. location via IP");
+                            updateLocationInDB(lat, lon, 'IP geolocation');
+                            
+                            // Removed automatic search - user must click search button
+                            displayLocationStatus('Location found! Click "Search" to find places.');
+                        })
+                        .catch((error) => {
+                            console.error('GeoJS error:', error);
+                            displayError("Unable to fetch location from GeoJS.");
+                        });
+                }
+
+                // Event listeners
+                if (locateBtn) {
+                    locateBtn.addEventListener('click', () => {
+                        locateUser();
+                    });
+                }
+                
+                // UPDATED: Search button event listener for location selection mode
+                if (searchBtn) {
+                    searchBtn.addEventListener('click', async () => {
+                        if (dateInfo && dateInfo.mode === 'location_selection') {
+                            // In location selection mode, search around ROUTE midpoint
+                            const searchLat = window.routeMidLat || dateInfo.route_midpoint_lat;
+                            const searchLon = window.routeMidLon || dateInfo.route_midpoint_lon;
+                            const selectedTag = tagSelect.value;
+                            
+                            console.log('Location selection search at ROUTE midpoint:', searchLat, searchLon, 'tag:', selectedTag);
+                            
+                            if (dateInfo.preferred_tags && dateInfo.preferred_tags.length > 0) {
+                                // Use preferred places if available
+                                const places = await fetchPreferredPlaces(searchLat, searchLon, dateInfo.partner);
+                                displayPlaces(places, dateInfo.user_lat, dateInfo.user_lon);
+                            } else {
+                                // Fallback to regular search
+                                await searchNearbyPlaces(searchLat, searchLon, selectedTag);
+                            }
+                        } else if (dateInfo) {
+                            // Regular date mode - also use route midpoint if available
+                            const searchLat = window.routeMidLat || (dateInfo.user_lat + dateInfo.partner_lat) / 2;
+                            const searchLon = window.routeMidLon || (dateInfo.user_lon + dateInfo.partner_lon) / 2;
+                            const selectedTag = tagSelect.value;
+                            
+                            console.log('Date mode search:', searchLat, searchLon, 'tag:', selectedTag);
+                            await searchNearbyPlaces(searchLat, searchLon, selectedTag);
+                        } else {
+                            // Regular map mode
+                            if (userMarker) {
+                                const userPos = userMarker.getLatLng();
+                                const selectedTag = tagSelect.value;
+                                await searchNearbyPlaces(userPos.lat, userPos.lng, selectedTag);
+                            } else {
+                                displayError("Please set your location first.");
+                            }
+                        }
+                    });
+                }
+                
+                // Manual location search functionality
+                if (manualLocationInput) {
+                    let searchTimeout;
+                    
+                    manualLocationInput.addEventListener('input', (e) => {
+                        clearTimeout(searchTimeout);
+                        const query = e.target.value.trim();
+                        if (query.length > 2) {
+                            searchTimeout = setTimeout(async () => {
+                                try {
+                                    const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5`);
+                                    const results = await response.json();
+                                    
+                                    searchResultsContainer.innerHTML = '';
+                                    
+                                    if (results.length > 0) {
+                                        results.forEach(result => {
+                                            const div = document.createElement('div');
+                                            div.className = 'search-result';
+                                            div.textContent = result.display_name;
+                                            div.addEventListener('click', () => {
+                                                const lat = parseFloat(result.lat);
+                                                const lon = parseFloat(result.lon);
+                                                map.setView([lat, lon], 15);
+                                                addUserMarker(lat, lon, result.display_name);
+                                                updateLocationInDB(lat, lon, 'manual search');
+                                                manualLocationInput.value = result.display_name;
+                                                searchResultsContainer.innerHTML = '';
+                                            });
+                                            searchResultsContainer.appendChild(div);
+                                        });
+                                    } else {
+                                        searchResultsContainer.innerHTML = '<div class="search-result">No results found</div>';
+                                    }
+                                } catch (error) {
+                                    console.error('Location search error:', error);
+                                    searchResultsContainer.innerHTML = '<div class="search-result">Search failed</div>';
+                                }
+                            }, 300);
+                        } else {
+                            searchResultsContainer.innerHTML = '';
+                        }
+                    });
+
+                    // Hide search results when clicking outside
+                    document.addEventListener('click', (e) => {
+                        if (!manualLocationInput.contains(e.target) && !searchResultsContainer.contains(e.target)) {
+                            searchResultsContainer.innerHTML = '';
+                        }
+                    });
+                }
+
+                // Create color legend
+                const colorLegend = document.createElement('div');
+                colorLegend.className = 'color-legend';
+                colorLegend.innerHTML = `
+                    <strong>Place Types:</strong><br>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FF6B35;"></div>
+                        <span>Restaurants & Fast Food</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FFBF00;"></div>
+                        <span>Cafes & Bakeries</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8E44AD;"></div>
+                        <span>Bars & Pubs</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #E91E63;"></div>
+                        <span>Clubs & Nightlife</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #607D8B;"></div>
+                        <span>MALLS</span>
+                    </div>
+                `;
+                document.body.appendChild(colorLegend);
+            }
+        });
+    </script>
+</body>
+</html>
