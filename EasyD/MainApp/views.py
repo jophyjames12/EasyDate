@@ -1329,137 +1329,155 @@ from datetime import datetime, date
 from bson import ObjectId
 
 def profile_view(request):
-    # Check if user is authenticated
-    if not request.session.get('user_id'):
-        return redirect('login')
-
-    # Get user info (sets 'name')
-    userinfo(request)
-    name = request.session.get('name')
-
-    # Get pending event invitations
-    event_invitations = list(Events.find({
+    # Get event invitations (received) - ADD THIS
+    event_invitations = list(EventInvitations.find({
         "to_user": name,
         "status": "pending"
     }).sort("sent_at", -1))
-
-    # Add invitation_id for safe template usage
-    for inv in event_invitations:
-        inv["invitation_id"] = str(inv["_id"])
-
-    # Get accepted event invitations
-    accepted_event_invitations = list(Events.find({
-        "attendees": {
-            "$elemMatch": {
-                "user_id": name,
-                "status": "accepted"
-            }
-        }
+    
+    # Get accepted events (upcoming events from invitations) - ADD THIS
+    accepted_event_invitations = list(EventInvitations.find({
+        "to_user": name,
+        "status": "accepted"
     }))
-
-    # Process upcoming events
+    
+    # Get full event details for accepted invitations - ADD THIS
     upcoming_events = []
     for invitation in accepted_event_invitations:
-        event_date_str = invitation.get('event_date')
-        if event_date_str:
-            try:
-                event_date = datetime.strptime(event_date_str, '%Y-%m-%d').date()
-                if event_date >= date.today():
-                    # Build safe invitation data
-                    invitation_data = {
-                        'invitation_id': str(invitation['_id']),
-                        'status': 'accepted',
-                        'responded_at': invitation.get('responded_at'),
-                        'from_user': invitation.get('from_user'),
-                        'to_user': invitation.get('to_user')
-                    }
-                    upcoming_events.append({
-                        'event': invitation,
-                        'invitation': invitation_data
-                    })
-            except ValueError:
-                pass
-
-    # Get sent date requests
+        event = Events.find_one({"_id": ObjectId(invitation['event_id'])})
+        if event:
+            # Check if event is still upcoming
+            if event.get('event_date'):
+                try:
+                    event_date = datetime.strptime(event['event_date'], '%Y-%m-%d').date()
+                    if event_date >= date.today():
+                        upcoming_events.append({
+                            'event': event,
+                            'invitation': invitation
+                        })
+                except ValueError:
+                    pass
+    # Check if user is authenticated
+    if not request.session.get('user_id'):
+        return redirect('login')
+    
+    # Get user information (this sets the global 'name' variable)
+    userinfo(request)
+    
+    # Debug: Print the username to console
+    print(f"DEBUG: Current user name: {name}")
+    
+    # Get date requests (sent) - using your actual collection name 'DateReq'
     sent_requests = DateReq.find({"From": name, "status": "pending"})
     sent_from = []
     for req in sent_requests:
-        sent_from.append({
-            "username": req["To"],
+        req_data = {
+            "username": req["To"],  # Changed from "to" to "username" to match template
             "request_id": str(req["_id"]),
             "date": req.get("date", ""),
             "time": req.get("time", ""),
-            "date_location": req.get("date_location"),
+            "date_location": req.get("date_location", None),
             "can_set_location": True
-        })
-
-    # Get received date requests
+        }
+        sent_from.append(req_data)
+    
+    # Get date requests (received) - using your actual collection name 'DateReq'
     received_requests = DateReq.find({"To": name, "status": "pending"})
     received_from = []
     for req in received_requests:
-        received_from.append({
-            "username": req["From"],
+        req_data = {
+            "username": req["From"],  # Changed from "from" to "username" to match template
             "request_id": str(req["_id"]),
             "date": req.get("date", ""),
             "time": req.get("time", ""),
-            "date_location": req.get("date_location"),
+            "date_location": req.get("date_location", None),
             "can_set_location": req.get("date_location") is not None
-        })
-
-    # Get upcoming accepted dates
-    upcoming_dates_cursor = DateReq.find({
+        }
+        received_from.append(req_data)
+    
+    # Get upcoming dates - using your actual collection name 'DateReq'
+    upcoming_dates = DateReq.find({
         "$or": [
             {"From": name, "status": "accepted"},
             {"To": name, "status": "accepted"}
         ]
     })
+    
     upcoming_dates_list = []
-    for req in upcoming_dates_cursor:
+    for req in upcoming_dates:
         partner = req["To"] if req["From"] == name else req["From"]
         is_sender = req["From"] == name
-        upcoming_dates_list.append({
+        
+        date_data = {
             "partner": partner,
             "request_id": str(req["_id"]),
             "date": req.get("date", ""),
             "time": req.get("time", ""),
-            "date_location": req.get("date_location"),
+            "date_location": req.get("date_location", None),
             "can_set_location": is_sender or (not is_sender and req.get("date_location") is not None),
             "is_sender": is_sender
-        })
-
-    # Get friend count
+        }
+        upcoming_dates_list.append(date_data)
+    
+    # Get friend count - using your actual collection name 'Friendlist'
     user_friendlist = Friendlist.find_one({"username": name})
     friend_count = len(user_friendlist.get("friends", [])) if user_friendlist else 0
-
-    # Get user profile
+    
+    # Get user profile information
     user_profile = Profiles.find_one({"username": name})
     bio = user_profile.get("bio", "Welcome to my profile! Let's connect and have some fun together.") if user_profile else "Welcome to my profile! Let's connect and have some fun together."
     profile_picture = user_profile.get("profile_picture") if user_profile else None
-
-    # Get user posts
+    
+    # Get user posts with privacy applied (user viewing their own profile)
     try:
         user_posts = list(Posts.find({"username": name}).sort("created_at", -1))
+        
+        # Apply privacy settings - user viewing their own posts
         for post in user_posts:
             post['id'] = str(post['_id'])
-            post['created_at_formatted'] = format_time_ago(post.get('created_at')) if post.get('created_at') else "Recently"
+            
+            # Format timestamp
+            if 'created_at' in post:
+                try:
+                    post['created_at_formatted'] = format_time_ago(post['created_at'])
+                except:
+                    post['created_at_formatted'] = "Recently"
+            else:
+                post['created_at_formatted'] = "Recently"
+            
+            # User is viewing their own posts - they can see like counts
             post['likes'] = post.get('likes', 0)
             post['show_like_count'] = True
-            post['user_liked'] = name in post.get('liked_by', [])
+            
+            # Check if user liked their own post (for heart icon state)
+            liked_by = post.get('liked_by', [])
+            post['user_liked'] = name in liked_by
+        
         post_count = len(user_posts)
+        
+        # Debug: Print posts info
+        print(f"DEBUG: Found {len(user_posts)} posts for user {name}")
+        print(f"DEBUG: Post count: {post_count}")
+        if user_posts:
+            print(f"DEBUG: First post: {user_posts[0]}")
+            
     except Exception as e:
         print(f"ERROR: Failed to get posts: {e}")
         user_posts = []
         post_count = 0
-
-    # Get preferences
+    
+    # Get user preferences - using your actual collection name 'Preference'
+    user_preferences = []
     try:
-        preferences_doc = Preference.find_one({"name": name})
-        user_preferences = preferences_doc.get('preferences', []) if preferences_doc else []
+        preferences_doc = Preference.find_one({"name": name})  # Note: using 'name' not 'username'
+        if preferences_doc:
+            user_preferences = preferences_doc.get('preferences', [])
     except Exception as e:
         print(f"ERROR: Failed to get preferences: {e}")
         user_preferences = []
 
-    # Render context
+    
+    # Prepare context for template
     context = {
         "sent_from": sent_from,
         "received_from": received_from,
@@ -1471,17 +1489,19 @@ def profile_view(request):
         "post_count": post_count,
         "bio": bio,
         "profile_picture": profile_picture,
-        "posts": user_posts,
+        "posts": user_posts,  # This is crucial!
         "preferences": user_preferences,
-        "user": {
+        "user": {  # Create user object for template compatibility
             "username": name,
             "bio": bio,
             "profile_picture": profile_picture
         }
     }
-
+    # Debug: Print context
+    print(f"DEBUG: Context contains {len(context['posts'])} posts")
+    
+    
     return render(request, 'MainApp/profile.html', context)
-
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
         return redirect('login')
