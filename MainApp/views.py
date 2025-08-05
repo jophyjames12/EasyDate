@@ -280,44 +280,6 @@ def get_user_friends_for_invitation(request):
             'message': 'Internal server error'
         }, status=500)
 
-# Update the profile_view function to include event invitations
-def profile_view(request):
-    """Updated profile view with event invitations"""
-    if not request.session.get('user_id'):
-        return redirect('login')
-    
-    userinfo(request)
-    
-    # ... existing code for date requests, etc. ...
-    
-    # Get event invitations (received)
-    event_invitations = list(EventInvitations.find({
-        "to_user": name,
-        "status": "pending"
-    }).sort("sent_at", -1))
-    
-    # Get accepted events (upcoming events from invitations)
-    accepted_event_invitations = list(EventInvitations.find({
-        "to_user": name,
-        "status": "accepted"
-    }))
-    
-    # Get full event details for accepted invitations
-    upcoming_events = []
-    for invitation in accepted_event_invitations:
-        event = Events.find_one({"_id": ObjectId(invitation['event_id'])})
-        if event:
-            # Check if event is still upcoming
-            if event.get('event_date'):
-                try:
-                    event_date = datetime.strptime(event['event_date'], '%Y-%m-%d').date()
-                    if event_date >= date.today():
-                        upcoming_events.append({
-                            'event': event,
-                            'invitation': invitation
-                        })
-                except ValueError:
-                    pass
 
 @csrf_exempt
 def google_auth_view(request):
@@ -1363,12 +1325,19 @@ def fetch_overpass_places(lat, lon, amenity_type=None, radius=3000):
         out center;
         """
 # Updated profile_view function - PRESERVES ALL ORIGINAL FEATURES
+from datetime import datetime, date
+from bson import ObjectId
+
 def profile_view(request):
     # Get event invitations (received) - ADD THIS
     event_invitations = list(EventInvitations.find({
         "to_user": name,
         "status": "pending"
     }).sort("sent_at", -1))
+
+    # Process invitation IDs for template
+    for invitation in event_invitations:
+        invitation['invitation_id'] = str(invitation['_id'])
     
     # Get accepted events (upcoming events from invitations) - ADD THIS
     accepted_event_invitations = list(EventInvitations.find({
@@ -1386,6 +1355,8 @@ def profile_view(request):
                 try:
                     event_date = datetime.strptime(event['event_date'], '%Y-%m-%d').date()
                     if event_date >= date.today():
+                        # Add invitation_id for template use
+                        invitation['invitation_id'] = str(invitation['_id'])
                         upcoming_events.append({
                             'event': event,
                             'invitation': invitation
@@ -1535,8 +1506,8 @@ def profile_view(request):
     # Debug: Print context
     print(f"DEBUG: Context contains {len(context['posts'])} posts")
     
+    
     return render(request, 'MainApp/profile.html', context)
-
 def date_map_view(request, request_id):
     if not request.session.get('user_id'):
         return redirect('login')

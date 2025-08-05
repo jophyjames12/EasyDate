@@ -876,7 +876,11 @@
                     {% if profile_picture %}
                         <img src="{{ profile_picture }}" alt="Profile Picture">
                     {% else %}
-                        {{ name|first|upper|default:"U" }}
+                        {% if name %}
+                            {{ name|first|upper }}
+                        {% else %}
+                            U
+                        {% endif %}
                     {% endif %}
                 </div>
                 <div class="profile-info">
@@ -1214,10 +1218,10 @@
                     </div>
                     
                     <div class="action-buttons">
-                        <button onclick="handleEventInvitation('{{ invitation._id }}', 'accept')" class="btn btn-accept">
+                        <button onclick="handleEventInvitation('{{ invitation.invitation_id }}', 'accept')" class="btn btn-accept">
                             ✅ Accept Invitation
                         </button>
-                        <button onclick="handleEventInvitation('{{ invitation._id }}', 'reject')" class="btn btn-reject">
+                        <button onclick="handleEventInvitation('{{ invitation.invitation_id }}', 'reject')" class="btn btn-reject">
                             ❌ Decline Invitation
                         </button>
                     </div>
@@ -1256,7 +1260,7 @@
                         <a href="{% url 'events' %}" class="btn btn-secondary">
                             👁️ View All Events
                         </a>
-                        <button onclick="cancelEventAttendance('{{ event_data.invitation._id }}')" class="btn btn-remove" style="background: #ffc107; color: #212529;">
+                        <button onclick="cancelEventAttendance('{{ event_data.invitation.invitation_id }}')" class="btn btn-remove" style="background: #ffc107; color: #212529;">
                             🚫 Cancel Attendance
                         </button>
                     </div>
@@ -1279,10 +1283,16 @@
                     {% if profile_picture %}
                         <img src="{{ profile_picture }}" alt="Profile" class="post-avatar">
                     {% else %}
-                        <div class="post-avatar-placeholder">{{ name|first|upper|default:"U" }}</div>
+                        <div class="post-avatar-placeholder">
+                            {% if name %}
+                                {{ name|first|upper }}
+                            {% else %}
+                                U
+                            {% endif %}
+                        </div>
                     {% endif %}
                     <div class="post-author-info">
-                        <div class="post-author">{{ name }}</div>
+                        <div class="post-author">{{ name|default:"User" }}</div>
                     </div>
                 </div>
                 
