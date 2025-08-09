@@ -3,12 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Events</title>
+    <title>Events - EasyDate</title>
     {% load static %}
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <link rel="stylesheet" href="{% static 'MainApp/AreaDesign.css' %}">
+    
     <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
+    <!-- Events-specific styles -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    
     <style>
+        /* Events-specific styles that extend the global theme */
         .events-container {
             max-width: 1200px;
             margin: 0 auto;
@@ -18,15 +24,35 @@
         .events-header {
             text-align: center;
             margin-bottom: 30px;
-            color: #333;
+            color: rgb(33, 5, 62);
         }
 
+        .events-header h2 {
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 2.2em;
+            margin-bottom: 10px;
+        }
+
+        .events-header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+
+        /* Enhanced tabs with global theme */
         .events-tabs {
             display: flex;
             justify-content: center;
             margin-bottom: 30px;
-            border-bottom: 2px solid #e0e0e0;
+            border-bottom: 2px solid rgba(33, 5, 62, 0.2);
             flex-wrap: wrap;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px 15px 0 0;
+            padding: 10px 20px 0;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .tab {
@@ -38,12 +64,22 @@
             font-weight: 500;
             color: #666;
             transition: all 0.3s ease;
-            margin: 0 5px;
+            margin: 0 5px 10px;
+            border-radius: 25px;
         }
 
         .tab.active {
-            color: #007bff;
-            border-bottom: 3px solid #007bff;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.3);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(33, 5, 62, 0.1);
+            color: rgb(33, 5, 62);
+            transform: translateY(-1px);
         }
 
         .tab-content {
@@ -54,12 +90,14 @@
             display: block;
         }
 
-        /* Event Registration Form */
+        /* Enhanced event form with global theme */
         .event-form {
-            background: white;
+            background: transparent !important;
+            backdrop-filter: blur(10px);
             padding: 30px;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             margin-bottom: 30px;
         }
 
@@ -71,100 +109,98 @@
             display: block;
             margin-bottom: 8px;
             font-weight: 600;
-            color: #333;
+            color: rgb(33, 5, 62);
         }
 
-        .form-group input,
-        .form-group textarea,
-        .form-group select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-group input:focus,
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #007bff;
-        }
-
-        .form-group textarea {
-            resize: vertical;
-            min-height: 100px;
-        }
-
+        /* Form controls use global styles automatically */
         .file-upload {
-            border: 2px dashed #007bff;
-            border-radius: 8px;
+            border: 2px dashed rgb(33, 5, 62);
+            border-radius: 12px;
             padding: 20px;
             text-align: center;
             cursor: pointer;
-            transition: background-color 0.3s ease;
+            transition: all 0.3s ease;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(5px);
         }
 
         .file-upload:hover {
-            background-color: #f8f9fa;
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.05) 0%, rgba(78, 20, 114, 0.05) 100%);
+            border-color: rgb(78, 20, 114);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.1);
         }
 
         .file-upload input[type="file"] {
             display: none;
         }
 
+        .file-preview {
+            margin-top: 15px;
+            padding: 10px;
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(40, 167, 69, 0.3);
+        }
+
+        /* Enhanced map container */
         .map-container {
             height: 400px;
             width: 100%;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
+            border: 2px solid rgba(33, 5, 62, 0.2);
+            border-radius: 15px;
             margin-top: 10px;
             position: relative;
             overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .map-controls {
             position: absolute;
-            top: 10px;
-            right: 10px;
+            top: 15px;
+            right: 15px;
             z-index: 1000;
-            background: white;
-            padding: 8px;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            background: transparent !important;
+            backdrop-filter: blur(10px);
+            padding: 12px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
             font-size: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .location-search {
             width: 100%;
             margin-bottom: 10px;
-            padding: 8px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
+            /* Uses global input styles */
         }
 
         .search-results {
             max-height: 150px;
             overflow-y: auto;
-            border: 1px solid #ddd;
+            border: 2px solid rgba(33, 5, 62, 0.2);
             border-top: none;
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
             position: absolute;
             width: 100%;
             z-index: 1001;
             display: none;
+            border-radius: 0 0 12px 12px;
         }
 
         .search-result-item {
-            padding: 8px;
+            padding: 12px;
             cursor: pointer;
-            border-bottom: 1px solid #eee;
-            font-size: 12px;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            font-size: 14px;
+            transition: all 0.3s ease;
         }
 
         .search-result-item:hover {
-            background-color: #f5f5f5;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 100%);
+            color: white;
+            transform: translateX(5px);
         }
 
         .search-result-item:last-child {
@@ -172,33 +208,16 @@
         }
 
         .location-info {
-            background: #f8f9fa;
-            padding: 8px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9) 0%, rgba(233, 236, 239, 0.9) 100%);
+            padding: 12px;
+            border-radius: 8px;
             margin-top: 10px;
             font-size: 12px;
             color: #666;
+            border: 1px solid rgba(33, 5, 62, 0.1);
         }
 
-        .submit-btn {
-            background: linear-gradient(45deg, #007bff, #0056b3);
-            color: white;
-            padding: 15px 30px;
-            border: none;
-            border-radius: 25px;
-            font-size: 16px;
-            font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: all 0.3s ease;
-        }
-
-        .submit-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 5px 15px rgba(0,123,255,0.3);
-        }
-
-        /* Events Grid */
+        /* Enhanced events grid */
         .events-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -207,19 +226,21 @@
         }
 
         .event-card {
-            background: white;
-            border-radius: 15px;
+            background: transparent !important;
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
             overflow: hidden;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
         }
 
         .event-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+            transform: translateY(-8px);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.15);
         }
 
-        /* Image carousel container */
+        /* Enhanced image carousel */
         .event-image-container {
             width: 100%;
             height: 200px;
@@ -232,6 +253,7 @@
             height: 200px;
             object-fit: cover;
             display: none;
+            transition: all 0.3s ease;
         }
 
         .event-image.active {
@@ -241,29 +263,32 @@
         .event-image-placeholder {
             width: 100%;
             height: 200px;
-            background: linear-gradient(45deg, #007bff, #0056b3);
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 24px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
 
-        /* Image carousel controls */
+        /* Enhanced carousel controls */
         .carousel-control {
             position: absolute;
             top: 50%;
             transform: translateY(-50%);
-            background: rgba(0, 0, 0, 0.7);
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.9) 0%, rgba(78, 20, 114, 0.9) 100%);
+            backdrop-filter: blur(10px);
             color: white;
             border: none;
-            padding: 10px 15px;
+            padding: 12px 16px;
             cursor: pointer;
             font-size: 18px;
             border-radius: 50%;
             opacity: 0;
-            transition: opacity 0.3s ease;
+            transition: all 0.3s ease;
             z-index: 10;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
         }
 
         .event-card:hover .carousel-control {
@@ -271,56 +296,66 @@
         }
 
         .carousel-control:hover {
-            background: rgba(0, 0, 0, 0.9);
+            background: linear-gradient(135deg, rgba(58, 12, 88, 1) 0%, rgba(98, 28, 140, 1) 100%);
+            transform: translateY(-50%) scale(1.1);
         }
 
         .carousel-control.prev {
-            left: 10px;
+            left: 15px;
         }
 
         .carousel-control.next {
-            right: 10px;
+            right: 15px;
         }
 
-        /* Image indicators */
+        /* Enhanced carousel indicators */
         .carousel-indicators {
             position: absolute;
-            bottom: 10px;
+            bottom: 15px;
             left: 50%;
             transform: translateX(-50%);
             display: flex;
-            gap: 5px;
+            gap: 8px;
             z-index: 10;
         }
 
         .carousel-indicator {
-            width: 8px;
-            height: 8px;
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.5);
             cursor: pointer;
-            transition: background 0.3s ease;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
         }
 
         .carousel-indicator.active {
             background: white;
+            transform: scale(1.2);
         }
 
+        .carousel-indicator:hover {
+            background: rgba(255, 255, 255, 0.8);
+            transform: scale(1.1);
+        }
+
+        /* Enhanced event content */
         .event-content {
-            padding: 20px;
+            padding: 25px;
         }
 
         .event-title {
             font-size: 20px;
             font-weight: 600;
-            color: #333;
-            margin-bottom: 10px;
+            color: rgb(33, 5, 62);
+            margin-bottom: 12px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .event-description {
             color: #666;
             margin-bottom: 15px;
-            line-height: 1.5;
+            line-height: 1.6;
         }
 
         .event-details {
@@ -330,45 +365,54 @@
             margin-bottom: 15px;
         }
 
+        /* Enhanced badges */
         .event-date {
-            background: #007bff;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
             color: white;
-            padding: 5px 10px;
-            border-radius: 15px;
+            padding: 6px 12px;
+            border-radius: 20px;
             font-size: 12px;
             font-weight: 500;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 2px 8px rgba(33, 5, 62, 0.3);
         }
 
         .event-location {
             color: #28a745;
             font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 4px;
         }
 
         .pending-badge {
-            background: #ffc107;
+            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
             color: #333;
-            padding: 4px 8px;
-            border-radius: 10px;
+            padding: 6px 10px;
+            border-radius: 15px;
             font-size: 11px;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
         }
 
         .approved-badge {
-            background: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
-            padding: 4px 8px;
-            border-radius: 10px;
+            padding: 6px 10px;
+            border-radius: 15px;
             font-size: 11px;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
         }
 
         .past-badge {
-            background: #6c757d;
+            background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
             color: white;
-            padding: 4px 8px;
-            border-radius: 10px;
+            padding: 6px 10px;
+            border-radius: 15px;
             font-size: 11px;
             font-weight: 600;
+            box-shadow: 0 2px 8px rgba(108, 117, 125, 0.3);
         }
 
         .no-events {
@@ -376,12 +420,14 @@
             color: #666;
             font-style: italic;
             padding: 40px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            background: transparent !important;
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
-        /* Admin Section */
+        /* Enhanced admin actions */
         .admin-actions {
             display: flex;
             gap: 10px;
@@ -389,503 +435,483 @@
         }
 
         .approve-btn {
-            background: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
             padding: 8px 15px;
             border: none;
-            border-radius: 5px;
+            border-radius: 20px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .approve-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.4);
         }
 
         .reject-btn {
-            background: #dc3545;
+            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
             color: white;
             padding: 8px 15px;
             border: none;
-            border-radius: 5px;
+            border-radius: 20px;
             cursor: pointer;
             font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
         }
 
+        .reject-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        /* Enhanced notification badges - integrated with global theme */
+        .nav-item {
+            position: relative !important;
+            display: block !important;
+        }
+
+        .notification-badge {
+            position: relative;
+            display: inline-block;
+            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+            color: white;
+            border-radius: 50%;
+            padding: 3px 7px;
+            font-size: 10px;
+            font-weight: bold;
+            min-width: 18px;
+            height: 18px;
+            line-height: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+            margin-left: 8px;
+            vertical-align: middle;
+            animation: pulse-notification 2s infinite;
+        }
+
+        @keyframes pulse-notification {
+            0% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0.7);
+            }
+            70% {
+                transform: scale(1.1);
+                box-shadow: 0 0 0 8px rgba(220, 53, 69, 0);
+            }
+            100% {
+                transform: scale(1);
+                box-shadow: 0 0 0 0 rgba(220, 53, 69, 0);
+            }
+        }
+
+        .menu-notification-badge {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+            color: white;
+            border-radius: 50%;
+            padding: 3px 7px;
+            font-size: 10px;
+            font-weight: bold;
+            min-width: 18px;
+            height: 18px;
+            line-height: 12px;
+            text-align: center;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+            animation: pulse-notification 2s infinite;
+            z-index: 1001;
+        }
+
+        /* Responsive design enhancements */
         @media (max-width: 768px) {
+            .events-container {
+                padding: 15px;
+            }
+            
             .events-tabs {
                 flex-direction: column;
                 align-items: center;
+                padding: 15px;
             }
             
             .tab {
                 margin: 5px 0;
+                width: 100%;
+                max-width: 200px;
+                text-align: center;
             }
-        }
-        /* Updated Notification Badge Styles - Inline with text */
-        .nav-item {
-            position: relative !important;
-            display: block !important; /* Changed from inline-block to block for dropdown items */
-        }
-
-        .notification-badge {
-            /* Changed from absolute positioning to inline */
-            position: relative;
-            display: inline-block;
-            background-color: #ff4757;
-            color: white;
-            border-radius: 50%;
-            padding: 2px 6px;
-            font-size: 10px;
-            font-weight: bold;
-            min-width: 16px;
-            height: 16px;
-            line-height: 12px;
-            text-align: center;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-            margin-left: 8px; /* Add space between text and badge */
-            vertical-align: middle; /* Align with text baseline */
-            animation: pulse-notification 2s infinite;
-        }
-
-        /* Pulse animation for notification badge */
-        @keyframes pulse-notification {
-            0% {
-                transform: scale(1);
-                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0.7);
+            
+            .events-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
             }
-            70% {
-                transform: scale(1.1);
-                box-shadow: 0 0 0 8px rgba(255, 71, 87, 0);
+            
+            .event-form {
+                padding: 20px;
             }
-            100% {
-                transform: scale(1);
-                box-shadow: 0 0 0 0 rgba(255, 71, 87, 0);
+            
+            .map-container {
+                height: 300px;
             }
-        }
-
-        /* Enhanced dropdown styles for better notification display */
-        .dropdown-content {
-            display: none;
-            position: absolute;
-            top: 40px;
-            right: 0;
-            background-color: white;
-            color: black;
-            border: 1px solid #ddd;
-            min-width: 120px;
-            z-index: 1000;
-            border-radius: 8px;
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-            overflow: hidden;
-        }
-
-        .dropdown-content a {
-            display: flex; /* Use flexbox for better alignment */
-            align-items: center; /* Center items vertically */
-            justify-content: space-between; /* Space between text and badge */
-            padding: 12px 16px;
-            text-decoration: none;
-            color: black;
-            position: relative;
-            transition: background-color 0.3s ease;
-        }
-
-        .dropdown-content a:hover {
-            background-color: #f5f5f5;
-        }
-
-        /* Alternative style: Badge at the end of the line */
-        .dropdown-content a.nav-item {
-            justify-content: flex-start; /* Align items to start */
-        }
-
-        .dropdown-content a.nav-item .notification-badge {
-            margin-left: auto; /* Push badge to the right */
-            margin-right: 0;
-        }
-
-        /* Show the dropdown menu on hover */
-        .menu:hover .dropdown-content {
-            display: block;
-        }
-
-        /* Ensure the menu button has proper styling */
-        .menu button {
-            background: none;
-            border: none;
-            color: white;
-            font-size: 18px;
-            cursor: pointer;
-            padding: 8px;
-            border-radius: 4px;
-            transition: background-color 0.3s ease;
-        }
-
-        .menu button:hover {
-            background-color: rgba(255, 255, 255, 0.1);
-        }
-
-        /* Responsive adjustments */
-        @media (max-width: 768px) {
+            
             .notification-badge {
                 font-size: 9px;
-                min-width: 14px;
-                height: 14px;
+                min-width: 16px;
+                height: 16px;
                 line-height: 10px;
-                padding: 1px 4px;
+                padding: 2px 5px;
                 margin-left: 6px;
             }
             
-            .dropdown-content {
-                min-width: 100px;
-                right: -10px;
-            }
-            
-            .dropdown-content a {
-                padding: 10px 12px;
-                font-size: 14px;
-            }
-            
-            /* Menu button notification badge */
-            .menu-button-with-notification {
-                position: relative !important;
-            }
-
             .menu-notification-badge {
-                position: absolute;
-                top: -5px;
-                right: -5px;
-                background-color: #ff4757;
-                color: white;
-                border-radius: 50%;
-                padding: 2px 6px;
-                font-size: 10px;
-                font-weight: bold;
+                top: -6px;
+                right: -6px;
+                font-size: 9px;
                 min-width: 16px;
                 height: 16px;
-                line-height: 12px;
-                text-align: center;
-                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-                animation: pulse-notification 2s infinite;
-                z-index: 1001;
+                line-height: 10px;
+                padding: 2px 5px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Updated header section with inline notification badges -->
+    <!-- Enhanced Header with Global Theme -->
     <header>
-        <h1>Event Schedule</h1>
+        <h1>EasyDate Events</h1>
         <div class="menu">
-            <button onclick="toggleMenu()" class="menu-button-with-notification">
+            <button type="button" class="menu-button-with-notification">
                 ☰ Menu
                 {% if date_request_count > 0 or friend_request_count > 0 %}
                     <span class="menu-notification-badge">{{ date_request_count|add:friend_request_count }}</span>
                 {% endif %}
             </button>
             <div id="dropdown" class="dropdown-content">
-                <a href="map">Map</a>
-                <a href="{% url 'events' %}">Events</a>
+                <a href="{% url 'home' %}">🏠 Home</a>
+                <a href="map">🗺️ Map</a>
+                <a href="{% url 'events' %}">📅 Events</a>
                 
-                <!-- Profile link with date request notifications - inline style -->
+                <!-- Profile link with date request notifications -->
                 <a href="{% url 'profile' %}" class="nav-item">
-                    <span>Profile</span>
+                    <span>👤 Profile</span>
                     {% if date_request_count > 0 %}
                         <span class="notification-badge">{{ date_request_count }}</span>
                     {% endif %}
                 </a>
                 
-                <a href="logout/">Logout</a>
-                
-                <!-- Friends link with friend request notifications - inline style -->
-                <a href="search_user" class="nav-item">
-                    <span>Friends</span>
+                <!-- Friends link with friend request notifications -->
+                <a href="{% url 'search_user' %}" class="nav-item">
+                    <span>👥 Friends</span>
                     {% if friend_request_count > 0 %}
                         <span class="notification-badge">{{ friend_request_count }}</span>
                     {% endif %}
                 </a>
+                
+                <a href="{% url 'logout' %}">🚪 Logout</a>
             </div>
         </div>
     </header>
-    <div class="events-container">
-        <div class="events-header">
-            <h2>Community Events</h2>
-            <p>Discover and create amazing events for the community</p>
-        </div>
 
-        <!-- Events Tabs -->
-        <div class="events-tabs">
-            <button class="tab active" onclick="showTab('approved-events')">Approved Events</button>
-            <button class="tab" onclick="showTab('create-event')">Create Event</button>
-            <button class="tab" onclick="showTab('my-events')">My Events</button>
-            <button class="tab" onclick="showTab('past-events')">Past Events</button>
+    <!-- Main Content Container -->
+    <div class="container">
+        <div class="events-container">
+            <div class="events-header">
+                <h2>Community Events</h2>
+                <p>Discover and create amazing events for the community</p>
+            </div>
+
+            <!-- Enhanced Events Tabs -->
+            <div class="events-tabs">
+                <button class="tab active" onclick="showTab('approved-events')">✅ Approved Events</button>
+                <button class="tab" onclick="showTab('create-event')">➕ Create Event</button>
+                <button class="tab" onclick="showTab('my-events')">📋 My Events</button>
+                <button class="tab" onclick="showTab('past-events')">📚 Past Events</button>
+                {% if is_admin %}
+                <button class="tab" onclick="showTab('admin-panel')">⚙️ Admin Panel</button>
+                {% endif %}
+            </div>
+
+            <!-- Approved Events Tab -->
+            <div id="approved-events" class="tab-content active">
+                <div class="events-grid">
+                    {% if approved_events %}
+                        {% for event in approved_events %}
+                            <div class="event-card">
+                                <div class="event-image-container">
+                                    {% if event.images %}
+                                        {% for image in event.images %}
+                                            <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
+                                        {% endfor %}
+                                        {% if event.images|length > 1 %}
+                                            <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
+                                            <button class="carousel-control next" onclick="nextImage(this)">›</button>
+                                            <div class="carousel-indicators">
+                                                {% for image in event.images %}
+                                                    <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="event-image-placeholder">📅</div>
+                                    {% endif %}
+                                </div>
+                                <div class="event-content">
+                                    <div class="event-title">{{ event.name }}</div>
+                                    <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                    <div class="event-details">
+                                        <span class="event-date">📅 {{ event.event_date }}</span>
+                                        <span class="approved-badge">✅ Approved</span>
+                                    </div>
+                                    {% if event.location %}
+                                        <div class="event-location">📍 {{ event.location }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-events">
+                            <h3>🎪 No Events Yet!</h3>
+                            <p>No approved events yet. Be the first to create one!</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Create Event Tab -->
+            <div id="create-event" class="tab-content">
+                <div class="card">
+                    <form class="event-form" method="POST" action="{% url 'create_event' %}" enctype="multipart/form-data">
+                        {% csrf_token %}
+                        <h3 style="color: rgb(33, 5, 62); margin-bottom: 20px;">Create New Event</h3>
+                        
+                        <div class="form-group">
+                            <label for="event_name">Event Name *</label>
+                            <input type="text" id="event_name" name="event_name" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="event_description">Description *</label>
+                            <textarea id="event_description" name="event_description" placeholder="Describe your event..." required></textarea>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="event_date">Event Date *</label>
+                            <input type="date" id="event_date" name="event_date" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="event_time">Event Time</label>
+                            <input type="time" id="event_time" name="event_time">
+                        </div>
+
+                        <div class="form-group">
+                            <label>Event Images</label>
+                            <div class="file-upload" onclick="document.getElementById('event_images').click()">
+                                <input type="file" id="event_images" name="event_images" multiple accept="image/*">
+                                <p>📷 Click to upload images</p>
+                                <p style="font-size: 12px; color: #666;">You can select multiple images (up to 5)</p>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="event_location">Location (Optional)</label>
+                            <div style="position: relative;">
+                                <input type="text" id="location_search" class="location-search" placeholder="Search for a location...">
+                                <div id="search_results" class="search-results"></div>
+                            </div>
+                            <input type="text" id="event_location" name="event_location" placeholder="Event location will appear here" readonly>
+                            <div id="event_map" class="map-container">
+                                <div class="map-controls">
+                                    <div>📍 Click on map to set location</div>
+                                </div>
+                            </div>
+                            <div id="location_info" class="location-info" style="display: none;">
+                                <strong>Selected Location:</strong>
+                                <div id="selected_address">No location selected</div>
+                                <div style="margin-top: 5px; font-size: 11px;">
+                                    Coordinates: <span id="selected_coords">-</span>
+                                </div>
+                            </div>
+                            <input type="hidden" id="event_lat" name="event_lat">
+                            <input type="hidden" id="event_lon" name="event_lon">
+                        </div>
+
+                        <button type="submit" class="btn btn-success" style="width: 100%; padding: 15px;">🚀 Submit for Approval</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- My Events Tab -->
+            <div id="my-events" class="tab-content">
+                <div class="events-grid">
+                    {% if user_events %}
+                        {% for event in user_events %}
+                            <div class="event-card">
+                                <div class="event-image-container">
+                                    {% if event.images %}
+                                        {% for image in event.images %}
+                                            <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
+                                        {% endfor %}
+                                        {% if event.images|length > 1 %}
+                                            <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
+                                            <button class="carousel-control next" onclick="nextImage(this)">›</button>
+                                            <div class="carousel-indicators">
+                                                {% for image in event.images %}
+                                                    <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="event-image-placeholder">📅</div>
+                                    {% endif %}
+                                </div>
+                                <div class="event-content">
+                                    <div class="event-title">{{ event.name }}</div>
+                                    <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                    <div class="event-details">
+                                        <span class="event-date">📅 {{ event.event_date }}</span>
+                                        {% if event.status == 'pending' %}
+                                            <span class="pending-badge">⏳ Pending Approval</span>
+                                        {% elif event.status == 'approved' %}
+                                            <span class="approved-badge">✅ Approved</span>
+                                        {% elif event.status == 'past' %}
+                                            <span class="past-badge">📚 Past Event</span>
+                                        {% elif event.status == 'rejected' %}
+                                            <span class="btn-danger" style="padding: 4px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">❌ Rejected</span>
+                                        {% endif %}
+                                    </div>
+                                    {% if event.location %}
+                                        <div class="event-location">📍 {{ event.location }}</div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-events">
+                            <h3>📝 No Events Created</h3>
+                            <p>You haven't created any events yet.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Past Events Tab -->
+            <div id="past-events" class="tab-content">
+                <div class="events-grid">
+                    {% if past_events %}
+                        {% for event in past_events %}
+                            <div class="event-card">
+                                <div class="event-image-container">
+                                    {% if event.images %}
+                                        {% for image in event.images %}
+                                            <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
+                                        {% endfor %}
+                                        {% if event.images|length > 1 %}
+                                            <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
+                                            <button class="carousel-control next" onclick="nextImage(this)">›</button>
+                                            <div class="carousel-indicators">
+                                                {% for image in event.images %}
+                                                    <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="event-image-placeholder" style="background: linear-gradient(45deg, #6c757d, #495057);">📅</div>
+                                    {% endif %}
+                                </div>
+                                <div class="event-content">
+                                    <div class="event-title">{{ event.name }}</div>
+                                    <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                    <div class="event-details">
+                                        <span class="event-date">📅 {{ event.event_date }}</span>
+                                        <span class="past-badge">📚 Past Event</span>
+                                    </div>
+                                    {% if event.location %}
+                                        <div class="event-location">📍 {{ event.location }}</div>
+                                    {% endif %}
+                                    <p style="font-size: 11px; color: #999; margin-top: 10px;">
+                                        Created by: {{ event.created_by }}
+                                    </p>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-events">
+                            <h3>📚 No Past Events</h3>
+                            <p>No past events to show.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Admin Panel Tab -->
             {% if is_admin %}
-            <button class="tab" onclick="showTab('admin-panel')">Admin Panel</button>
+            <div id="admin-panel" class="tab-content">
+                <div class="events-grid">
+                    {% if pending_events %}
+                        {% for event in pending_events %}
+                            <div class="event-card">
+                                <div class="event-image-container">
+                                    {% if event.images %}
+                                        {% for image in event.images %}
+                                            <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
+                                        {% endfor %}
+                                        {% if event.images|length > 1 %}
+                                            <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
+                                            <button class="carousel-control next" onclick="nextImage(this)">›</button>
+                                            <div class="carousel-indicators">
+                                                {% for image in event.images %}
+                                                    <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
+                                                {% endfor %}
+                                            </div>
+                                        {% endif %}
+                                    {% else %}
+                                        <div class="event-image-placeholder" style="background: linear-gradient(45deg, #ffc107, #e0a800);">⏳</div>
+                                    {% endif %}
+                                </div>
+                                <div class="event-content">
+                                    <div class="event-title">{{ event.name }}</div>
+                                    <div class="event-description">{{ event.description|truncatechars:100 }}</div>
+                                    <div class="event-details">
+                                        <span class="event-date">📅 {{ event.event_date }}</span>
+                                        <span class="pending-badge">⏳ Pending</span>
+                                    </div>
+                                    {% if event.location %}
+                                        <div class="event-location">📍 {{ event.location }}</div>
+                                    {% endif %}
+                                    <p style="font-size: 12px; color: #666; margin-top: 10px;">Created by: {{ event.created_by }}</p>
+                                    <div class="admin-actions">
+                                        <form method="POST" action="{% url 'approve_event' %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="event_id" value="{{ event.id }}">
+                                            <button type="submit" class="approve-btn">✅ Approve</button>
+                                        </form>
+                                        <form method="POST" action="{% url 'reject_event' %}" style="display: inline;">
+                                            {% csrf_token %}
+                                            <input type="hidden" name="event_id" value="{{ event.id }}">
+                                            <button type="submit" class="reject-btn">❌ Reject</button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="no-events">
+                            <h3>⚙️ No Pending Events</h3>
+                            <p>No pending events to review.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
             {% endif %}
         </div>
-
-        <!-- Approved Events Tab -->
-        <div id="approved-events" class="tab-content active">
-            <div class="events-grid">
-                {% if approved_events %}
-                    {% for event in approved_events %}
-                        <div class="event-card">
-                            <div class="event-image-container">
-                                {% if event.images %}
-                                    {% for image in event.images %}
-                                        <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
-                                    {% endfor %}
-                                    {% if event.images|length > 1 %}
-                                        <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
-                                        <button class="carousel-control next" onclick="nextImage(this)">›</button>
-                                        <div class="carousel-indicators">
-                                            {% for image in event.images %}
-                                                <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="event-image-placeholder">📅</div>
-                                {% endif %}
-                            </div>
-                            <div class="event-content">
-                                <div class="event-title">{{ event.name }}</div>
-                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
-                                <div class="event-details">
-                                    <span class="event-date">{{ event.event_date }}</span>
-                                    <span class="approved-badge">Approved</span>
-                                </div>
-                                {% if event.location %}
-                                    <div class="event-location">📍 {{ event.location }}</div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-events">
-                        No approved events yet. Be the first to create one!
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Create Event Tab -->
-        <div id="create-event" class="tab-content">
-            <form class="event-form" method="POST" action="{% url 'create_event' %}" enctype="multipart/form-data">
-                {% csrf_token %}
-                <div class="form-group">
-                    <label for="event_name">Event Name *</label>
-                    <input type="text" id="event_name" name="event_name" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="event_description">Description *</label>
-                    <textarea id="event_description" name="event_description" placeholder="Describe your event..." required></textarea>
-                </div>
-
-                <div class="form-group">
-                    <label for="event_date">Event Date *</label>
-                    <input type="date" id="event_date" name="event_date" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="event_time">Event Time</label>
-                    <input type="time" id="event_time" name="event_time">
-                </div>
-
-                <div class="form-group">
-                    <label>Event Images</label>
-                    <div class="file-upload" onclick="document.getElementById('event_images').click()">
-                        <input type="file" id="event_images" name="event_images" multiple accept="image/*">
-                        <p>📷 Click to upload images</p>
-                        <p style="font-size: 12px; color: #666;">You can select multiple images (up to 5)</p>
-                    </div>
-                </div>
-
-                <div class="form-group">
-                    <label for="event_location">Location (Optional)</label>
-                    <div style="position: relative;">
-                        <input type="text" id="location_search" class="location-search" placeholder="Search for a location...">
-                        <div id="search_results" class="search-results"></div>
-                    </div>
-                    <input type="text" id="event_location" name="event_location" placeholder="Event location will appear here" readonly>
-                    <div id="event_map" class="map-container">
-                        <div class="map-controls">
-                            <div>📍 Click on map to set location</div>
-                        </div>
-                    </div>
-                    <div id="location_info" class="location-info" style="display: none;">
-                        <strong>Selected Location:</strong>
-                        <div id="selected_address">No location selected</div>
-                        <div style="margin-top: 5px; font-size: 11px;">
-                            Coordinates: <span id="selected_coords">-</span>
-                        </div>
-                    </div>
-                    <input type="hidden" id="event_lat" name="event_lat">
-                    <input type="hidden" id="event_lon" name="event_lon">
-                </div>
-
-                <button type="submit" class="submit-btn">Submit for Approval</button>
-            </form>
-        </div>
-
-        <!-- My Events Tab -->
-        <div id="my-events" class="tab-content">
-            <div class="events-grid">
-                {% if user_events %}
-                    {% for event in user_events %}
-                        <div class="event-card">
-                            <div class="event-image-container">
-                                {% if event.images %}
-                                    {% for image in event.images %}
-                                        <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
-                                    {% endfor %}
-                                    {% if event.images|length > 1 %}
-                                        <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
-                                        <button class="carousel-control next" onclick="nextImage(this)">›</button>
-                                        <div class="carousel-indicators">
-                                            {% for image in event.images %}
-                                                <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="event-image-placeholder">📅</div>
-                                {% endif %}
-                            </div>
-                            <div class="event-content">
-                                <div class="event-title">{{ event.name }}</div>
-                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
-                                <div class="event-details">
-                                    <span class="event-date">{{ event.event_date }}</span>
-                                    {% if event.status == 'pending' %}
-                                        <span class="pending-badge">Pending Approval</span>
-                                    {% elif event.status == 'approved' %}
-                                        <span class="approved-badge">Approved</span>
-                                    {% elif event.status == 'past' %}
-                                        <span class="past-badge">Past Event</span>
-                                    {% elif event.status == 'rejected' %}
-                                        <span style="background: #dc3545; color: white; padding: 4px 8px; border-radius: 10px; font-size: 11px; font-weight: 600;">Rejected</span>
-                                    {% endif %}
-                                </div>
-                                {% if event.location %}
-                                    <div class="event-location">📍 {{ event.location }}</div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-events">
-                        You haven't created any events yet.
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Past Events Tab -->
-        <div id="past-events" class="tab-content">
-            <div class="events-grid">
-                {% if past_events %}
-                    {% for event in past_events %}
-                        <div class="event-card">
-                            <div class="event-image-container">
-                                {% if event.images %}
-                                    {% for image in event.images %}
-                                        <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
-                                    {% endfor %}
-                                    {% if event.images|length > 1 %}
-                                        <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
-                                        <button class="carousel-control next" onclick="nextImage(this)">›</button>
-                                        <div class="carousel-indicators">
-                                            {% for image in event.images %}
-                                                <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="event-image-placeholder" style="background: linear-gradient(45deg, #6c757d, #495057);">📅</div>
-                                {% endif %}
-                            </div>
-                            <div class="event-content">
-                                <div class="event-title">{{ event.name }}</div>
-                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
-                                <div class="event-details">
-                                    <span class="event-date">{{ event.event_date }}</span>
-                                    <span class="past-badge">Past Event</span>
-                                </div>
-                                {% if event.location %}
-                                    <div class="event-location">📍 {{ event.location }}</div>
-                                {% endif %}
-                                <p style="font-size: 11px; color: #999; margin-top: 10px;">
-                                    Created by: {{ event.created_by }}
-                                </p>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-events">
-                        No past events to show.
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Admin Panel Tab -->
-        {% if is_admin %}
-        <div id="admin-panel" class="tab-content">
-            <div class="events-grid">
-                {% if pending_events %}
-                    {% for event in pending_events %}
-                        <div class="event-card">
-                            <div class="event-image-container">
-                                {% if event.images %}
-                                    {% for image in event.images %}
-                                        <img src="{{ image }}" alt="{{ event.name }}" class="event-image {% if forloop.first %}active{% endif %}">
-                                    {% endfor %}
-                                    {% if event.images|length > 1 %}
-                                        <button class="carousel-control prev" onclick="previousImage(this)">‹</button>
-                                        <button class="carousel-control next" onclick="nextImage(this)">›</button>
-                                        <div class="carousel-indicators">
-                                            {% for image in event.images %}
-                                                <div class="carousel-indicator {% if forloop.first %}active{% endif %}" onclick="goToImage(this, {{ forloop.counter0 }})"></div>
-                                            {% endfor %}
-                                        </div>
-                                    {% endif %}
-                                {% else %}
-                                    <div class="event-image-placeholder" style="background: linear-gradient(45deg, #ffc107, #e0a800);">⏳</div>
-                                {% endif %}
-                            </div>
-                            <div class="event-content">
-                                <div class="event-title">{{ event.name }}</div>
-                                <div class="event-description">{{ event.description|truncatechars:100 }}</div>
-                                <div class="event-details">
-                                    <span class="event-date">{{ event.event_date }}</span>
-                                    <span class="pending-badge">Pending</span>
-                                </div>
-                                {% if event.location %}
-                                    <div class="event-location">📍 {{ event.location }}</div>
-                                {% endif %}
-                                <p style="font-size: 12px; color: #666; margin-top: 10px;">Created by: {{ event.created_by }}</p>
-                                <div class="admin-actions">
-                                    <form method="POST" action="{% url 'approve_event' %}" style="display: inline;">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="event_id" value="{{ event.id }}">
-                                        <button type="submit" class="approve-btn">Approve</button>
-                                    </form>
-                                    <form method="POST" action="{% url 'reject_event' %}" style="display: inline;">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="event_id" value="{{ event.id }}">
-                                        <button type="submit" class="reject-btn">Reject</button>
-                                    </form>
-                                </div>
-                            </div>
-                        </div>
-                    {% endfor %}
-                {% else %}
-                    <div class="no-events">
-                        No pending events to review.
-                    </div>
-                {% endif %}
-            </div>
-        </div>
-        {% endif %}
     </div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
@@ -977,7 +1003,7 @@
             }
         }
 
-        // File upload preview - FIXED VERSION
+        // File upload preview - Enhanced for global theme
         document.addEventListener('DOMContentLoaded', function() {
             const fileInput = document.getElementById('event_images');
             if (fileInput) {
@@ -985,7 +1011,7 @@
                     const files = e.target.files;
                     const uploadDiv = e.target.parentElement;
                     
-                    // Find or create a preview div (don't replace the input!)
+                    // Find or create a preview div
                     let previewDiv = uploadDiv.querySelector('.file-preview');
                     if (!previewDiv) {
                         previewDiv = document.createElement('div');
@@ -994,16 +1020,16 @@
                     }
                     
                     if (files.length > 0) {
-                        // Update preview text without replacing the input
+                        // Update preview text
                         previewDiv.innerHTML = `
-                            <p style="color: #28a745; font-weight: bold;">📷 ${files.length} image(s) selected</p>
-                            <p style="font-size: 12px; color: #666;">Click above to change selection</p>
+                            <p style="color: #28a745; font-weight: bold; margin: 0;">📷 ${files.length} image(s) selected</p>
+                            <p style="font-size: 12px; color: #666; margin: 5px 0 0 0;">Click above to change selection</p>
                         `;
                         
-                        // Optional: Show file names
+                        // Show file names if not too long
                         const fileNames = Array.from(files).map(file => file.name).join(', ');
-                        if (fileNames.length < 100) { // Only show if not too long
-                            previewDiv.innerHTML += `<p style="font-size: 11px; color: #888;">${fileNames}</p>`;
+                        if (fileNames.length < 100) {
+                            previewDiv.innerHTML += `<p style="font-size: 11px; color: #888; margin: 5px 0 0 0;">${fileNames}</p>`;
                         }
                     } else {
                         previewDiv.innerHTML = '';
@@ -1220,10 +1246,10 @@
                     dateBadge.remove();
                 }
             }
-          }
+        }
       
-          // Function to fetch current notification counts
-          async function fetchNotificationCounts() {
+        // Function to fetch current notification counts
+        async function fetchNotificationCounts() {
             try {
                 const response = await fetch('/get_notification_counts/');
                 const data = await response.json();
@@ -1234,54 +1260,19 @@
             } catch (error) {
                 console.error('Error fetching notification counts:', error);
             }
-          }
+        }
       
-          // Check for new notifications every 30 seconds
-          document.addEventListener('DOMContentLoaded', function() {
+        // Check for new notifications every 30 seconds
+        document.addEventListener('DOMContentLoaded', function() {
             // Initial load
             fetchNotificationCounts();
             
             // Set up periodic checking (every 30 seconds)
             setInterval(fetchNotificationCounts, 30000);
-          });
+        });
       
-          // Optional: Add click handler to clear badges when navigating
-          document.addEventListener('DOMContentLoaded', function() {
-            // Clear date request badge when clicking on Profile
-            const profileLink = document.querySelector('a[href*="profile"]');
-            if (profileLink) {
-                profileLink.addEventListener('click', function() {
-                    // Optional: Mark date notifications as seen
-                    fetch('/mark_notifications_seen/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify({ type: 'date' })
-                    }).catch(console.error);
-                });
-            }
-            
-            // Clear friend request badge when clicking on Friends
-            const friendsLink = document.querySelector('a[href*="search_user"]');
-            if (friendsLink) {
-                friendsLink.addEventListener('click', function() {
-                    // Optional: Mark friend notifications as seen
-                    fetch('/mark_notifications_seen/', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRFToken': getCookie('csrftoken')
-                        },
-                        body: JSON.stringify({ type: 'friend' })
-                    }).catch(console.error);
-                });
-            }
-          });
-      
-          // Helper function to get CSRF token
-          function getCookie(name) {
+        // Helper function to get CSRF token
+        function getCookie(name) {
             let cookieValue = null;
             if (document.cookie && document.cookie !== '') {
                 const cookies = document.cookie.split(';');
@@ -1294,8 +1285,7 @@
                 }
             }
             return cookieValue;
-          }        
+        }
     </script>
-
 </body>
 </html>

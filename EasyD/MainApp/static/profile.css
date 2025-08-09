@@ -1,16 +1,17 @@
-/* profile.css */
+/* profile.css - Fixed for transparent backgrounds */
 
 /* General styling */
 body {
     font-family: Arial, sans-serif;
-    background-color: #f4f4f9;
+    background: transparent !important; /* Fixed: Removed white background */
     margin: 0;
     padding: 0;
 }
 
 h1, h2 {
     text-align: center;
-    color: #333;
+    color: white !important; /* Fixed: Made text white */
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important; /* Fixed: Added shadow for visibility */
 }
 
 h1 {
@@ -18,18 +19,20 @@ h1 {
     font-size: 2em;
 }
 
-/* Date Requests Section */
+/* Date Requests Section - Made transparent */
 .date-requests {
-    background-color: #fff;
+    background: transparent !important; /* Fixed: Removed white background */
     margin: 20px;
     padding: 15px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: none !important; /* Fixed: Removed shadow */
+    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Added subtle border */
 }
 
 .date-requests h2 {
-    color: #2d2d2d;
+    color: white !important; /* Fixed: Made text white */
     margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
 }
 
 .date-requests ul {
@@ -38,11 +41,14 @@ h1 {
 }
 
 .date-requests li {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
+    background: rgba(255, 255, 255, 0.1) !important; /* Fixed: Semi-transparent instead of white */
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Light border */
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
+    backdrop-filter: blur(5px) !important;
+    color: white !important; /* Fixed: White text */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
 .date-requests form {
@@ -51,36 +57,42 @@ h1 {
 }
 
 .date-requests button {
-    background-color: #28a745;
-    color: white;
+    background-color: #28a745 !important;
+    color: white !important;
     padding: 8px 15px;
     margin: 0 5px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .date-requests button:hover {
-    background-color: #218838;
+    background-color: #218838 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
 .date-requests span {
-    color: #555;
+    color: rgba(255, 255, 255, 0.9) !important; /* Fixed: Light text */
     font-size: 14px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
-/* Friend Requests Section */
+/* Friend Requests Section - Made transparent */
 .friend-requests {
-    background-color: #fff;
+    background: transparent !important; /* Fixed: Removed white background */
     margin: 20px;
     padding: 15px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: none !important; /* Fixed: Removed shadow */
+    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Added subtle border */
 }
 
 .friend-requests h2 {
-    color: #2d2d2d;
+    color: white !important; /* Fixed: Made text white */
     margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
 }
 
 .friend-requests ul {
@@ -89,11 +101,14 @@ h1 {
 }
 
 .friend-requests li {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
+    background: rgba(255, 255, 255, 0.1) !important; /* Fixed: Semi-transparent instead of white */
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Light border */
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
+    backdrop-filter: blur(5px) !important;
+    color: white !important; /* Fixed: White text */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
 .friend-requests .inline-form {
@@ -102,30 +117,35 @@ h1 {
 }
 
 .friend-requests button {
-    background-color: #007bff;
-    color: white;
+    background-color: #007bff !important;
+    color: white !important;
     padding: 8px 15px;
     border: none;
     border-radius: 5px;
     cursor: pointer;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5) !important;
 }
 
 .friend-requests button:hover {
-    background-color: #0056b3;
+    background-color: #0056b3 !important;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 }
 
-/* Friends List Section */
+/* Friends List Section - Made transparent */
 .friends-list {
-    background-color: #fff;
+    background: transparent !important; /* Fixed: Removed white background */
     margin: 20px;
     padding: 15px;
     border-radius: 10px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    box-shadow: none !important; /* Fixed: Removed shadow */
+    border: 2px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Added subtle border */
 }
 
 .friends-list h2 {
-    color: #2d2d2d;
+    color: white !important; /* Fixed: Made text white */
     margin-bottom: 15px;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
 }
 
 .friends-list ul {
@@ -134,15 +154,19 @@ h1 {
 }
 
 .friends-list li {
-    background-color: #f9f9f9;
-    border: 1px solid #ddd;
+    background: rgba(255, 255, 255, 0.1) !important; /* Fixed: Semi-transparent instead of white */
+    border: 1px solid rgba(255, 255, 255, 0.3) !important; /* Fixed: Light border */
     padding: 10px;
     margin-bottom: 10px;
     border-radius: 5px;
+    backdrop-filter: blur(5px) !important;
+    color: white !important; /* Fixed: White text */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }
 
 /* No requests or friends found */
 p {
     text-align: center;
-    color: #888;
+    color: rgba(255, 255, 255, 0.8) !important; /* Fixed: Light text */
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.7) !important;
 }

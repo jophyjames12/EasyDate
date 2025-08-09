@@ -1,0 +1,556 @@
+/* Global Styles for Consistent Theme Across All Pages - MASTER OVERRIDE */
+
+/* Reset and Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  background-image: url('./bg_images/background2.gif') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-attachment: fixed !important;
+  min-height: 100vh !important;
+}
+
+html, body {
+  height: 100%;
+  width: 100%;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif !important;
+}
+
+body {
+  background: rgba(0, 0, 0, 0.1) !important; /* Slight overlay for better readability */
+  margin-top: 80px !important; /* Space for fixed header */
+}
+
+/* MASTER RULE: Force all body backgrounds to be transparent */
+body, html {
+  background-color: transparent !important;
+}
+
+/* Header Styles - MASTER OVERRIDE */
+header {
+  width: 100% !important; /* FIXED: Full width instead of 90% */
+  max-width: none !important; /* REMOVED: No max width constraint */
+  left: 0 !important; /* FIXED: Start from left edge */
+  transform: none !important; /* REMOVED: No centering transform needed */
+  top: 0 !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  padding: 20px !important;
+  background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%) !important;
+  color: rgb(255, 255, 255) !important;
+  position: fixed !important;
+  z-index: 1000 !important;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3) !important;
+  border-radius: 0 !important; /* REMOVED: No rounded corners for full width */
+}
+
+/* MASTER RULE: All header text must be white */
+header, header *, header h1, header h2, header h3, header h4, header h5, header h6, 
+header div, header span, header a, header p, header button {
+  color: white !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.7) !important;
+}
+
+header h1 {
+  font-size: 24px !important;
+  font-weight: bold !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3) !important;
+}
+
+.menu {
+  position: relative !important;
+  display: inline-block !important;
+}
+/* MASTER RULE: Menu button styling - highest priority */
+.menu button, header .menu button, .menu > button {
+  background: none !important;
+  border: 2px solid white !important;
+  color: white !important;
+  font-size: 18px !important;
+  font-weight: bold !important;
+  cursor: pointer !important;
+  padding: 8px 12px !important;
+  border-radius: 8px !important;
+  transition: all 0.3s ease !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3) !important;
+}
+
+.menu button:hover, header .menu button:hover, .menu > button:hover {
+  background-color: rgba(255, 255, 255, 0.2) !important;
+  transform: translateY(-1px) !important;
+  border-color: rgba(255, 255, 255, 0.8) !important;
+}
+
+/* Dropdown Styles */
+.dropdown-content {
+  display: none !important;
+  position: absolute !important;
+  top: 100% !important; /* FIXED: Position right below button */
+  right: 0 !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.95) 100%) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2) !important;
+  min-width: 180px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  overflow: hidden !important;
+  z-index: 1001 !important;
+  margin-top: 2px !important; /* FIXED: Small gap to prevent flickering */
+}
+
+.dropdown-content a {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  padding: 12px 16px !important;
+  color: #333 !important;
+  border-bottom: 1px solid rgba(0,0,0,0.1) !important;
+}
+.dropdown-content a * { color: #333 !important; text-shadow: none !important; }
+.dropdown-content a:hover * { color: white !important; }
+
+/* Ensure nested elements (text spans/badges) match the link color */
+.dropdown-content a * {
+  color: #333 !important;
+  text-shadow: none !important;
+}
+
+.dropdown-content a:last-child {
+  border-bottom: none !important;
+}
+
+.dropdown-content a:hover {
+  background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 100%) !important;
+  color: white !important;
+  transform: translateX(5px) !important;
+}
+
+.dropdown-content a:hover * {
+  color: white !important;
+}
+
+/* FIXED: Extended hover area to prevent dropdown from closing */
+.menu:hover .dropdown-content,
+.menu:focus-within .dropdown-content {
+    display: block !important;
+    animation: fadeInUp 0.3s ease !important;
+}
+
+/* FIXED: Create invisible bridge between button and dropdown */
+.menu::after {
+  content: '' !important;
+  position: absolute !important;
+  top: 100% !important;
+  right: 0 !important;
+  width: 100% !important;
+  height: 4px !important; /* Small invisible bridge */
+  background: transparent !important;
+  z-index: 1000 !important;
+}
+
+/* FIXED: Ensure dropdown stays open when hovering over the bridge */
+.menu:hover::after {
+  display: block !important;
+}
+
+@keyframes fadeInUp {
+  from {
+      opacity: 0;
+      transform: translateY(10px);
+  }
+  to {
+      opacity: 1;
+      transform: translateY(0);
+  }
+}
+
+/* FIXED: Responsive Design for Full Width Header */
+@media (max-width: 768px) {
+header {
+  width: 100% !important; /* Keep full width on mobile */
+  padding: 15px !important;
+}
+
+header h1 {
+  font-size: 20px !important;
+}
+
+.menu button {
+  font-size: 16px !important;
+  padding: 6px 10px !important;
+  border-width: 1px !important;
+}
+
+.dropdown-content {
+  min-width: 150px !important;
+  right: 5px !important;
+}
+}
+
+/* MASTER RULE: Force ALL containers to be transparent */
+.container, .main-content, .profile-header, .profile-card, .auth-container, 
+.card, .section, .profile-content, .user-profile-card, .user-found-container, 
+.page-header, .profile-info, .event-card, .date-requests, .friend-requests, 
+.friends-list, .search-section, .community-events {
+  background: transparent !important;
+  backdrop-filter: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background-color: transparent !important;
+}
+
+/* Alternative: Give subtle glassmorphism to some containers if needed */
+.container, .main-content {
+  max-width: 800px !important;
+  margin: 20px auto !important;
+  border-radius: 20px !important;
+  padding: 30px !important;
+}
+
+.card, .section {
+  border-radius: 15px !important;
+  padding: 20px !important;
+  margin: 15px 0 !important;
+  transition: all 0.3s ease !important;
+}
+
+.card:hover, .section:hover {
+  transform: translateY(-2px) !important;
+}
+
+/* MASTER RULE: All text on transparent backgrounds must be white */
+.container *, .main-content *, .card *, .section *, .profile-header *, 
+.profile-content *, body *, .date-requests *, .friend-requests *, .friends-list * {
+  color: white !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.8) !important;
+}
+
+/* MASTER RULE: All headings must be white with strong shadows */
+h1, h2, h3, h4, h5, h6, .container h1, .container h2, .container h3, 
+.container h4, .container h5, .container h6, .card h1, .card h2, .card h3, 
+.card h4, .card h5, .card h6, .section h1, .section h2, .section h3, 
+.section h4, .section h5, .section h6 {
+  color: white !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.9) !important;
+  margin-bottom: 15px !important;
+  background: none !important;
+  -webkit-text-fill-color: white !important;
+}
+
+h1 {
+  font-size: 2.5em !important;
+  text-align:center !important;
+  margin-top: 5px !important; /* bring page title a bit higher as requested */
+}
+
+h2 {
+  font-size: 1.8em !important;
+  margin-bottom: 20px !important;
+}
+
+/* Button Styles */
+button, .btn {
+  background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%) !important;
+  color: white !important;
+  border: none !important;
+  padding: 10px 20px !important;
+  border-radius: 25px !important;
+  cursor: pointer !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  transition: all 0.3s ease !important;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3) !important;
+  box-shadow: 0 2px 10px rgba(33, 5, 62, 0.3) !important;
+  text-decoration: none !important;
+  display: inline-block !important;
+  text-align: center !important;
+}
+
+button:hover, .btn:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 4px 15px rgba(33, 5, 62, 0.4) !important;
+  background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(78, 20, 114) 50%, rgb(98, 28, 140) 100%) !important;
+}
+
+button:active, .btn:active {
+  transform: translateY(0) scale(1) !important;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%) !important;
+}
+
+.btn-secondary:hover {
+  background: linear-gradient(135deg, #5a6268 0%, #495057 100%) !important;
+}
+
+/* Success Button */
+.btn-success {
+  background: linear-gradient(135deg, #28a745 0%, #20c997 100%) !important;
+}
+
+.btn-success:hover {
+  background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%) !important;
+}
+
+/* Danger Button */
+.btn-danger {
+  background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%) !important;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #e83e8c 0%, #fd7e14 100%) !important;
+}
+
+/* Form Styles */
+input[type="text"], 
+input[type="email"], 
+input[type="password"], 
+input[type="number"],
+input[type="date"],
+input[type="time"],
+textarea, 
+select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid rgba(33, 5, 62, 0.2);
+  border-radius: 25px;
+  font-size: 14px;
+  background: rgba(255, 255, 255, 0.9) !important;
+  backdrop-filter: blur(5px);
+  transition: all 0.3s ease;
+  outline: none;
+  color: #333 !important; /* Keep form text dark for readability */
+  text-shadow: none !important; /* Remove shadow from form inputs */
+}
+
+input:focus, textarea:focus, select:focus {
+  border-color: rgb(33, 5, 62);
+  box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+  background: rgba(255, 255, 255, 1) !important;
+}
+
+/* List Styles */
+ul {
+  list-style-type: none;
+  padding: 0;
+}
+
+li {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(5px) !important;
+  border-radius: 12px !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1) !important;
+  margin: 10px 0 !important;
+  padding: 15px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  transition: all 0.3s ease !important;
+}
+
+li:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: translateX(5px) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Modal Styles */
+.modal {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 249, 250, 0.95) 100%) !important;
+  backdrop-filter: blur(15px) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3) !important;
+  z-index: 1001 !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  min-width: 300px !important;
+}
+
+.modal-content {
+  padding: 30px !important;
+  text-align: center !important;
+}
+
+/* Modal text should be dark for readability */
+.modal *, .modal-content * {
+  color: #333 !important;
+  text-shadow: none !important;
+}
+
+.overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100% !important;
+  height: 100% !important;
+  background: rgba(33, 5, 62, 0.7) !important;
+  backdrop-filter: blur(5px) !important;
+  z-index: 1000 !important;
+  display: none !important;
+}
+
+/* Slider/Carousel Styles */
+.schedule, .event {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  margin: 20px auto !important;
+  max-width: 90% !important;
+}
+
+/* Match Community Events with the same semi-transparent glass style */
+.community-events {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15) !important;
+  overflow: hidden !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  margin: 20px auto !important;
+  max-width: 90% !important;
+}
+
+.schedule-item, .event-item {
+  background: rgba(255, 255, 255, 0.1) !important;
+  backdrop-filter: blur(5px) !important;
+  padding: 25px !important;
+  text-align: center !important;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.8) !important;
+  transition: all 0.3s ease !important;
+  color: white !important;
+}
+
+.schedule-item:hover, .event-item:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+  transform: scale(1.02) !important;
+}
+
+/* Arrow Styles */
+.arrow {
+  background: linear-gradient(135deg, rgba(33, 5, 62, 0.9) 0%, rgba(58, 12, 88, 0.9) 100%) !important;
+  backdrop-filter: blur(10px) !important;
+  border-radius: 50% !important;
+  color: white !important;
+  border: none !important;
+  width: 50px !important;
+  height: 50px !important;
+  font-size: 20px !important;
+  cursor: pointer !important;
+  transition: all 0.3s ease !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+.arrow:hover {
+  transform: scale(1.1) !important;
+  background: linear-gradient(135deg, rgba(58, 12, 88, 1) 0%, rgba(78, 20, 114, 1) 100%) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3) !important;
+}
+
+/* Notification Badge */
+.notification-badge, .menu-notification-badge {
+  background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%) !important;
+  color: white !important;
+  border-radius: 50% !important;
+  padding: 2px 6px !important;
+  font-size: 10px !important;
+  font-weight: bold !important;
+  min-width: 16px !important;
+  height: 16px !important;
+  line-height: 12px !important;
+  text-align: center !important;
+  box-shadow: 0 2px 5px rgba(220, 53, 69, 0.3) !important;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateX(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  header {
+    width: 95% !important;
+    padding: 15px !important;
+  }
+  
+  header h1 {
+    font-size: 20px !important;
+  }
+  
+  .menu button {
+    font-size: 16px !important;
+    padding: 6px 10px !important;
+    border-width: 1px !important;
+  }
+  
+  .dropdown-content {
+    min-width: 150px !important;
+    right: 5px !important;
+  }
+  
+  .container, .main-content {
+    margin: 10px !important;
+    padding: 20px !important;
+    border-radius: 15px !important;
+  }
+  
+  h1 {
+    font-size: 2em !important;
+  }
+  
+  h2 {
+    font-size: 1.5em !important;
+  }
+}
+
+/* Print Styles */
+@media print {
+  html {
+    background: none !important;
+  }
+  
+  body {
+    background: white !important;
+    margin: 0 !important;
+  }
+  
+  .menu, .arrow, button:not(.print-visible) {
+    display: none !important;
+  }
+  
+  .container, .main-content {
+    background: white !important;
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+  }
+}

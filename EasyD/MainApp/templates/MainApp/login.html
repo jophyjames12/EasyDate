@@ -4,14 +4,268 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login</title>
-    {% load static %}  <!-- Load the static template tag library -->
-    <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
-    <!-- Google Sign-In API -->
+    {% load static %}
     
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
+    <style>
+        /* Page-specific styles that enhance global styles */
+        
+        /* Remove default header margin for login page */
+        body {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .auth-container {
+            max-width: 450px;
+            width: 100%;
+            background: transparent !important;
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            text-align: center;
+        }
+
+        .auth-container h2 {
+            color: rgb(33, 5, 62);
+            font-size: 32px;
+            margin-bottom: 25px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Messages styling */
+        .messages {
+            margin-bottom: 20px;
+        }
+
+        .messages p {
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(220, 53, 69, 0.05) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.2);
+            color: #721c24;
+            backdrop-filter: blur(5px);
+        }
+
+        /* Google Sign-In Container */
+        .google-signin-container {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .google-signin-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Enhanced divider styling */
+        .divider {
+            text-align: center;
+            margin: 25px 0;
+            position: relative;
+        }
+
+        .divider span {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            color: rgb(33, 5, 62);
+            font-weight: 500;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .divider hr {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            z-index: -1;
+            border: none;
+            border-top: 2px solid rgba(33, 5, 62, 0.2);
+        }
+
+        /* Form styling */
+        .auth-container form {
+            text-align: left;
+            margin-bottom: 25px;
+        }
+
+        .auth-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: rgb(33, 5, 62);
+            font-size: 14px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .auth-container input[type="text"],
+        .auth-container input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(33, 5, 62, 0.2);
+            border-radius: 25px;
+            font-size: 14px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .auth-container input[type="text"]:focus,
+        .auth-container input[type="password"]:focus {
+            border-color: rgb(33, 5, 62);
+            box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+
+        /* Enhanced button styling */
+        .auth-container button {
+            width: 100%;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .auth-container button:hover {
+            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(78, 20, 114) 50%, rgb(98, 28, 140) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 5, 62, 0.4);
+        }
+
+        .auth-container button:active {
+            transform: translateY(0);
+        }
+
+        /* Sign up link styling */
+        .auth-container p {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .auth-container p a {
+            color: rgb(33, 5, 62);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .auth-container p a:hover {
+            color: rgb(78, 20, 114);
+            text-decoration: underline;
+        }
+
+        /* Loading state for button */
+        .auth-container button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Enhanced Google Sign-In button container */
+        .g_id_signin {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .auth-container {
+                padding: 30px 25px;
+                margin: 10px;
+            }
+
+            .auth-container h2 {
+                font-size: 28px;
+            }
+
+            .google-signin-container {
+                padding: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+
+            .auth-container {
+                padding: 25px 20px;
+            }
+
+            .auth-container h2 {
+                font-size: 24px;
+            }
+        }
+
+        /* Animation for form elements */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .auth-container {
+            animation: fadeInUp 0.6s ease;
+        }
+
+        /* Enhanced focus states */
+        .auth-container input[type="text"]:focus,
+        .auth-container input[type="password"]:focus {
+            animation: focusPulse 0.3s ease;
+        }
+
+        @keyframes focusPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+    </style>
 </head>
 <body>
     <div class="auth-container">
-        <h2>Login</h2>
+        <h2>🔐 Welcome Back</h2>
+        
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
@@ -21,7 +275,11 @@
         {% endif %}
         
         <!-- Google Sign-In Button -->
-        <div class="google-signin-container" style="margin-bottom: 20px; text-align: center;">
+        <div class="google-signin-container">
+            <div style="margin-bottom: 10px; color: rgb(33, 5, 62); font-weight: 600;">
+                🚀 Quick Sign-In
+            </div>
+            
             <div id="g_id_onload"
                   data-client_id="633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"
                   data-callback="handleCredentialResponse"
@@ -38,30 +296,40 @@
             </div>
         </div>
         
-        <div class="divider" style="text-align: center; margin: 20px 0; position: relative;">
-            <span style="background: white; padding: 0 15px; color: #666;">or</span>
-            <hr style="position: absolute; top: 50%; left: 0; right: 0; z-index: -1; border: none; border-top: 1px solid #ddd;">
+        <div class="divider">
+            <span>or continue with</span>
+            <hr>
         </div>
 
-        <form method="post">
+        <form method="post" id="loginForm">
             {% csrf_token %}
-            <label for="username">Username</label>
+            
+            <label for="username">👤 Username</label>
             <input type="text" id="username" name="username" required>
 
-            <label for="password">Password</label>
+            <label for="password">🔒 Password</label>
             <input type="password" id="password" name="password" required>
 
-            <button onclick="location.href='/area/'" type="submit">Login</button>
+            <button type="submit" id="loginButton">
+                🚀 Sign In
+            </button>
         </form>
-        <p>Don't have an account? <a href="{% url 'signup' %}">Sign up here</a></p>
+        
+        <p>Don't have an account? <a href="{% url 'signup' %}">✨ Create one here</a></p>
     </div>
 
     <!-- Include the JavaScript file just before the closing </body> tag -->
     <script src="{% static 'MainApp/file.js' %}"></script>
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <script>
         // Handle Google Sign-In response
         function handleCredentialResponse(response) {
+            // Show loading state
+            const googleContainer = document.querySelector('.google-signin-container');
+            const originalContent = googleContainer.innerHTML;
+            googleContainer.innerHTML = '<div style="padding: 20px; color: rgb(33, 5, 62);">🔄 Signing you in...</div>';
+            
             // Send the credential to your Django backend
             fetch('/auth/google/', {
                 method: 'POST',
@@ -76,16 +344,65 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    window.location.href = '/area/';
+                    googleContainer.innerHTML = '<div style="padding: 20px; color: #28a745;">✅ Success! Redirecting...</div>';
+                    setTimeout(() => {
+                        window.location.href = '/area/';
+                    }, 1000);
                 } else {
-                    alert('Google Sign-In failed. Please try again.');
+                    googleContainer.innerHTML = originalContent;
+                    alert('❌ Google Sign-In failed. Please try again.');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred during sign-in.');
+                googleContainer.innerHTML = originalContent;
+                alert('❌ An error occurred during sign-in.');
             });
         }
+
+        // Enhanced form submission with loading state
+        document.getElementById('loginForm').addEventListener('submit', function(e) {
+            const submitButton = document.getElementById('loginButton');
+            const originalText = submitButton.textContent;
+            
+            // Show loading state
+            submitButton.textContent = '🔄 Signing In...';
+            submitButton.disabled = true;
+            
+            // Add loading animation
+            let dots = 0;
+            const loadingInterval = setInterval(() => {
+                dots = (dots + 1) % 4;
+                submitButton.textContent = '🔄 Signing In' + '.'.repeat(dots);
+            }, 500);
+            
+            // Re-enable button if there's an error (form submission will handle success)
+            setTimeout(() => {
+                clearInterval(loadingInterval);
+                if (submitButton.disabled) {
+                    submitButton.textContent = originalText;
+                    submitButton.disabled = false;
+                }
+            }, 10000); // 10 second timeout
+        });
+
+        // Enhanced visual feedback
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add smooth focus transitions
+            const inputs = document.querySelectorAll('input[type="text"], input[type="password"]');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'translateY(-2px)';
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = 'translateY(0)';
+                });
+            });
+
+            // Auto-focus username field
+            document.getElementById('username').focus();
+        });
     </script>
 </body>
 </html>

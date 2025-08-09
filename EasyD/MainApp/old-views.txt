@@ -32,7 +32,6 @@ from datetime import datetime, timedelta
 from decouple import config
 import sib_api_v3_sdk
 from sib_api_v3_sdk.rest import ApiException
-import logging
 
 logger = logging.getLogger(__name__)
 
@@ -54,210 +53,55 @@ EventImages = db['EventImages']  # New collection for event images
 OldEvents = db['OldEvents']
 Posts = db['Posts']  # New collection for posts
 
-# Fixed Google Client ID configuration
-try:
-    GOOGLE_CLIENT_ID = config("GOOGLE_CLIENT_ID", default="633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com")
-except:
-    GOOGLE_CLIENT_ID = "633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"
-
+GOOGLE_CLIENT_ID =config("GOOGLE_CLIENT_ID")  # Replace this
 @csrf_exempt
-def google_signup_view(request):
-    """Handle Google Sign-Up for new users (Signup) - FIXED VERSION"""
-    if request.method != 'POST':
-        logger.error("Google signup: Invalid request method")
-        return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
-
-    try:
-        # Parse request body
-        try:
-            data = json.loads(request.body)
-            logger.info(f"Google signup: Received data keys: {list(data.keys())}")
-        except json.JSONDecodeError as e:
-            logger.error(f"Google signup: JSON decode error: {e}")
-            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
-
-        credential = data.get('credential')
-        if not credential:
-            logger.error("Google signup: Missing credential")
-            return JsonResponse({'success': False, 'error': 'Missing credential'})
-
-        logger.info(f"Google signup: Processing credential of length {len(credential)}")
-
-        # Verify token with Google
-        try:
-            verify_url = f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}'
-            logger.info(f"Google signup: Verifying token with Google")
-            
-            response = requests.get(verify_url, timeout=10)
-            token_info = response.json()
-            
-            logger.info(f"Google signup: Token verification response status: {response.status_code}")
-            
-            if response.status_code != 200:
-                logger.error(f"Google signup: Token verification failed with status {response.status_code}: {token_info}")
-                return JsonResponse({'success': False, 'error': 'Failed to verify Google token'}, status=500)
-            
-        except requests.RequestException as e:
-            logger.error(f"Google signup: Request exception during token verification: {e}")
-            return JsonResponse({'success': False, 'error': 'Failed to verify Google token'}, status=500)
-
-        # Check token audience
-        token_audience = token_info.get('aud')
-        logger.info(f"Google signup: Token audience: {token_audience}")
-        logger.info(f"Google signup: Expected audience: {GOOGLE_CLIENT_ID}")
-        
-        if token_audience != GOOGLE_CLIENT_ID:
-            logger.error(f"Google signup: Token audience mismatch. Expected: {GOOGLE_CLIENT_ID}, Got: {token_audience}")
-            return JsonResponse({'success': False, 'error': 'Token audience mismatch'}, status=400)
-
-        # Extract user info
-        email = token_info.get('email')
-        name = token_info.get('name')
-        
-        logger.info(f"Google signup: Extracted info - Email: {email}, Name: {name}")
-
-        if not email:
-            logger.error("Google signup: Email not found in token")
-            return JsonResponse({'success': False, 'error': 'Email not found in token'}, status=400)
-
-        if not name:
-            logger.warning("Google signup: Name not found in token, using email prefix")
-            name = email.split('@')[0]  # Use email prefix as fallback
-
-        # Check if user already exists
-        try:
-            existing_user = users_collection.find_one({"email": email})
-            logger.info(f"Google signup: Existing user check - Found: {existing_user is not None}")
-            
-            if existing_user:
-                logger.info("Google signup: User already exists")
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'An account with this email already exists. Please use the Login page instead.'
-                }, status=400)
-        except Exception as e:
-            logger.error(f"Google signup: Database error during user check: {e}")
-            return JsonResponse({'success': False, 'error': 'Database error'}, status=500)
-
-        # Create new user account
-        try:
-            user_data = {
-                "username": name,
-                "email": email,
-                "password": None,  # No password for Google accounts
-                "login_method": "google",
-                "email_verified": True,
-                "created_at": datetime.now()
-            }
-            
-            logger.info(f"Google signup: Creating user with username: {name}")
-            inserted = users_collection.insert_one(user_data)
-            user_id = str(inserted.inserted_id)
-            logger.info(f"Google signup: User created with ID: {user_id}")
-
-            # Set Django session
-            request.session['user_id'] = user_id
-            request.session['account_created'] = True
-            
-            logger.info("Google signup: Session set successfully")
-
-            return JsonResponse({'success': True})
-            
-        except Exception as e:
-            logger.error(f"Google signup: Error creating user: {e}")
-            return JsonResponse({'success': False, 'error': 'Failed to create user account'}, status=500)
-
-    except Exception as e:
-        logger.error(f"Google signup: Unexpected error: {e}")
-        return JsonResponse({'success': False, 'error': 'An unexpected error occurred'}, status=500)
-
 def google_auth_view(request):
-    """Handle Google Sign-In for existing users (Login) - FIXED VERSION"""
     if request.method != 'POST':
-        logger.error("Google login: Invalid request method")
         return JsonResponse({'success': False, 'error': 'Invalid request method'}, status=405)
 
     try:
-        # Parse request body
-        try:
-            data = json.loads(request.body)
-            logger.info(f"Google login: Received data keys: {list(data.keys())}")
-        except json.JSONDecodeError as e:
-            logger.error(f"Google login: JSON decode error: {e}")
-            return JsonResponse({'success': False, 'error': 'Invalid JSON data'}, status=400)
-
+        data = json.loads(request.body)
         credential = data.get('credential')
+
         if not credential:
-            logger.error("Google login: Missing credential")
             return JsonResponse({'success': False, 'error': 'Missing credential'})
 
         # Verify token with Google
-        try:
-            verify_url = f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}'
-            logger.info("Google login: Verifying token with Google")
-            
-            response = requests.get(verify_url, timeout=10)
-            token_info = response.json()
-            
-            if response.status_code != 200:
-                logger.error(f"Google login: Token verification failed: {token_info}")
-                return JsonResponse({'success': False, 'error': 'Failed to verify Google token'}, status=500)
-                
-        except requests.RequestException as e:
-            logger.error(f"Google login: Request exception: {e}")
-            return JsonResponse({'success': False, 'error': 'Failed to verify Google token'}, status=500)
+        token_info = requests.get(f'https://oauth2.googleapis.com/tokeninfo?id_token={credential}').json()
 
-        # Check token audience
         if token_info.get('aud') != GOOGLE_CLIENT_ID:
-            logger.error("Google login: Token audience mismatch")
             return JsonResponse({'success': False, 'error': 'Token audience mismatch'}, status=400)
 
         email = token_info.get('email')
         name = token_info.get('name')
 
         if not email:
-            logger.error("Google login: Email not found in token")
             return JsonResponse({'success': False, 'error': 'Email not found in token'}, status=400)
 
         # Check if user exists in MongoDB
-        try:
-            user = users_collection.find_one({"email": email})
-            
-            if not user:
-                logger.info("Google login: User not found")
-                return JsonResponse({
-                    'success': False, 
-                    'error': 'No account found with this email. Please use the Sign Up page to create an account first.'
-                }, status=404)
-            
-            # User exists - log them in
+        user = users_collection.find_one({"email": email})
+
+        if not user:
+            # New user from Google Sign-In
+            user_data = {
+            "username": name,  # Full name from Google
+            "email": email,
+            "password": None,  # No password because it's Google Sign-In
+            "login_method": "google"
+            }
+            inserted = users_collection.insert_one(user_data)
+            user_id = str(inserted.inserted_id)
+        else:
             user_id = str(user["_id"])
-            request.session['user_id'] = user_id
-            request.session['login_success'] = True
-            
-            logger.info(f"Google login: User logged in successfully: {email}")
-            return JsonResponse({'success': True})
-            
-        except Exception as e:
-            logger.error(f"Google login: Database error: {e}")
-            return JsonResponse({'success': False, 'error': 'Database error'}, status=500)
+
+        # Set Django session
+        request.session['user_id'] = user_id
+        request.session['login_success'] = True
+
+        return JsonResponse({'success': True})
 
     except Exception as e:
-        logger.error(f"Google login: Unexpected error: {e}")
-        return JsonResponse({'success': False, 'error': 'An unexpected error occurred'}, status=500)
-
-def debug_google_view(request):
-    """
-    Debug view for testing Google Sign-In functionality
-    """
-    # Simple view that renders the debug template with CSRF token
-    context = {
-        'debug_mode': True,
-        'google_client_id': GOOGLE_CLIENT_ID,
-        'current_time': datetime.now(),
-    }
-    return render(request, 'MainApp/debug_google.html', context)
-
+        return JsonResponse({'success': False, 'error': str(e)}, status=500)
 # Events view - main events page
 # Retrieves user information from session and fetches username from database
 def userinfo(request):
@@ -3116,39 +2960,6 @@ def toggle_like_post(request):
             return JsonResponse({'error': f'An error occurred: {str(e)}'}, status=500)
     
     return JsonResponse({'error': 'Invalid request method'}, status=405)
-
-# Return list of users who liked a post, mark friends
-@csrf_exempt
-def get_post_likes(request, post_id):
-    if not request.session.get('user_id'):
-        return JsonResponse({'success': False, 'message': 'Not authenticated'}, status=401)
-
-    try:
-        userinfo(request)
-        current_username = name
-
-        # User's friends set
-        friend_doc = Friendlist.find_one({"username": current_username})
-        friends_set = set(friend_doc.get('friends', [])) if friend_doc else set()
-
-        from bson import ObjectId
-        post = Posts.find_one({"_id": ObjectId(post_id)})
-        if not post:
-            return JsonResponse({'success': False, 'message': 'Post not found'}, status=404)
-
-        liked_by = post.get('liked_by', [])
-        likes = []
-        for uname in liked_by:
-            prof = Profiles.find_one({"username": uname})
-            likes.append({
-                'username': uname,
-                'profile_picture': prof.get('profile_picture') if prof else None,
-                'is_friend': uname in friends_set
-            })
-
-        return JsonResponse({'success': True, 'likes': likes})
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': f'Failed to get likes: {str(e)}'}, status=500)
 
 # Add this function to your views.py
 

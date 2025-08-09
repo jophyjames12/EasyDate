@@ -3,9 +3,566 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
+    <title>User Found - Event Schedule</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
+    <style>
+        /* User found page specific styles */
+        .user-found-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        
+        .page-header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .user-profile-card {
+            background: var(--glass-background);
+            backdrop-filter: var(--glass-backdrop);
+            -webkit-backdrop-filter: var(--glass-backdrop);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--border-radius-xl);
+            padding: 2.5rem;
+            box-shadow: var(--shadow-glass);
+            animation: slideInUp 0.6s ease-out;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .user-profile-card::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(79, 172, 254, 0.05), transparent);
+            transition: all 0.5s ease;
+            transform: rotate(45deg) translateY(100%);
+        }
+        
+        .user-profile-card:hover::before {
+            transform: rotate(45deg) translateY(-100%);
+        }
+        
+        .user-info {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            margin-bottom: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .user-avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--white);
+            font-size: 3rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            border: 4px solid rgba(255, 255, 255, 0.2);
+            box-shadow: 0 8px 32px rgba(31, 38, 135, 0.37);
+        }
+        
+        .user-name {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .user-status {
+            color: var(--text-secondary);
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .user-bio {
+            color: var(--text-muted);
+            line-height: 1.6;
+            max-width: 500px;
+            margin: 0 auto 2rem auto;
+        }
+        
+        .user-stats {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+        
+        .stat {
+            text-align: center;
+            padding: 1rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: var(--border-radius-md);
+            border: 1px solid var(--glass-border);
+            min-width: 100px;
+        }
+        
+        .stat-number {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 0.25rem;
+        }
+        
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .user-actions {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            position: relative;
+            z-index: 1;
+        }
+        
+        .action-btn {
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: var(--border-radius-full);
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+        }
+        
+        .btn-primary-action {
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: var(--white);
+            box-shadow: var(--shadow-soft);
+        }
+        
+        .btn-secondary-action {
+            background: var(--glass-background);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+        }
+        
+        .btn-success-action {
+            background: linear-gradient(135deg, var(--success), #38a169);
+            color: var(--white);
+        }
+        
+        .action-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-strong);
+            filter: brightness(1.1);
+        }
+        
+        .back-navigation {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+        
+        .back-btn {
+            background: rgba(255, 255, 255, 0.1);
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--border-radius-full);
+            border: 1px solid var(--glass-border);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .back-btn:hover {
+            background: var(--glass-background);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-soft);
+        }
+        
+        .not-found-message {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-muted);
+        }
+        
+        .not-found-icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            opacity: 0.5;
+        }
+        
+        .not-found-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        .not-found-text {
+            line-height: 1.6;
+            margin-bottom: 2rem;
+        }
+        
+        .search-again-btn {
+            background: linear-gradient(135deg, var(--primary-blue), var(--primary-purple));
+            color: var(--white);
+            text-decoration: none;
+            padding: 0.75rem 2rem;
+            border-radius: var(--border-radius-full);
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .search-again-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-medium);
+            filter: brightness(1.1);
+            color: var(--white);
+        }
+        
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .user-found-container {
+                padding: 1rem;
+            }
+            
+            .user-profile-card {
+                padding: 1.5rem;
+            }
+            
+            .user-stats {
+                gap: 1rem;
+            }
+            
+            .user-actions {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .action-btn {
+                justify-content: center;
+            }
+            
+            .page-title {
+                font-size: 2rem;
+            }
+        }
+        
+        @media (max-width: 480px) {
+            .user-stats {
+                flex-direction: column;
+                gap: 0.5rem;
+            }
+            
+            .stat {
+                padding: 0.75rem;
+                min-width: auto;
+            }
+        }
+        
+        /* Success/Error States */
+        .success-state {
+            background: linear-gradient(135deg, rgba(72, 187, 120, 0.1), rgba(56, 161, 105, 0.1));
+            border: 1px solid var(--success);
+            color: var(--success);
+            padding: 1rem;
+            border-radius: var(--border-radius-md);
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .error-state {
+            background: linear-gradient(135deg, rgba(245, 101, 101, 0.1), rgba(220, 38, 38, 0.1));
+            border: 1px solid var(--error);
+            color: var(--error);
+            padding: 1rem;
+            border-radius: var(--border-radius-md);
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
-    
+    <!-- Navigation -->
+    <nav>
+        <div style="display: flex; justify-content: center; gap: 2rem; flex-wrap: wrap;">
+            <a href="{% url 'home' %}">🏠 Home</a>
+            <a href="{% url 'search_user' %}">🔍 Search Users</a>
+            <a href="{% url 'profile' %}">👤 Profile</a>
+            <a href="{% url 'logout' %}">🚪 Logout</a>
+        </div>
+    </nav>
+
+    <div class="user-found-container">
+        <!-- Page Header -->
+        <div class="page-header">
+            <h1 class="page-title">User Profile</h1>
+            <p class="page-subtitle">Connect and discover amazing people</p>
+        </div>
+
+        <!-- Back Navigation -->
+        <div class="back-navigation">
+            <a href="{% url 'search_user' %}" class="back-btn">
+                ← Back to Search
+            </a>
+        </div>
+
+        <!-- Messages -->
+        {% if messages %}
+            {% for message in messages %}
+                <div class="{% if message.tags == 'success' %}success-state{% elif message.tags == 'error' %}error-state{% endif %}">
+                    {{ message }}
+                </div>
+            {% endfor %}
+        {% endif %}
+
+        {% if user_data %}
+            <!-- User Profile Card -->
+            <div class="user-profile-card">
+                <div class="user-info">
+                    <!-- User Avatar -->
+                    {% if user_data.profile_image %}
+                        <img src="{{ user_data.profile_image }}" alt="Profile Picture" class="user-avatar" style="object-fit: cover;">
+                    {% else %}
+                        <div class="user-avatar">
+                            {{ user_data.username.0|upper }}
+                        </div>
+                    {% endif %}
+                    
+                    <!-- User Details -->
+                    <h2 class="user-name">{{ user_data.username }}</h2>
+                    <p class="user-status">
+                        {% if user_data.is_online %}
+                            🟢 Online
+                        {% else %}
+                            ⚫ Offline
+                        {% endif %}
+                    </p>
+                    
+                    <div class="user-bio">
+                        {{ user_data.bio|default:"Welcome to my profile! Let's connect and have some fun together." }}
+                    </div>
+                </div>
+                
+                <!-- User Stats -->
+                <div class="user-stats">
+                    <div class="stat">
+                        <span class="stat-number">{{ user_data.post_count|default:0 }}</span>
+                        <div class="stat-label">Posts</div>
+                    </div>
+                    
+                    <div class="stat">
+                        <span class="stat-number">{{ user_data.friend_count|default:0 }}</span>
+                        <div class="stat-label">Friends</div>
+                    </div>
+                    
+                    <div class="stat">
+                        <span class="stat-number">{{ user_data.date_count|default:0 }}</span>
+                        <div class="stat-label">Dates</div>
+                    </div>
+                    
+                    {% if user_data.rating %}
+                    <div class="stat">
+                        <span class="stat-number">{{ user_data.rating }}⭐</span>
+                        <div class="stat-label">Rating</div>
+                    </div>
+                    {% endif %}
+                </div>
+                
+                <!-- User Actions -->
+                <div class="user-actions">
+                    {% if not user_data.is_friend %}
+                        <button class="action-btn btn-success-action" onclick="sendFriendRequest('{{ user_data.username }}')">
+                            ➕ Add Friend
+                        </button>
+                    {% endif %}
+                    
+                    <button class="action-btn btn-primary-action" onclick="sendDateRequest('{{ user_data.username }}')">
+                        💕 Request Date
+                    </button>
+                    
+                    <button class="action-btn btn-secondary-action" onclick="sendMessage('{{ user_data.username }}')">
+                        💬 Message
+                    </button>
+                    
+                    {% if user_data.is_friend %}
+                        <a href="{% url 'view_full_profile' user_data.username %}" class="action-btn btn-secondary-action">
+                            👁️ View Full Profile
+                        </a>
+                    {% endif %}
+                </div>
+            </div>
+            
+        {% else %}
+            <!-- User Not Found State -->
+            <div class="user-profile-card">
+                <div class="not-found-message">
+                    <div class="not-found-icon">🔍</div>
+                    <h3 class="not-found-title">User Not Found</h3>
+                    <p class="not-found-text">
+                        The user you're looking for doesn't exist or may have deactivated their account. 
+                        Try searching for someone else or check the username spelling.
+                    </p>
+                    <a href="{% url 'search_user' %}" class="search-again-btn">
+                        🔍 Search Again
+                    </a>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <script>
+        // Friend request functionality
+        function sendFriendRequest(username) {
+            fetch(`/friends/request/${username}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Friend request sent successfully!', 'success');
+                    // Update button state
+                    event.target.textContent = '⏳ Request Sent';
+                    event.target.disabled = true;
+                    event.target.style.opacity = '0.6';
+                } else {
+                    showNotification(data.message || 'Failed to send friend request', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while sending friend request', 'error');
+            });
+        }
+
+        // Date request functionality
+        function sendDateRequest(username) {
+            // You can implement a modal for date request details
+            const message = prompt('Add a message for your date request (optional):');
+            
+            fetch(`/dates/request/${username}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCSRFToken(),
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    message: message || ''
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showNotification('Date request sent successfully!', 'success');
+                    // Update button state
+                    event.target.textContent = '⏳ Request Sent';
+                    event.target.disabled = true;
+                    event.target.style.opacity = '0.6';
+                } else {
+                    showNotification(data.message || 'Failed to send date request', 'error');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                showNotification('An error occurred while sending date request', 'error');
+            });
+        }
+
+        // Message functionality
+        function sendMessage(username) {
+            // Implement messaging functionality
+            alert(`Starting conversation with ${username}...`);
+            // You can redirect to messaging page or open a modal
+            // window.location.href = `/messages/${username}/`;
+        }
+
+        // Helper functions
+        function getCSRFToken() {
+            return document.querySelector('[name=csrfmiddlewaretoken]').value;
+        }
+
+        function showNotification(message, type) {
+            const notification = document.createElement('div');
+            notification.className = `${type}-state`;
+            notification.style.position = 'fixed';
+            notification.style.top = '2rem';
+            notification.style.right = '2rem';
+            notification.style.zIndex = '9999';
+            notification.style.minWidth = '300px';
+            notification.style.boxShadow = 'var(--shadow-strong)';
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                notification.style.opacity = '0';
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (document.body.contains(notification)) {
+                        document.body.removeChild(notification);
+                    }
+                }, 300);
+            }, 5000);
+        }
+
+        // Add entrance animations
+        document.addEventListener('DOMContentLoaded', function() {
+            const profileCard = document.querySelector('.user-profile-card');
+            if (profileCard) {
+                profileCard.style.opacity = '0';
+                profileCard.style.transform = 'translateY(30px)';
+                setTimeout(() => {
+                    profileCard.style.transition = 'all 0.8s ease';
+                    profileCard.style.opacity = '1';
+                    profileCard.style.transform = 'translateY(0)';
+                }, 200);
+            }
+        });
+    </script>
 </body>
 </html>

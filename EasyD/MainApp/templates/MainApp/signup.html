@@ -3,96 +3,436 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sign Up</title>
+    <title>{% if show_otp_form %}Email Verification{% else %}Sign Up{% endif %}</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'MainApp/style.css' %}">
-    <!-- Google Sign-In API -->
+    
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
+    <!-- Google Sign-In library -->
     <script src="https://accounts.google.com/gsi/client" async defer></script>
+    
     <style>
-        .otp-container {
-            background: #f8f9fa;
-            border: 1px solid #dee2e6;
-            border-radius: 8px;
+        /* Page-specific styles that enhance global styles */
+        
+        /* Remove default header margin for signup page */
+        body {
+            margin-top: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
             padding: 20px;
-            margin: 20px 0;
+        }
+
+        .auth-container {
+            max-width: 500px;
+            width: 100%;
+            background: transparent !important;
+            backdrop-filter: blur(15px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
+            border: 1px solid rgba(255, 255, 255, 0.3);
             text-align: center;
         }
-        
-        .otp-input {
-            width: 200px;
-            padding: 12px;
-            font-size: 18px;
-            text-align: center;
-            letter-spacing: 2px;
-            border: 2px solid #007bff;
-            border-radius: 5px;
-            margin: 10px 0;
+
+        .auth-container h2 {
+            color: rgb(33, 5, 62);
+            font-size: 32px;
+            margin-bottom: 25px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
         }
-        
-        .otp-info {
-            color: #666;
-            font-size: 14px;
-            margin: 10px 0;
-        }
-        
-        .resend-btn {
-            background: none;
-            border: none;
-            color: #007bff;
-            cursor: pointer;
-            text-decoration: underline;
-            font-size: 14px;
-            margin-top: 10px;
-        }
-        
-        .resend-btn:hover {
-            color: #0056b3;
-        }
-        
+
+        /* Enhanced Step Indicator */
         .step-indicator {
             display: flex;
+            align-items: center;
             justify-content: center;
-            margin-bottom: 20px;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
         }
         
         .step {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            margin: 0 10px;
+            color: #999;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        
+        .step.active {
+            color: rgb(33, 5, 62);
+        }
+        
+        .step.completed {
+            color: #28a745;
         }
         
         .step-number {
-            width: 30px;
-            height: 30px;
+            width: 35px;
+            height: 35px;
             border-radius: 50%;
-            background: #dee2e6;
-            color: #666;
+            background: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             font-weight: bold;
-            margin-right: 8px;
+            margin-bottom: 8px;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
         }
         
         .step.active .step-number {
-            background: #007bff;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
             color: white;
+            transform: scale(1.1);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.3);
         }
         
         .step.completed .step-number {
-            background: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
+            box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
         }
         
         .step-line {
-            width: 50px;
-            height: 2px;
-            background: #dee2e6;
-            margin: 0 10px;
+            width: 60px;
+            height: 3px;
+            background: linear-gradient(135deg, #dee2e6 0%, #ced4da 100%);
+            margin: 0 15px;
+            border-radius: 2px;
+            transition: all 0.3s ease;
         }
         
         .step.completed + .step-line {
-            background: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+        }
+
+        /* Messages styling */
+        .messages {
+            margin-bottom: 20px;
+        }
+
+        .messages p {
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(220, 53, 69, 0.05) 100%);
+            border: 1px solid rgba(220, 53, 69, 0.2);
+            color: #721c24;
+            backdrop-filter: blur(5px);
+            font-weight: 500;
+        }
+
+        /* OTP Verification specific styles */
+        .otp-section {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .otp-section p {
+            color: #6c757d;
+            margin-bottom: 20px;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .otp-section strong {
+            color: rgb(33, 5, 62);
+            font-weight: 600;
+        }
+
+        .otp-input {
+            width: 100% !important;
+            max-width: 200px;
+            padding: 15px !important;
+            margin: 0 auto 20px !important;
+            border: 3px solid rgba(33, 5, 62, 0.3) !important;
+            border-radius: 15px !important;
+            font-size: 24px !important;
+            font-weight: bold !important;
+            text-align: center !important;
+            letter-spacing: 3px !important;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%) !important;
+            backdrop-filter: blur(5px) !important;
+            transition: all 0.3s ease !important;
+            color: rgb(33, 5, 62) !important;
+        }
+
+        .otp-input:focus {
+            border-color: rgb(33, 5, 62) !important;
+            box-shadow: 0 0 20px rgba(33, 5, 62, 0.3) !important;
+            background: rgba(255, 255, 255, 1) !important;
+            transform: scale(1.02) !important;
+        }
+
+        /* Google Sign-In Container */
+        .google-signin-container {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .google-signin-container:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
+        }
+
+        .google-signin-container::before {
+            content: '🚀 Quick Sign-Up';
+            display: block;
+            margin-bottom: 10px;
+            color: rgb(33, 5, 62);
+            font-weight: 600;
+            font-size: 14px;
+        }
+
+        .loading-message {
+            display: none;
+            text-align: center;
+            color: rgb(33, 5, 62);
+            font-style: italic;
+            margin-top: 10px;
+            padding: 8px 12px;
+            background: rgba(33, 5, 62, 0.1);
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .error-message {
+            display: none;
+            background: linear-gradient(135deg, rgba(248, 215, 218, 0.9) 0%, rgba(245, 198, 203, 0.9) 100%);
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+            padding: 12px 16px;
+            border-radius: 12px;
+            margin-top: 10px;
+            backdrop-filter: blur(5px);
+            font-weight: 500;
+        }
+
+        /* Enhanced divider styling */
+        .divider {
+            text-align: center;
+            margin: 25px 0;
+            position: relative;
+        }
+
+        .divider span {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            padding: 8px 20px;
+            color: rgb(33, 5, 62);
+            font-weight: 500;
+            border-radius: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .divider hr {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            z-index: -1;
+            border: none;
+            border-top: 2px solid rgba(33, 5, 62, 0.2);
+        }
+
+        /* Form styling */
+        .auth-container form {
+            text-align: left;
+            margin-bottom: 25px;
+        }
+
+        .auth-container label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: rgb(33, 5, 62);
+            font-size: 14px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .auth-container input[type="text"],
+        .auth-container input[type="email"],
+        .auth-container input[type="password"] {
+            width: 100%;
+            padding: 12px 16px;
+            margin-bottom: 20px;
+            border: 2px solid rgba(33, 5, 62, 0.2);
+            border-radius: 25px;
+            font-size: 14px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .auth-container input[type="text"]:focus,
+        .auth-container input[type="email"]:focus,
+        .auth-container input[type="password"]:focus {
+            border-color: rgb(33, 5, 62);
+            box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+            background: rgba(255, 255, 255, 1);
+            transform: translateY(-1px);
+        }
+
+        /* Enhanced button styling */
+        .auth-container button {
+            width: 100%;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%);
+            color: white;
+            border: none;
+            padding: 14px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.3);
+            margin-bottom: 20px;
+        }
+
+        .auth-container button:hover {
+            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(78, 20, 114) 50%, rgb(98, 28, 140) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(33, 5, 62, 0.4);
+        }
+
+        .auth-container button:active {
+            transform: translateY(0);
+        }
+
+        .auth-container button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Login link styling */
+        .auth-container p {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin: 0;
+        }
+
+        .auth-container p a {
+            color: rgb(33, 5, 62);
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .auth-container p a:hover {
+            color: rgb(78, 20, 114);
+            text-decoration: underline;
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            .auth-container {
+                padding: 30px 25px;
+                margin: 10px;
+            }
+
+            .auth-container h2 {
+                font-size: 28px;
+            }
+
+            .step-indicator {
+                padding: 15px;
+            }
+
+            .step-number {
+                width: 30px;
+                height: 30px;
+            }
+
+            .step-line {
+                width: 40px;
+                margin: 0 10px;
+            }
+
+            .otp-input {
+                font-size: 20px !important;
+                padding: 12px !important;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 15px;
+            }
+
+            .auth-container {
+                padding: 25px 20px;
+            }
+
+            .auth-container h2 {
+                font-size: 24px;
+            }
+
+            .step {
+                font-size: 11px;
+            }
+
+            .step-line {
+                width: 30px;
+                margin: 0 8px;
+            }
+        }
+
+        /* Animation for form elements */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .auth-container {
+            animation: fadeInUp 0.6s ease;
+        }
+
+        /* Enhanced focus states */
+        .auth-container input:focus {
+            animation: focusPulse 0.3s ease;
+        }
+
+        @keyframes focusPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.02); }
+            100% { transform: scale(1); }
+        }
+
+        /* OTP success state */
+        .otp-input.success {
+            border-color: #28a745 !important;
+            box-shadow: 0 0 15px rgba(40, 167, 69, 0.3) !important;
         }
     </style>
 </head>
@@ -111,47 +451,46 @@
             </div>
         </div>
         
-        <h2>{% if show_otp_form %}Email Verification{% else %}Sign Up{% endif %}</h2>
+        <h2>
+            {% if show_otp_form %}
+                📧 Email Verification
+            {% else %}
+                🎉 Join Us Today
+            {% endif %}
+        </h2>
         
         {% if messages %}
             <div class="messages">
                 {% for message in messages %}
-                    <p class="{% if message.tags %}{{ message.tags }}{% endif %}">{{ message }}</p>
+                    <p>{{ message }}</p>
                 {% endfor %}
             </div>
         {% endif %}
-        
+
         {% if show_otp_form %}
             <!-- OTP Verification Form -->
-            <div class="otp-container">
-                <h3>Enter Verification Code</h3>
-                <p class="otp-info">We've sent a 6-digit verification code to your email address.</p>
-                
-                <form method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="step" value="verify_otp">
-                    <input type="hidden" name="email" value="{{ email }}">
-                    <input type="text" name="otp" class="otp-input" placeholder="000000" maxlength="6" required pattern="[0-9]{6}" title="Please enter a 6-digit number">
-                    <br>
-                    <button type="submit" style="margin-top: 15px; padding: 12px 30px; font-size: 16px;">Verify Code</button>
-                </form>
-                
-                
-                <p class="otp-info">Code expires in 10 minutes</p>
-                
-                <form method="post" action="{% url 'resend_otp' %}" style="display: inline;">
-                    {% csrf_token %}
-                    <button type="submit" class="resend-btn">Resend Code</button>
-                </form>
+            <div class="otp-section">
+                <p>We've sent a verification code to <strong>{{ email }}</strong></p>
+                <p>Please check your email and enter the 6-digit code below:</p>
             </div>
             
-            <p><a href="{% url 'signup' %}">← Start Over</a></p>
+            <form method="post" id="otpForm">
+                {% csrf_token %}
+                <input type="hidden" name="email" value="{{ email }}">
+                <input type="hidden" name="username" value="{{ username }}">
+                <input type="hidden" name="password" value="{{ password }}">
+                
+                <label for="otp">🔢 Enter 6-digit verification code:</label>
+                <input type="text" id="otp" name="otp" class="otp-input" maxlength="6" pattern="[0-9]{6}" 
+                       placeholder="000000" required>
+                
+                <button type="submit" id="verifyButton">✅ Verify & Create Account</button>
+            </form>
         {% else %}
-            <!-- Initial Registration Form -->
             <!-- Google Sign-Up Button -->
-            <div class="google-signin-container" style="margin-bottom: 20px; text-align: center;">
+            <div class="google-signin-container">
                 <div id="g_id_onload"
-                     data-client_id="YOUR_GOOGLE_CLIENT_ID"
+                     data-client_id="633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com"
                      data-callback="handleCredentialResponse"
                      data-auto_prompt="false">
                 </div>
@@ -163,76 +502,240 @@
                      data-shape="rectangular"
                      data-logo_alignment="left">
                 </div>
+                <div class="loading-message" id="loadingMessage">🔄 Processing Google Sign-Up...</div>
+                <div class="error-message" id="errorMessage"></div>
             </div>
             
-            <div class="divider" style="text-align: center; margin: 20px 0; position: relative;">
-                <span style="background: white; padding: 0 15px; color: #666;">or</span>
-                <hr style="position: absolute; top: 50%; left: 0; right: 0; z-index: -1; border: none; border-top: 1px solid #ddd;">
+            <div class="divider">
+                <span>or create manually</span>
+                <hr>
             </div>
 
-            <form method="post">
+            <form method="post" id="signupForm">
                 {% csrf_token %}
-                <label for="username">Username</label>
+                <label for="username">👤 Username</label>
                 <input type="text" id="username" name="username" required>
 
-                <label for="email">Email</label>
+                <label for="email">📧 Email Address</label>
                 <input type="email" id="email" name="email" required>
 
-                <label for="password">Password</label>
+                <label for="password">🔒 Password</label>
                 <input type="password" id="password" name="password" required>
 
-                <label for="confirm_password">Confirm Password</label>
+                <label for="confirm_password">🔒 Confirm Password</label>
                 <input type="password" id="confirm_password" name="confirm_password" required>
 
-                <button type="submit">Send Verification Code</button>
+                <button type="submit" id="signupButton">📧 Send Verification Code</button>
             </form>
             
-            <p>Already have an account? <a href="{% url 'login' %}">Log in here</a></p>
+            <p>Already have an account? <a href="{% url 'login' %}">✨ Sign in here</a></p>
         {% endif %}
     </div>
     
     <script src="{% static 'MainApp/file.js' %}"></script>
     
     <script>
+        // Debug logging
+        console.log('Google Sign-Up page loaded');
+        
         // Handle Google Sign-Up response
         function handleCredentialResponse(response) {
+            console.log('Google credential response received');
+            
+            // Show loading message
+            const loadingMessage = document.getElementById('loadingMessage');
+            const errorMessage = document.getElementById('errorMessage');
+            const googleButton = document.querySelector('.g_id_signin');
+            
+            if (loadingMessage) loadingMessage.style.display = 'block';
+            if (errorMessage) errorMessage.style.display = 'none';
+            if (googleButton) googleButton.style.opacity = '0.5';
+            
+            // Get CSRF token with better error handling
+            const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]');
+            if (!csrfToken) {
+                console.error('CSRF token not found');
+                showError('Security token not found. Please refresh the page.');
+                if (loadingMessage) loadingMessage.style.display = 'none';
+                if (googleButton) googleButton.style.opacity = '1';
+                return;
+            }
+            
             // Send the credential to your Django backend for sign-up
             fetch('/auth/google/signup/', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+                    'X-CSRFToken': csrfToken.value
                 },
                 body: JSON.stringify({
                     'credential': response.credential
                 })
             })
-            .then(response => response.json())
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
             .then(data => {
+                console.log('Response data:', data);
+                
+                // Hide loading message
+                if (loadingMessage) loadingMessage.style.display = 'none';
+                if (googleButton) googleButton.style.opacity = '1';
+                
                 if (data.success) {
-                    window.location.href = '/area/';
+                    console.log('Google Sign-Up successful, redirecting...');
+                    // Show success state
+                    if (loadingMessage) {
+                        loadingMessage.textContent = '✅ Success! Redirecting...';
+                        loadingMessage.style.display = 'block';
+                        loadingMessage.style.color = '#28a745';
+                    }
+                    setTimeout(() => {
+                        window.location.href = '/area/';
+                    }, 1500);
                 } else {
-                    alert('Google Sign-Up failed: ' + (data.error || 'Please try again.'));
+                    console.error('Google Sign-Up failed:', data.error);
+                    showError('Google Sign-Up failed: ' + (data.error || 'Please try again.'));
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred during sign-up.');
+                console.error('Network error:', error);
+                
+                // Hide loading message
+                if (loadingMessage) loadingMessage.style.display = 'none';
+                if (googleButton) googleButton.style.opacity = '1';
+                
+                showError('An error occurred during sign-up. Please try again.');
             });
         }
         
-        // Auto-format OTP input
+        function showError(message) {
+            const errorMessage = document.getElementById('errorMessage');
+            if (errorMessage) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+            } else {
+                alert(message);
+            }
+        }
+        
+        // Enhanced form submission with loading states
         document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded');
+            
+            // Auto-format OTP input
             const otpInput = document.querySelector('.otp-input');
             if (otpInput) {
                 otpInput.addEventListener('input', function(e) {
                     // Remove any non-digit characters
                     e.target.value = e.target.value.replace(/[^0-9]/g, '');
+                    
+                    // Add success state when 6 digits entered
+                    if (e.target.value.length === 6) {
+                        e.target.classList.add('success');
+                    } else {
+                        e.target.classList.remove('success');
+                    }
                 });
                 
                 // Auto-focus on OTP input
                 otpInput.focus();
             }
+
+            // Enhanced signup form submission
+            const signupForm = document.getElementById('signupForm');
+            if (signupForm) {
+                signupForm.addEventListener('submit', function(e) {
+                    const button = document.getElementById('signupButton');
+                    if (button) {
+                        button.textContent = '📧 Sending Code...';
+                        button.disabled = true;
+                        
+                        // Add loading dots
+                        let dots = 0;
+                        const loadingInterval = setInterval(() => {
+                            dots = (dots + 1) % 4;
+                            button.textContent = '📧 Sending Code' + '.'.repeat(dots);
+                        }, 500);
+                        
+                        // Re-enable if there's an error
+                        setTimeout(() => {
+                            clearInterval(loadingInterval);
+                            if (button.disabled) {
+                                button.textContent = '📧 Send Verification Code';
+                                button.disabled = false;
+                            }
+                        }, 10000);
+                    }
+                });
+            }
+
+            // Enhanced OTP form submission
+            const otpForm = document.getElementById('otpForm');
+            if (otpForm) {
+                otpForm.addEventListener('submit', function(e) {
+                    const button = document.getElementById('verifyButton');
+                    if (button) {
+                        button.textContent = '✅ Verifying...';
+                        button.disabled = true;
+                        
+                        // Add loading dots
+                        let dots = 0;
+                        const loadingInterval = setInterval(() => {
+                            dots = (dots + 1) % 4;
+                            button.textContent = '✅ Verifying' + '.'.repeat(dots);
+                        }, 500);
+                        
+                        // Re-enable if there's an error
+                        setTimeout(() => {
+                            clearInterval(loadingInterval);
+                            if (button.disabled) {
+                                button.textContent = '✅ Verify & Create Account';
+                                button.disabled = false;
+                            }
+                        }, 10000);
+                    }
+                });
+            }
+            
+            // Check if Google Sign-In library is loaded with better timing
+            setTimeout(() => {
+                if (typeof google === 'undefined') {
+                    console.error('Google Sign-In library not loaded');
+                    showError('Google Sign-In is not available. Please refresh the page or try manual registration.');
+                } else {
+                    console.log('Google Sign-In library loaded successfully');
+                }
+            }, 3000);
+
+            // Enhanced visual feedback
+            const inputs = document.querySelectorAll('input[type="text"], input[type="email"], input[type="password"]');
+            inputs.forEach(input => {
+                input.addEventListener('focus', function() {
+                    this.parentElement.style.transform = 'translateY(-2px)';
+                });
+                
+                input.addEventListener('blur', function() {
+                    this.parentElement.style.transform = 'translateY(0)';
+                });
+            });
+        });
+        
+        // Enhanced error handling
+        window.addEventListener('error', function(e) {
+            console.error('Page error:', e.error);
+            // Don't show alert for every error, but log it
+        });
+        
+        // Handle unhandled promise rejections
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('Unhandled promise rejection:', e.reason);
+            // Prevent default to avoid console errors causing blank screen
+            e.preventDefault();
         });
     </script>
 </body>

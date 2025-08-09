@@ -5,420 +5,762 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Search Users</title>
     {% load static %}
-    <link rel="stylesheet" href="{% static 'MainApp/friends.css' %}">
+    
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    
     <style>
+        /* Page-specific styles that enhance global styles */
+        
+        .search-section {
+            margin-bottom: 30px;
+        }
+
+        .search-form {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .search-form input[type="text"] {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid rgba(33, 5, 62, 0.2);
+            border-radius: 25px;
+            font-size: 14px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(5px);
+            transition: all 0.3s ease;
+            outline: none;
+        }
+
+        .search-form input[type="text"]:focus {
+            border-color: rgb(33, 5, 62);
+            box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        .search-form button {
+            min-width: 120px;
+        }
+
+        .section-title {
+            color: rgb(33, 5, 62);
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
         .friend-actions {
             display: flex;
             gap: 10px;
             align-items: center;
+            flex-wrap: wrap;
         }
         
         .view-profile-btn {
-            background-color: #28a745;
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
             color: white;
             border: none;
-            padding: 5px 12px;
-            border-radius: 4px;
+            padding: 6px 14px;
+            border-radius: 20px;
             text-decoration: none;
-            font-size: 14px;
-            transition: background-color 0.3s;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.2);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         }
         
         .view-profile-btn:hover {
-            background-color: #218838;
+            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
             color: white;
             text-decoration: none;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
         }
 
+        .friend-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s ease;
+        }
+
+        .friend-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
+        }
+
+        .friend-name {
+            font-weight: 600;
+            color: rgb(33, 5, 62);
+            font-size: 16px;
+        }
+
+        .inline-form {
+            margin: 0;
+            display: inline-block;
+        }
+
+        .btn-sm {
+            padding: 6px 12px;
+            font-size: 12px;
+            border-radius: 18px;
+            font-weight: 500;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6c757d;
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.05) 0%, rgba(78, 20, 114, 0.05) 100%);
+            border-radius: 12px;
+            border: 2px dashed rgba(33, 5, 62, 0.2);
+        }
+
+        .empty-state::before {
+            content: '👥';
+            font-size: 48px;
+            display: block;
+            margin-bottom: 15px;
+        }
+
+        /* Enhanced Modal Styling */
+        /* Fix Bootstrap modal conflicts with global styles and apply theme */
+        .modal {
+            top: 0 !important;
+            left: 0 !important;
+            transform: none !important;
+            width: 100% !important;
+            height: 100% !important;
+            z-index: 2000 !important; /* above backdrop */
+            overflow-y: auto !important;
+        }
+
+        .modal-backdrop {
+            z-index: 1500 !important; /* below modal */
+            background-color: rgba(33, 5, 62, 0.7) !important; /* themed overlay */
+        }
+
+        .modal-dialog {
+            margin: 1.75rem auto !important;
+        }
+
+        .modal-content {
+            background: transparent !important;
+            backdrop-filter: blur(15px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.2);
+            color: #333 !important; /* ensure readability inside modal */
+        }
+
+        .modal-header {
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            color: white;
+            border-radius: 15px 15px 0 0;
+            border-bottom: none;
+            padding: 20px 25px;
+        }
+
+        .modal-title {
+            font-weight: 600;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        }
+
+        .modal-body {
+            padding: 25px;
+        }
+
+        .modal-footer {
+            border-top: 1px solid rgba(33, 5, 62, 0.1);
+            padding: 20px 25px;
+        }
+
+        .form-group label {
+            color: rgb(33, 5, 62);
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .form-control {
+            border: 2px solid rgba(33, 5, 62, 0.2);
+            border-radius: 10px;
+            padding: 10px 15px;
+            background: rgba(255, 255, 255, 0.9);
+            transition: all 0.3s ease;
+        }
+
+        .form-control:focus {
+            border-color: rgb(33, 5, 62);
+            box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+            background: rgba(255, 255, 255, 1);
+        }
+
+        /* Enhanced Bootstrap button styling */
+        .btn-primary {
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            border: none;
+            border-radius: 20px;
+            padding: 8px 16px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(33, 5, 62, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(98, 28, 140) 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(33, 5, 62, 0.4);
+        }
+
+        /* Ensure white text on primary modal buttons to prevent purple-on-purple clash */
+        #dateRequestModal .btn-primary,
+        #handleDateRequestModal .btn-primary {
+            color: #fff !important;
+        }
+
+        .btn-success {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            border: none;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+        }
+
+        .btn-success:hover {
+            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+            border: none;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: linear-gradient(135deg, #e83e8c 0%, #fd7e14 100%);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(220, 53, 69, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+            border: none;
+            border-radius: 20px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+        }
+
+        .btn-secondary:hover {
+            background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
+            transform: translateY(-1px);
+        }
+
+        /* Enhanced alert styling */
+        .alert {
+            border-radius: 12px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid;
+            font-weight: 500;
+        }
+
+        .alert-success {
+            background: linear-gradient(135deg, rgba(212, 237, 218, 0.9) 0%, rgba(195, 230, 203, 0.9) 100%);
+            border-color: #c3e6cb;
+            color: #155724;
+        }
+
+        .alert-danger {
+            background: linear-gradient(135deg, rgba(248, 215, 218, 0.9) 0%, rgba(245, 198, 203, 0.9) 100%);
+            border-color: #f5c6cb;
+            color: #721c24;
+        }
+
+        .alert-info {
+            background: linear-gradient(135deg, rgba(209, 236, 241, 0.9) 0%, rgba(190, 229, 235, 0.9) 100%);
+            border-color: #bee5eb;
+            color: #0c5460;
+        }
+
+        .date-requests .card {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        /* Responsive design */
         @media (max-width: 768px) {
+            .search-form {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .search-form input[type="text"] {
+                width: 100%;
+            }
+
             .friend-actions {
                 flex-direction: column;
-                gap: 5px;
+                gap: 8px;
+                align-items: stretch;
             }
             
-            .view-profile-btn {
+            .view-profile-btn,
+            .btn-sm {
                 font-size: 12px;
-                padding: 4px 8px;
+                padding: 6px 12px;
+                text-align: center;
+            }
+
+            .friend-item {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 10px;
+                text-align: center;
+            }
+
+            .section-title {
+                font-size: 20px;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .modal-body,
+            .modal-footer {
+                padding: 20px 15px;
+            }
+
+            .friend-item {
+                padding: 12px;
             }
         }
     </style>
 </head>
 <body>
-
-<h1>Search for Users</h1>
-
-<!-- Search Bar -->
-<form method="POST" action="{% url 'search_user' %}" id="search-form">
-    {% csrf_token %}
-    <input type="text" name="username" placeholder="Search by username" required id="username-input">
-    <button type="submit" class="btn btn-primary" id="search-button">Search</button>
-</form>    
-<br>
-
-{% if messages %}
-    <div class="messages">
-        {% for message in messages %}
-            <div class="alert {{ message.tags }} alert-dismissible fade show" role="alert">
-                {{ message }}
-                <button type="button" class="close" data-dismiss="alert" aria-label="Close">
-                    <span aria-hidden="true">&times;</span>
-                </button>
+    <!-- Header with Global Styling -->
+    <header>
+        <h1>👥 Search Users</h1>
+        <div class="menu">
+            <button type="button">
+                ☰ Menu
+            </button>
+            <div id="dropdown" class="dropdown-content">
+                <a href="{% url 'area' %}">Home</a>
+                <a href="{% url 'events' %}">Events</a>
+                <a href="{% url 'profile' %}">Profile</a>
+                <a href="{% url 'search_user' %}" class="nav-item active">Friends</a>
+                <a href="{% url 'logout' %}">Logout</a>
             </div>
-        {% endfor %}
-    </div>
-{% endif %}
-<hr>
+        </div>
+    </header>
 
-<!-- Friends List -->
-<section class="friends-list">
-    <h2>Your Friends</h2>
-    <ul class="list-group">
-        {% if all_friends %}
-            {% for friend in all_friends %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <strong>{{ friend }}</strong>
-                    <div class="friend-actions">
-                        <!-- View Profile Button -->
-                        <a href="{% url 'view_friend_profile' friend %}" class="view-profile-btn">
-                            👤 View Profile
-                        </a>
-                        
-                        <!-- Existing Send Date Request Button -->
-                        <form action="{% url 'send_date_request' %}" method="POST" class="inline-form" style="margin: 0;">
-                            {% csrf_token %}
-                            <input type="hidden" name="friend_id" value="{{ friend }}">
-                            <!-- lat/lon injected dynamically -->
-                        </form>
-                        <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#dateRequestModal" data-friendid="{{ friend }}">
-                            💕 Send Date Request
+    <!-- Main Content Container -->
+    <div class="container">
+        <!-- Search Section -->
+        <div class="card search-section">
+            <h2 class="section-title">🔍 Search for Users</h2>
+            <form method="POST" action="{% url 'search_user' %}" id="search-form" class="search-form">
+                {% csrf_token %}
+                <input type="text" name="username" placeholder="Search by username" required id="username-input">
+                <button type="submit" class="btn btn-primary" id="search-button">🔍 Search</button>
+            </form>
+        </div>
+
+        <!-- Messages Display -->
+        {% if messages %}
+            <div class="messages">
+                {% for message in messages %}
+                    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="close" data-dismiss="alert" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
                         </button>
                     </div>
-                </li>
-            {% endfor %}
-        {% else %}
-            <li class="list-group-item">You have no friends added yet.</li>
+                {% endfor %}
+            </div>
         {% endif %}
-    </ul>
-</section>
 
-<hr>
-
-<!-- Pending Friend Requests -->
-<section class="friend-requests">
-    <h2>Pending Friend Requests</h2>
-    <ul class="list-group">
-        {% if friends %}
-            {% for friend in friends %}
-                <li class="list-group-item d-flex justify-content-between align-items-center">
-                    <strong>{{ friend }}</strong>
-                    <div class="d-flex">
-                        <!-- Accept -->
-                        <form action="{% url 'accept_request' %}" method="POST" class="mr-1">
-                            {% csrf_token %}
-                            <input type="hidden" name="friend_id" value="{{ friend }}">
-                            <button type="submit" name="action" value="accept" class="btn btn-success">Accept</button>
-                        </form>
-                        <!-- Reject -->
-                        <form action="{% url 'reject_request' %}" method="POST">
-                            {% csrf_token %}
-                            <input type="hidden" name="friend_id" value="{{ friend }}">
-                            <button type="submit" class="btn btn-danger">Reject</button>
-                        </form>
+        <!-- Friends List -->
+        <div class="card">
+            <h2 class="section-title">👫 Your Friends</h2>
+            {% if all_friends %}
+                {% for friend in all_friends %}
+                    <div class="friend-item">
+                        <div class="friend-name">{{ friend }}</div>
+                        <div class="friend-actions">
+                            <!-- View Profile Button -->
+                            <a href="{% url 'view_friend_profile' friend %}" class="view-profile-btn">
+                                👤 View Profile
+                            </a>
+                            
+                            <!-- Existing Send Date Request Button -->
+                            <form action="{% url 'send_date_request' %}" method="POST" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="friend_id" value="{{ friend }}">
+                                <!-- lat/lon injected dynamically -->
+                            </form>
+                            <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#dateRequestModal" data-friendid="{{ friend }}">
+                                💕 Send Date Request
+                            </button>
+                        </div>
                     </div>
-                </li>
-            {% endfor %}
-        {% else %}
-            <li class="list-group-item">No pending friend requests.</li>
-        {% endif %}
-    </ul>
-</section>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <strong>No friends added yet</strong>
+                    <p>Search for users above to send friend requests!</p>
+                </div>
+            {% endif %}
+        </div>
 
-<!-- Date Request Send Modal -->
-<div class="modal fade" id="dateRequestModal" tabindex="-1" role="dialog" aria-labelledby="dateRequestModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <form method="POST" action="{% url 'send_date_request' %}">
-                {% csrf_token %}
-                <div class="modal-header">
-                    <h5 class="modal-title" id="dateRequestModalLabel">Send Date Request</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
+        <!-- Pending Friend Requests -->
+        <div class="card">
+            <h2 class="section-title">⏳ Pending Friend Requests</h2>
+            {% if friends %}
+                {% for friend in friends %}
+                    <div class="friend-item">
+                        <div class="friend-name">{{ friend }}</div>
+                        <div class="friend-actions">
+                            <!-- Accept -->
+                            <form action="{% url 'accept_request' %}" method="POST" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="friend_id" value="{{ friend }}">
+                                <button type="submit" name="action" value="accept" class="btn btn-success btn-sm">✅ Accept</button>
+                            </form>
+                            <!-- Reject -->
+                            <form action="{% url 'reject_request' %}" method="POST" class="inline-form">
+                                {% csrf_token %}
+                                <input type="hidden" name="friend_id" value="{{ friend }}">
+                                <button type="submit" class="btn btn-danger btn-sm">❌ Reject</button>
+                            </form>
+                        </div>
+                    </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <strong>No pending friend requests</strong>
+                    <p>Friend requests will appear here when you receive them.</p>
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Date Requests Display -->
+        <div class="date-requests">
+            {% for date_request in received_date_requests %}
+            <div class="card mb-2">
+                <div class="card-body">
+                    <h6>💕 Date request from {{ date_request.From }}</h6>
+                    <p><strong>📅 Date:</strong> {{ date_request.date|default:"Not specified" }}</p>
+                    <p><strong>⏰ Time:</strong> {{ date_request.time|default:"Not specified" }}</p>
+                    <button type="button" class="btn btn-sm btn-primary" 
+                            onclick="openHandleDateRequestModal('{{ date_request.pk }}', '{{ date_request.From }}', '{{ date_request.date }}', '{{ date_request.time }}')">
+                        📋 Handle Request
                     </button>
                 </div>
-                <div class="modal-body">
-                    <input type="hidden" name="friend_id" id="modalFriendId">
-                    <input type="hidden" name="latitude" id="modalLatitude">
-                    <input type="hidden" name="longitude" id="modalLongitude">
-                    
-                    <div class="form-group">
-                        <label for="date">Select Date:</label>
-                        <input type="date" id="date" name="date" class="form-control" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="time">Select Time:</label>
-                        <input type="time" id="time" name="time" class="form-control" required>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label for="message">Message (optional):</label>
-                        <textarea id="message" name="message" class="form-control" rows="3" placeholder="Add a message for your date request..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Send Request</button>
-                </div>
-            </form>
+            </div>
+            {% endfor %}
         </div>
     </div>
-</div>
 
-<!-- Date Request Accept/Reject Modal -->
-<div class="modal fade" id="handleDateRequestModal" tabindex="-1" role="dialog" aria-labelledby="handleDateRequestModalLabel" aria-hidden="true">
-    <div class="modal-dialog" role="document">
-        <div class="modal-content">
-            <form method="POST" action="{% url 'handle_date_request' %}">
-                {% csrf_token %}
-                <div class="modal-header">
-                    <h5 class="modal-title" id="handleDateRequestModalLabel">Handle Date Request</h5>
-                    <button type="button" class="close" data-dismiss="modal" aria-label="Close">
-                        <span aria-hidden="true">&times;</span>
-                    </button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" name="request_id" id="modalRequestId">
-                    
-                    <!-- Display current date request details -->
-                    <div class="alert alert-info">
-                        <h6>Date Request from: <span id="modalFromUser"></span></h6>
-                        <p><strong>Proposed Date:</strong> <span id="modalCurrentDate"></span></p>
-                        <p><strong>Proposed Time:</strong> <span id="modalCurrentTime"></span></p>
+    <!-- Date Request Send Modal -->
+    <div class="modal fade" id="dateRequestModal" tabindex="-1" role="dialog" aria-labelledby="dateRequestModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'send_date_request' %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="dateRequestModalLabel">💕 Send Date Request</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.8;">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
                     </div>
-                    
-                    <!-- Option to modify date/time when accepting -->
-                    <div id="acceptOptions" style="display: none;">
-                        <h6>You can modify the date/time if needed:</h6>
+                    <div class="modal-body">
+                        <input type="hidden" name="friend_id" id="modalFriendId">
+                        <input type="hidden" name="latitude" id="modalLatitude">
+                        <input type="hidden" name="longitude" id="modalLongitude">
+                        
                         <div class="form-group">
-                            <label for="new_date">New Date (optional):</label>
-                            <input type="date" id="new_date" name="new_date" class="form-control">
+                            <label for="date">📅 Select Date:</label>
+                            <input type="date" id="date" name="date" class="form-control" required>
                         </div>
+                        
                         <div class="form-group">
-                            <label for="new_time">New Time (optional):</label>
-                            <input type="time" id="new_time" name="new_time" class="form-control">
+                            <label for="time">⏰ Select Time:</label>
+                            <input type="time" id="time" name="time" class="form-control" required>
                         </div>
-                        <small class="text-muted">Leave empty to keep the original date and time</small>
+                        
+                        <div class="form-group">
+                            <label for="message">💬 Message (optional):</label>
+                            <textarea id="message" name="message" class="form-control" rows="3" placeholder="Add a message for your date request..."></textarea>
+                        </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
-                    <button type="submit" name="action" value="reject" class="btn btn-danger">Reject</button>
-                    <button type="submit" name="action" value="accept" class="btn btn-success" id="acceptBtn">Accept</button>
-                </div>
-            </form>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">💕 Send Request</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-</div>
 
-<!-- JavaScript to handle the modal -->
-<script>
-function openHandleDateRequestModal(requestId, fromUser, currentDate, currentTime) {
-    // Set the hidden fields
-    document.getElementById('modalRequestId').value = requestId;
-    
-    // Display current request details
-    document.getElementById('modalFromUser').textContent = fromUser;
-    document.getElementById('modalCurrentDate').textContent = currentDate || 'Not specified';
-    document.getElementById('modalCurrentTime').textContent = currentTime || 'Not specified';
-    
-    // Pre-fill the new date/time fields with current values
-    if (currentDate) {
-        document.getElementById('new_date').value = currentDate;
-    }
-    if (currentTime) {
-        document.getElementById('new_time').value = currentTime;
-    }
-    
-    // Show the modal
-    $('#handleDateRequestModal').modal('show');
-}
-
-// Show/hide accept options when accept button is clicked
-document.getElementById('acceptBtn').addEventListener('click', function(e) {
-    // Show the accept options before submitting
-    document.getElementById('acceptOptions').style.display = 'block';
-    e.preventDefault(); // Prevent immediate submission
-    
-    // Change the button text and behavior
-    this.textContent = 'Confirm Accept';
-    this.onclick = null; // Remove this event listener
-    this.type = 'submit'; // Make it submit the form
-});
-</script>
-
-<!-- Example of how to call the modal from your date requests list -->
-<!-- This would be in your template where you display received date requests -->
-<div class="date-requests">
-    {% for date_request in received_date_requests %}
-    <div class="card mb-2">
-        <div class="card-body">
-            <h6>Date request from {{ date_request.From }}</h6>
-            <p><strong>Date:</strong> {{ date_request.date|default:"Not specified" }}</p>
-            <p><strong>Time:</strong> {{ date_request.time|default:"Not specified" }}</p>
-            <button type="button" class="btn btn-sm btn-primary" 
-                    onclick="openHandleDateRequestModal('{{ date_request.pk }}', '{{ date_request.From }}', '{{ date_request.date }}', '{{ date_request.time }}')">
-                Handle Request
-            </button>
+    <!-- Date Request Accept/Reject Modal -->
+    <div class="modal fade" id="handleDateRequestModal" tabindex="-1" role="dialog" aria-labelledby="handleDateRequestModalLabel" aria-hidden="true">
+        <div class="modal-dialog" role="document">
+            <div class="modal-content">
+                <form method="POST" action="{% url 'handle_date_request' %}">
+                    {% csrf_token %}
+                    <div class="modal-header">
+                        <h5 class="modal-title" id="handleDateRequestModalLabel">📋 Handle Date Request</h5>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close" style="color: white; opacity: 0.8;">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
+                    </div>
+                    <div class="modal-body">
+                        <input type="hidden" name="request_id" id="modalRequestId">
+                        
+                        <!-- Display current date request details -->
+                        <div class="alert alert-info">
+                            <h6>💕 Date Request from: <span id="modalFromUser"></span></h6>
+                            <p><strong>📅 Proposed Date:</strong> <span id="modalCurrentDate"></span></p>
+                            <p><strong>⏰ Proposed Time:</strong> <span id="modalCurrentTime"></span></p>
+                        </div>
+                        
+                        <!-- Option to modify date/time when accepting -->
+                        <div id="acceptOptions" style="display: none;">
+                            <h6>You can modify the date/time if needed:</h6>
+                            <div class="form-group">
+                                <label for="new_date">📅 New Date (optional):</label>
+                                <input type="date" id="new_date" name="new_date" class="form-control">
+                            </div>
+                            <div class="form-group">
+                                <label for="new_time">⏰ New Time (optional):</label>
+                                <input type="time" id="new_time" name="new_time" class="form-control">
+                            </div>
+                            <small class="text-muted">Leave empty to keep the original date and time</small>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                        <button type="submit" name="action" value="reject" class="btn btn-danger">❌ Reject</button>
+                        <button type="submit" name="action" value="accept" class="btn btn-success" id="acceptBtn">✅ Accept</button>
+                    </div>
+                </form>
+            </div>
         </div>
     </div>
-    {% endfor %}
-</div>
 
-<!-- Modal Friend ID Script -->
-<script>
-    $('#dateRequestModal').on('show.bs.modal', function (event) {
-        const button = $(event.relatedTarget);
-        const friendId = button.data('friendid'); // Changed from 'friend-id' to 'friendid' to match your HTML
-        const modal = $(this);
-        modal.find('#modalFriendId').val(friendId);
-        
-        // Add current location to the modal
-        if (userLatitude && userLongitude) {
-            modal.find('#modalLatitude').val(userLatitude);
-            modal.find('#modalLongitude').val(userLongitude);
+    <!-- jQuery and Bootstrap JS for Modal -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+    <script>
+        // Menu toggle functionality
+        function toggleMenu() {
+            const dropdown = document.getElementById('dropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
         }
-    });
-</script>
 
-<!-- Location Injection Script -->
-<script>
-let userLatitude = null;
-let userLongitude = null;
-
-function getCurrentLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(
-            (position) => {
-                userLatitude = position.coords.latitude;
-                userLongitude = position.coords.longitude;
-                addLocationToForms();
-            },
-            (error) => {
-                console.warn("Geolocation failed, trying GeoJS...");
-                getLocationFromIP();
-            },
-            {
-                enableHighAccuracy: true,
-                timeout: 10000,
-                maximumAge: 60000
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.menu');
+            const dropdown = document.getElementById('dropdown');
+            if (!menu.contains(event.target)) {
+                dropdown.style.display = 'none';
             }
-        );
-    } else {
-        console.warn("Geolocation not supported. Falling back to GeoJS.");
-        getLocationFromIP();
-    }
-}
-
-function getLocationFromIP() {
-    fetch('https://get.geojs.io/v1/ip/geo.json')
-        .then(res => res.json())
-        .then(data => {
-            userLatitude = parseFloat(data.latitude);
-            userLongitude = parseFloat(data.longitude);
-            addLocationToForms();
-        })
-        .catch(err => {
-            console.error("GeoJS failed:", err);
         });
-}
 
-function addLocationToForms() {
-    document.querySelectorAll('form').forEach(form => {
-        let lat = form.querySelector('input[name="latitude"]');
-        let lon = form.querySelector('input[name="longitude"]');
-
-        if (lat) lat.remove();
-        if (lon) lon.remove();
-
-        if (userLatitude != null && userLongitude != null) {
-            lat = document.createElement('input');
-            lat.type = 'hidden';
-            lat.name = 'latitude';
-            lat.value = userLatitude;
-
-            lon = document.createElement('input');
-            lon.type = 'hidden';
-            lon.name = 'longitude';
-            lon.value = userLongitude;
-
-            form.appendChild(lat);
-            form.appendChild(lon);
-        }
-    });
-}
-
-document.addEventListener("DOMContentLoaded", function () {
-    getCurrentLocation();
-    setInterval(getCurrentLocation, 300000); // update every 5 min
-});
-
-document.addEventListener("submit", function (e) {
-    if (userLatitude && userLongitude) {
-        const form = e.target;
-
-        let lat = form.querySelector('input[name="latitude"]');
-        let lon = form.querySelector('input[name="longitude"]');
-
-        if (!lat) {
-            lat = document.createElement("input");
-            lat.type = "hidden";
-            lat.name = "latitude";
-            form.appendChild(lat);
-        }
-        if (!lon) {
-            lon = document.createElement("input");
-            lon.type = "hidden";
-            lon.name = "longitude";
-            form.appendChild(lon);
+        // Handle Date Request Modal functionality
+        function openHandleDateRequestModal(requestId, fromUser, currentDate, currentTime) {
+            // Set the hidden fields
+            document.getElementById('modalRequestId').value = requestId;
+            
+            // Display current request details
+            document.getElementById('modalFromUser').textContent = fromUser;
+            document.getElementById('modalCurrentDate').textContent = currentDate || 'Not specified';
+            document.getElementById('modalCurrentTime').textContent = currentTime || 'Not specified';
+            
+            // Pre-fill the new date/time fields with current values
+            if (currentDate) {
+                document.getElementById('new_date').value = currentDate;
+            }
+            if (currentTime) {
+                document.getElementById('new_time').value = currentTime;
+            }
+            
+            // Show the modal
+            $('#handleDateRequestModal').modal('show');
         }
 
-        lat.value = userLatitude;
-        lon.value = userLongitude;
-    }
-});
-</script>
+        // Show/hide accept options when accept button is clicked
+        document.getElementById('acceptBtn').addEventListener('click', function(e) {
+            // Show the accept options before submitting
+            document.getElementById('acceptOptions').style.display = 'block';
+            e.preventDefault(); // Prevent immediate submission
+            
+            // Change the button text and behavior
+            this.textContent = '✅ Confirm Accept';
+            this.onclick = null; // Remove this event listener
+            this.type = 'submit'; // Make it submit the form
+        });
 
-<script>
-    document.addEventListener('DOMContentLoaded', function () {
-        const dateModal = document.getElementById('dateRequestModal');
-    
-        // If you're using Bootstrap 4 with jQuery
+        // Modal Friend ID Script
         $('#dateRequestModal').on('show.bs.modal', function (event) {
             const button = $(event.relatedTarget);
-            const friendId = button.data('friendid');  // Make sure the triggering button has data-friendid attribute
-    
-            // Set friend ID into hidden input
-            $('#modalFriendId').val(friendId);
-    
-            // If you have a marker object tracking the user location
-            if (window.userMarker) {
-                const pos = window.userMarker.getLatLng();
-                $('#modalLatitude').val(pos.lat);
-                $('#modalLongitude').val(pos.lng);
-            } else {
-                console.warn("User marker not found, location not attached to request.");
-                $('#modalLatitude').val('');
-                $('#modalLongitude').val('');
+            const friendId = button.data('friendid'); // Changed from 'friend-id' to 'friendid' to match your HTML
+            const modal = $(this);
+            modal.find('#modalFriendId').val(friendId);
+            
+            // Add current location to the modal
+            if (userLatitude && userLongitude) {
+                modal.find('#modalLatitude').val(userLatitude);
+                modal.find('#modalLongitude').val(userLongitude);
             }
         });
-    });
+
+        // Location Injection Script
+        let userLatitude = null;
+        let userLongitude = null;
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    (position) => {
+                        userLatitude = position.coords.latitude;
+                        userLongitude = position.coords.longitude;
+                        addLocationToForms();
+                    },
+                    (error) => {
+                        console.warn("Geolocation failed, trying GeoJS...");
+                        getLocationFromIP();
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 10000,
+                        maximumAge: 60000
+                    }
+                );
+            } else {
+                console.warn("Geolocation not supported. Falling back to GeoJS.");
+                getLocationFromIP();
+            }
+        }
+
+        function getLocationFromIP() {
+            fetch('https://get.geojs.io/v1/ip/geo.json')
+                .then(res => res.json())
+                .then(data => {
+                    userLatitude = parseFloat(data.latitude);
+                    userLongitude = parseFloat(data.longitude);
+                    addLocationToForms();
+                })
+                .catch(err => {
+                    console.error("GeoJS failed:", err);
+                });
+        }
+
+        function addLocationToForms() {
+            document.querySelectorAll('form').forEach(form => {
+                let lat = form.querySelector('input[name="latitude"]');
+                let lon = form.querySelector('input[name="longitude"]');
+
+                if (lat) lat.remove();
+                if (lon) lon.remove();
+
+                if (userLatitude != null && userLongitude != null) {
+                    lat = document.createElement('input');
+                    lat.type = 'hidden';
+                    lat.name = 'latitude';
+                    lat.value = userLatitude;
+
+                    lon = document.createElement('input');
+                    lon.type = 'hidden';
+                    lon.name = 'longitude';
+                    lon.value = userLongitude;
+
+                    form.appendChild(lat);
+                    form.appendChild(lon);
+                }
+            });
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+            getCurrentLocation();
+            setInterval(getCurrentLocation, 300000); // update every 5 min
+        });
+
+        document.addEventListener("submit", function (e) {
+            if (userLatitude && userLongitude) {
+                const form = e.target;
+
+                let lat = form.querySelector('input[name="latitude"]');
+                let lon = form.querySelector('input[name="longitude"]');
+
+                if (!lat) {
+                    lat = document.createElement("input");
+                    lat.type = "hidden";
+                    lat.name = "latitude";
+                    form.appendChild(lat);
+                }
+                if (!lon) {
+                    lon = document.createElement("input");
+                    lon.type = "hidden";
+                    lon.name = "longitude";
+                    form.appendChild(lon);
+                }
+
+                lat.value = userLatitude;
+                lon.value = userLongitude;
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const dateModal = document.getElementById('dateRequestModal');
+        
+            // If you're using Bootstrap 4 with jQuery
+            $('#dateRequestModal').on('show.bs.modal', function (event) {
+                const button = $(event.relatedTarget);
+                const friendId = button.data('friendid');  // Make sure the triggering button has data-friendid attribute
+        
+                // Set friend ID into hidden input
+                $('#modalFriendId').val(friendId);
+        
+                // If you have a marker object tracking the user location
+                if (window.userMarker) {
+                    const pos = window.userMarker.getLatLng();
+                    $('#modalLatitude').val(pos.lat);
+                    $('#modalLongitude').val(pos.lng);
+                } else {
+                    console.warn("User marker not found, location not attached to request.");
+                    $('#modalLatitude').val('');
+                    $('#modalLongitude').val('');
+                }
+            });
+        });
     </script>
-    
-
-<!-- jQuery and Bootstrap JS for Modal -->
-<script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-<script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
-
 </body>
 </html>

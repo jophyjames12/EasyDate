@@ -50,10 +50,15 @@ urlpatterns=[
     path('get_event_details/<str:event_id>/', views.get_event_details, name='get_event_details'),
     path('get_notification_counts/', views.get_notification_counts, name='get_notification_counts'),
     path('mark_notifications_seen/', views.mark_notifications_seen, name='mark_notifications_seen'),
+    # Google Authentication routes
+    path('auth/google/', views.google_auth_view, name='google_auth'),
+    path('auth/google/signup/', views.google_signup_view, name='google_signup'),
+    path('debug-google/', views.debug_google_view, name='debug_google'),
     #new
     path('create_post/', views.create_post, name='create_post'),
     path('toggle_like/', views.toggle_like_post, name='toggle_like_post'),
     path('delete_post/', views.delete_post, name='delete_post'),
+    path('post_likes/<str:post_id>/', views.get_post_likes, name='post_likes'),
     path('friend_profile/<str:friend_username>/', views.view_friend_profile, name='view_friend_profile'),
     path('past-events/', views.past_events_view, name='past_events'),
 ]

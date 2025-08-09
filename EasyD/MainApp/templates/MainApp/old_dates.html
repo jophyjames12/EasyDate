@@ -4,109 +4,130 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Old Dates History</title>
+    {% load static %}
+    
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f8f9fa;
-            min-height: 100vh;
-            color: #333;
-        }
-
-        .container {
-            max-width: 1000px;
-            margin: 0 auto;
-            padding: 20px;
-        }
-
-        .header {
-            background: white;
-            border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 30px;
-            border: 1px solid #e9ecef;
+        /* Page-specific styles that enhance global styles */
+        
+        .page-header {
             text-align: center;
+            margin-bottom: 30px;
         }
 
-        .header h1 {
+        .page-header h1 {
             font-size: 32px;
-            color: #212529;
             margin-bottom: 10px;
         }
 
-        .header p {
+        .page-header p {
             color: #6c757d;
             font-size: 16px;
         }
 
         .back-btn {
-            background: #007bff;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.2) 0%, rgba(255, 255, 255, 0.1) 100%);
+            backdrop-filter: blur(10px);
             color: white;
-            border: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
             padding: 12px 24px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            transition: background-color 0.3s ease;
-            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+            border-radius: 25px;
             text-decoration: none;
+            font-weight: 500;
+            margin-bottom: 20px;
             display: inline-block;
-            margin-top: 15px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .back-btn:hover {
-            background: #0056b3;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.2) 100%);
+            color: white;
+            text-decoration: none;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
         }
 
-        .dates-section {
-            background: white;
+        .stats-bar {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 25px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+        }
+
+        .stats-item {
+            display: inline-block;
+            margin: 0 20px;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.1) 0%, rgba(78, 20, 114, 0.1) 100%);
             border-radius: 12px;
-            padding: 30px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e9ecef;
+            transition: all 0.3s ease;
+        }
+
+        .stats-item:hover {
+            transform: translateY(-2px);
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.15) 0%, rgba(78, 20, 114, 0.15) 100%);
+        }
+
+        .stats-number {
+            font-size: 32px;
+            font-weight: bold;
+            color: rgb(33, 5, 62);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .stats-label {
+            font-size: 14px;
+            color: #6c757d;
+            margin-top: 5px;
+            font-weight: 500;
         }
 
         .section-title {
             font-size: 24px;
             font-weight: bold;
-            color: #212529;
+            color: rgb(33, 5, 62);
             margin-bottom: 25px;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .section-title::before {
             content: '📅';
-            font-size: 20px;
+            font-size: 24px;
+            filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.1));
         }
 
         .date-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
             gap: 20px;
         }
 
         .date-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            border-radius: 15px;
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%);
+            border-radius: 18px;
             padding: 25px;
             color: white;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 8px 25px rgba(33, 5, 62, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
         }
 
         .date-card:hover {
             transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            box-shadow: 0 12px 35px rgba(33, 5, 62, 0.4);
         }
 
         .date-card::before {
@@ -125,57 +146,71 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 15px;
+            z-index: 1;
+            position: relative;
         }
 
         .partner-name {
             font-size: 20px;
             font-weight: bold;
             color: white;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
 
         .status-badge {
-            background: rgba(255, 255, 255, 0.2);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0.2) 100%);
+            backdrop-filter: blur(10px);
             color: white;
-            padding: 5px 12px;
+            padding: 6px 14px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: bold;
-            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
         }
 
         .date-info {
             margin-bottom: 15px;
+            z-index: 1;
+            position: relative;
         }
 
         .date-detail {
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 12px;
             margin-bottom: 10px;
-            color: rgba(255, 255, 255, 0.9);
+            color: rgba(255, 255, 255, 0.95);
+            font-weight: 500;
         }
 
         .date-detail i {
-            width: 16px;
+            width: 18px;
             text-align: center;
+            font-size: 16px;
+            filter: drop-shadow(1px 1px 2px rgba(0, 0, 0, 0.2));
         }
 
         .moved-at {
             font-size: 12px;
             color: rgba(255, 255, 255, 0.7);
             border-top: 1px solid rgba(255, 255, 255, 0.2);
-            padding-top: 10px;
+            padding-top: 12px;
             margin-top: 15px;
+            z-index: 1;
+            position: relative;
+            font-style: italic;
         }
 
         .no-dates {
             text-align: center;
             color: #666;
             font-style: italic;
-            padding: 60px;
-            background: #f8f9fa;
-            border-radius: 15px;
-            border: 2px dashed #ddd;
+            padding: 60px 40px;
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.05) 0%, rgba(78, 20, 114, 0.05) 100%);
+            border-radius: 20px;
+            border: 2px dashed rgba(33, 5, 62, 0.3);
+            backdrop-filter: blur(5px);
         }
 
         .no-dates::before {
@@ -183,44 +218,47 @@
             font-size: 64px;
             display: block;
             margin-bottom: 20px;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
         }
 
         .no-dates h3 {
             font-size: 24px;
             margin-bottom: 10px;
-            color: #495057;
+            color: rgb(33, 5, 62);
+            font-weight: 600;
         }
 
         .no-dates p {
             font-size: 16px;
             color: #6c757d;
+            line-height: 1.5;
         }
 
-        .stats-bar {
-            background: #e9ecef;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 20px;
-            text-align: center;
+        /* Enhanced animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
         }
 
-        .stats-item {
-            display: inline-block;
-            margin: 0 20px;
+        .date-card {
+            animation: fadeInUp 0.6s ease;
+            animation-fill-mode: both;
         }
 
-        .stats-number {
-            font-size: 28px;
-            font-weight: bold;
-            color: #495057;
-        }
+        .date-card:nth-child(1) { animation-delay: 0.1s; }
+        .date-card:nth-child(2) { animation-delay: 0.2s; }
+        .date-card:nth-child(3) { animation-delay: 0.3s; }
+        .date-card:nth-child(4) { animation-delay: 0.4s; }
+        .date-card:nth-child(5) { animation-delay: 0.5s; }
+        .date-card:nth-child(6) { animation-delay: 0.6s; }
 
-        .stats-label {
-            font-size: 14px;
-            color: #6c757d;
-            margin-top: 5px;
-        }
-
+        /* Responsive design */
         @media (max-width: 768px) {
             .date-grid {
                 grid-template-columns: 1fr;
@@ -228,22 +266,82 @@
             
             .stats-item {
                 display: block;
-                margin: 10px 0;
+                margin: 10px auto;
+                max-width: 200px;
             }
-            
-            .container {
-                padding: 10px;
+
+            .date-card {
+                padding: 20px;
+            }
+
+            .partner-name {
+                font-size: 18px;
+            }
+
+            .section-title {
+                font-size: 20px;
+                justify-content: center;
+            }
+
+            .no-dates {
+                padding: 40px 20px;
+            }
+
+            .no-dates::before {
+                font-size: 48px;
+            }
+
+            .no-dates h3 {
+                font-size: 20px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .stats-bar {
+                padding: 20px 15px;
+            }
+
+            .date-card {
+                padding: 18px;
+            }
+
+            .date-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 8px;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Header with Global Styling -->
+    <header>
+        <h1>📅 Date History</h1>
+        <div class="menu">
+            <button type="button">
+                ☰ Menu
+            </button>
+            <div id="dropdown" class="dropdown-content">
+                <a href="{% url 'area' %}">Home</a>
+                <a href="{% url 'events' %}">Events</a>
+                <a href="{% url 'profile' %}">Profile</a>
+                <a href="{% url 'search_user' %}">Friends</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
     <div class="container">
-        <!-- Header -->
-        <div class="header">
+        <!-- Back Button -->
+        <a href="{% url 'profile' %}" class="back-btn">
+            ← Back to Profile
+        </a>
+
+        <!-- Page Header -->
+        <div class="card page-header">
             <h1>Your Date History</h1>
             <p>A collection of all your past dates and memories</p>
-            <a href="{% url 'profile' %}" class="back-btn">← Back to Profile</a>
         </div>
 
         <!-- Stats -->
@@ -257,7 +355,7 @@
         {% endif %}
 
         <!-- Old Dates Section -->
-        <div class="dates-section">
+        <div class="card">
             <h2 class="section-title">Past Dates</h2>
             
             {% if old_dates %}
@@ -296,5 +394,63 @@
             {% endif %}
         </div>
     </div>
+
+    <script>
+        // Menu toggle functionality
+        function toggleMenu() {
+            const dropdown = document.getElementById('dropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.menu');
+            const dropdown = document.getElementById('dropdown');
+            if (!menu.contains(event.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
+        // Enhanced visual effects
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add hover effects to date cards
+            const dateCards = document.querySelectorAll('.date-card');
+            dateCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px) scale(1.02)';
+                });
+                
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0) scale(1)';
+                });
+            });
+
+            // Animate stats on scroll
+            const statsItems = document.querySelectorAll('.stats-number');
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const target = parseInt(entry.target.textContent);
+                        let current = 0;
+                        const increment = target / 30;
+                        
+                        const timer = setInterval(() => {
+                            current += increment;
+                            if (current >= target) {
+                                entry.target.textContent = target;
+                                clearInterval(timer);
+                            } else {
+                                entry.target.textContent = Math.floor(current);
+                            }
+                        }, 50);
+                        
+                        observer.unobserve(entry.target);
+                    }
+                });
+            });
+            
+            statsItems.forEach(item => observer.observe(item));
+        });
+    </script>
 </body>
 </html>

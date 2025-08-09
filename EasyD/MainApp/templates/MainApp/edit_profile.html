@@ -4,47 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Edit Profile</title>
+    {% load static %}
+    
+    <!-- Global Styles - Include this FIRST -->
+    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
+    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
+    
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: #f8f9fa;
-            min-height: 100vh;
-            color: #333;
-            padding: 20px;
-        }
-
-        .container {
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 12px;
-            padding: 40px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            border: 1px solid #e9ecef;
-        }
-
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .header h1 {
-            color: #212529;
-            font-size: 28px;
-            margin-bottom: 10px;
-        }
-
-        .header p {
-            color: #6c757d;
-            font-size: 16px;
-        }
-
+        /* Page-specific styles that enhance global styles */
+        
         .profile-picture-section {
             text-align: center;
             margin-bottom: 30px;
@@ -54,17 +23,23 @@
             width: 120px;
             height: 120px;
             border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
             display: inline-flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 36px;
             font-weight: bold;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 8px 25px rgba(33, 5, 62, 0.3);
             position: relative;
             overflow: hidden;
             margin-bottom: 15px;
+            transition: all 0.3s ease;
+        }
+
+        .current-picture:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 35px rgba(33, 5, 62, 0.4);
         }
 
         .current-picture img {
@@ -79,39 +54,45 @@
         }
 
         .upload-area {
-            border: 2px dashed #ced4da;
-            border-radius: 8px;
+            border: 2px dashed rgba(33, 5, 62, 0.3);
+            border-radius: 15px;
             padding: 30px;
             text-align: center;
-            background: #f8f9fa;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(10px);
             transition: all 0.3s ease;
             cursor: pointer;
             position: relative;
         }
 
         .upload-area:hover {
-            border-color: #007bff;
-            background: #e3f2fd;
+            border-color: rgb(33, 5, 62);
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.1) 0%, rgba(78, 20, 114, 0.1) 100%);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
         }
 
         .upload-area.dragover {
-            border-color: #007bff;
-            background: #e3f2fd;
+            border-color: rgb(33, 5, 62);
+            background: linear-gradient(135deg, rgba(33, 5, 62, 0.15) 0%, rgba(78, 20, 114, 0.15) 100%);
+            transform: scale(1.02);
         }
 
         .upload-icon {
             font-size: 48px;
             margin-bottom: 15px;
+            filter: drop-shadow(2px 2px 4px rgba(0, 0, 0, 0.1));
         }
 
         .upload-text {
-            color: #6c757d;
+            color: rgb(33, 5, 62);
             font-size: 16px;
             margin-bottom: 10px;
+            font-weight: 600;
         }
 
         .upload-subtext {
-            color: #adb5bd;
+            color: #6c757d;
             font-size: 14px;
         }
 
@@ -129,35 +110,27 @@
 
         .form-group label {
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             font-weight: 600;
-            color: #495057;
+            color: rgb(33, 5, 62);
             font-size: 16px;
+            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
         }
 
         .form-group textarea {
-            width: 100%;
-            padding: 12px;
-            border: 1px solid #ced4da;
-            border-radius: 8px;
-            font-size: 14px;
-            font-family: inherit;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
+            backdrop-filter: blur(5px);
             resize: vertical;
-            min-height: 100px;
-            transition: border-color 0.3s ease;
-        }
-
-        .form-group textarea:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            min-height: 120px;
+            font-family: inherit;
         }
 
         .char-counter {
             text-align: right;
             font-size: 12px;
             color: #6c757d;
-            margin-top: 5px;
+            margin-top: 8px;
+            font-weight: 500;
         }
 
         .action-buttons {
@@ -167,52 +140,21 @@
             margin-top: 30px;
         }
 
-        .btn {
-            padding: 12px 24px;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-weight: 500;
-            font-size: 16px;
-            transition: all 0.3s ease;
-            text-decoration: none;
-            display: inline-block;
-            text-align: center;
-            min-width: 120px;
-        }
-
-        .btn-primary {
-            background: #007bff;
-            color: white;
-        }
-
-        .btn-primary:hover {
-            background: #0056b3;
-            transform: translateY(-2px);
-        }
-
-        .btn-secondary {
-            background: #6c757d;
-            color: white;
-        }
-
-        .btn-secondary:hover {
-            background: #545b62;
-            transform: translateY(-2px);
-        }
-
         .preview-section {
             margin-top: 20px;
             padding: 20px;
-            background: #f8f9fa;
-            border-radius: 8px;
-            border: 1px solid #e9ecef;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 249, 250, 0.8) 100%);
+            backdrop-filter: blur(10px);
+            border-radius: 15px;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .preview-title {
             font-weight: 600;
-            color: #495057;
-            margin-bottom: 10px;
+            color: rgb(33, 5, 62);
+            margin-bottom: 15px;
+            font-size: 16px;
         }
 
         .preview-image {
@@ -221,21 +163,35 @@
             border-radius: 50%;
             object-fit: cover;
             border: 3px solid white;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .preview-image:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 20px rgba(33, 5, 62, 0.3);
         }
 
         .error-message {
             color: #dc3545;
             font-size: 14px;
-            margin-top: 5px;
+            margin-top: 8px;
             display: none;
+            padding: 8px 12px;
+            background: rgba(220, 53, 69, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(220, 53, 69, 0.2);
         }
 
         .success-message {
             color: #28a745;
             font-size: 14px;
-            margin-top: 5px;
+            margin-top: 8px;
             display: none;
+            padding: 8px 12px;
+            background: rgba(40, 167, 69, 0.1);
+            border-radius: 8px;
+            border: 1px solid rgba(40, 167, 69, 0.2);
         }
 
         .messages {
@@ -243,44 +199,96 @@
         }
 
         .alert {
-            padding: 12px;
-            margin-bottom: 10px;
-            border-radius: 8px;
+            padding: 12px 16px;
+            margin-bottom: 15px;
+            border-radius: 12px;
             border: 1px solid;
+            backdrop-filter: blur(10px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
         }
 
         .alert-success {
-            background-color: #d4edda;
+            background: linear-gradient(135deg, rgba(212, 237, 218, 0.9) 0%, rgba(195, 230, 203, 0.9) 100%);
             border-color: #c3e6cb;
             color: #155724;
         }
 
         .alert-error {
-            background-color: #f8d7da;
+            background: linear-gradient(135deg, rgba(248, 215, 218, 0.9) 0%, rgba(245, 198, 203, 0.9) 100%);
             border-color: #f5c6cb;
             color: #721c24;
         }
 
-        @media (max-width: 768px) {
-            .container {
-                padding: 20px;
-                margin: 10px;
-            }
+        /* Header description styling */
+        .header-description {
+            color: #6c757d;
+            font-size: 16px;
+            margin-bottom: 10px;
+        }
 
+        /* Enhanced loading state */
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* Animation for file upload success */
+        @keyframes uploadSuccess {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .upload-success-animation {
+            animation: uploadSuccess 0.5s ease;
+        }
+
+        @media (max-width: 768px) {
             .action-buttons {
                 flex-direction: column;
             }
 
-            .btn {
-                width: 100%;
+            .current-picture {
+                width: 100px;
+                height: 100px;
+                font-size: 30px;
+            }
+
+            .upload-area {
+                padding: 20px;
+            }
+
+            .upload-icon {
+                font-size: 36px;
             }
         }
     </style>
 </head>
 <body>
+    <!-- Header with Global Styling -->
+    <header>
+        <h1>Edit Profile</h1>
+        <div class="menu">
+            <button type="button">
+                ☰ Menu
+            </button>
+            <div id="dropdown" class="dropdown-content">
+                <a href="{% url 'area' %}">Home</a>
+                <a href="{% url 'events' %}">Events</a>
+                <a href="{% url 'profile' %}">Profile</a>
+                <a href="{% url 'search_user' %}">Friends</a>
+                <a href="{% url 'logout' %}">Logout</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content Container -->
     <div class="container">
-        <div class="header">
+        <!-- Page Header -->
+        <div style="text-align: center; margin-bottom: 30px;">
             <h1>Edit Your Profile</h1>
+            <p class="header-description">Update your profile picture and bio to let others know more about you</p>
         </div>
 
         <!-- Display messages -->
@@ -298,53 +306,72 @@
             {% csrf_token %}
             
             <!-- Current Profile Picture Display -->
-            <div class="profile-picture-section">
-                <div class="current-picture" id="currentPicture">
-                    {% if profile_picture %}
-                        <img src="{{ profile_picture }}" alt="Current Profile Picture">
-                    {% else %}
-                        {{ name|first|upper|default:"U" }}
-                    {% endif %}
+            <div class="card">
+                <div class="profile-picture-section">
+                    <div class="current-picture" id="currentPicture">
+                        {% if profile_picture %}
+                            <img src="{{ profile_picture }}" alt="Current Profile Picture">
+                        {% else %}
+                            {{ name|first|upper|default:"U" }}
+                        {% endif %}
+                    </div>
+                    <p style="color: #6c757d; font-size: 14px;">Current Profile Picture</p>
                 </div>
-                <p style="color: #6c757d; font-size: 14px;">Current Profile Picture</p>
-            </div>
 
-            <!-- Profile Picture Upload -->
-            <div class="picture-upload">
-                <div class="upload-area" id="uploadArea">
-                    <div class="upload-icon">📸</div>
-                    <div class="upload-text">Click to upload or drag and drop</div>
-                    <div class="upload-subtext">PNG, JPG, GIF up to 5MB</div>
-                    <input type="file" name="profile_picture" accept="image/*" class="file-input" id="fileInput">
+                <!-- Profile Picture Upload -->
+                <div class="picture-upload">
+                    <div class="upload-area" id="uploadArea">
+                        <div class="upload-icon">📸</div>
+                        <div class="upload-text">Click to upload or drag and drop</div>
+                        <div class="upload-subtext">PNG, JPG, GIF up to 5MB</div>
+                        <input type="file" name="profile_picture" accept="image/*" class="file-input" id="fileInput">
+                    </div>
+                    <div class="error-message" id="fileError"></div>
+                    <div class="success-message" id="fileSuccess"></div>
                 </div>
-                <div class="error-message" id="fileError"></div>
-                <div class="success-message" id="fileSuccess"></div>
-            </div>
 
-            <!-- Preview Section -->
-            <div class="preview-section" id="previewSection" style="display: none;">
-                <div class="preview-title">Preview:</div>
-                <img id="previewImage" class="preview-image" alt="Preview">
+                <!-- Preview Section -->
+                <div class="preview-section" id="previewSection" style="display: none;">
+                    <div class="preview-title">📷 Preview:</div>
+                    <img id="previewImage" class="preview-image" alt="Preview">
+                </div>
             </div>
 
             <!-- Bio Section -->
-            <div class="form-group">
-                <label for="bio">✍️ Your Bio</label>
-                <textarea name="bio" id="bio" placeholder="Tell everyone about yourself... What makes you unique? What are your interests?" maxlength="500">{{ bio|default:"Welcome to my profile! Let's connect and have some fun together." }}</textarea>
-                <div class="char-counter">
-                    <span id="charCount">0</span>/500 characters
+            <div class="card">
+                <div class="form-group">
+                    <label for="bio">✍️ Your Bio</label>
+                    <textarea name="bio" id="bio" placeholder="Tell everyone about yourself... What makes you unique? What are your interests?" maxlength="500">{{ bio|default:"Welcome to my profile! Let's connect and have some fun together." }}</textarea>
+                    <div class="char-counter">
+                        <span id="charCount">0</span>/500 characters
+                    </div>
                 </div>
             </div>
 
             <!-- Action Buttons -->
             <div class="action-buttons">
-                <button type="submit" class="btn btn-primary">Save Changes</button>
+                <button type="submit" class="btn">💾 Save Changes</button>
                 <a href="{% url 'profile' %}" class="btn btn-secondary">Cancel</a>
             </div>
         </form>
     </div>
 
     <script>
+        // Menu toggle functionality
+        function toggleMenu() {
+            const dropdown = document.getElementById('dropdown');
+            dropdown.style.display = dropdown.style.display === 'block' ? 'none' : 'block';
+        }
+
+        // Close dropdown when clicking outside
+        document.addEventListener('click', function(event) {
+            const menu = document.querySelector('.menu');
+            const dropdown = document.getElementById('dropdown');
+            if (!menu.contains(event.target)) {
+                dropdown.style.display = 'none';
+            }
+        });
+
         // Character counter for bio
         const bioTextarea = document.getElementById('bio');
         const charCount = document.getElementById('charCount');
@@ -411,36 +438,83 @@
 
             // Validate file type
             if (!file.type.startsWith('image/')) {
-                fileError.textContent = 'Please select an image file.';
+                fileError.textContent = '❌ Please select an image file.';
                 fileError.style.display = 'block';
                 return;
             }
 
             // Validate file size (5MB)
             if (file.size > 5 * 1024 * 1024) {
-                fileError.textContent = 'File size must be less than 5MB.';
+                fileError.textContent = '❌ File size must be less than 5MB.';
                 fileError.style.display = 'block';
                 return;
             }
 
-            // Show success message
-            fileSuccess.textContent = `Selected: ${file.name}`;
+            // Show success message with animation
+            fileSuccess.textContent = `✅ Selected: ${file.name}`;
             fileSuccess.style.display = 'block';
+            uploadArea.classList.add('upload-success-animation');
+            
+            setTimeout(() => {
+                uploadArea.classList.remove('upload-success-animation');
+            }, 500);
 
             // Preview the image
             const reader = new FileReader();
             reader.onload = (e) => {
                 previewImage.src = e.target.result;
                 previewSection.style.display = 'block';
+                
+                // Smooth reveal animation
+                previewSection.style.opacity = '0';
+                previewSection.style.transform = 'translateY(10px)';
+                setTimeout(() => {
+                    previewSection.style.transition = 'all 0.3s ease';
+                    previewSection.style.opacity = '1';
+                    previewSection.style.transform = 'translateY(0)';
+                }, 10);
             };
             reader.readAsDataURL(file);
         }
 
-        // Form submission
+        // Form submission with enhanced feedback
         document.getElementById('editProfileForm').addEventListener('submit', (e) => {
-            const submitBtn = document.querySelector('.btn-primary');
+            const submitBtn = document.querySelector('button[type="submit"]');
+            const originalText = submitBtn.textContent;
+            
             submitBtn.textContent = '💾 Saving...';
             submitBtn.disabled = true;
+            
+            // Add loading animation
+            let dots = 0;
+            const loadingInterval = setInterval(() => {
+                dots = (dots + 1) % 4;
+                submitBtn.textContent = '💾 Saving' + '.'.repeat(dots);
+            }, 500);
+            
+            // Re-enable button and clear interval if form submission fails
+            setTimeout(() => {
+                clearInterval(loadingInterval);
+                if (submitBtn.disabled) {
+                    submitBtn.textContent = originalText;
+                    submitBtn.disabled = false;
+                }
+            }, 10000); // 10 second timeout
+        });
+
+        // Enhanced visual feedback for successful actions
+        document.addEventListener('DOMContentLoaded', function() {
+            // If there are success messages, add a subtle celebration effect
+            const successAlerts = document.querySelectorAll('.alert-success');
+            successAlerts.forEach(alert => {
+                alert.style.transform = 'translateY(-10px)';
+                alert.style.opacity = '0';
+                setTimeout(() => {
+                    alert.style.transition = 'all 0.5s ease';
+                    alert.style.transform = 'translateY(0)';
+                    alert.style.opacity = '1';
+                }, 100);
+            });
         });
     </script>
 </body>

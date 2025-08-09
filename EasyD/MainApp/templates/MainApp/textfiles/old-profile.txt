@@ -3,23 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Your Profile - EasyDate</title>
-    {% load static %}
-    
-    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
-    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
-    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
-    
+    <title>Your Profile</title>
     <style>
-        /* Profile-specific styles that extend the global theme */
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            min-height: 100vh;
+            color: #333;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
         .profile-header {
-            background: rgba(255, 255, 255, 0.1) !important;
-            backdrop-filter: blur(15px) !important;
-            border-radius: 20px;
+            background: white;
+            border-radius: 12px;
             padding: 40px;
-            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
-            border: 1px solid rgba(255, 255, 255, 0.3) !important;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 30px;
+            border: 1px solid #e9ecef;
         }
 
         .profile-content {
@@ -32,14 +43,14 @@
             width: 120px;
             height: 120px;
             border-radius: 50%;
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 36px;
             font-weight: bold;
-            box-shadow: 0 8px 25px rgba(33, 5, 62, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
             position: relative;
             overflow: hidden;
         }
@@ -59,16 +70,16 @@
             font-size: 28px;
             font-weight: bold;
             margin-bottom: 10px;
-            color: rgb(33, 5, 62);
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+            color: #212529;
         }
 
         .bio {
-            background: transparent !important;
-            padding: 0;
-            border: none;
-            margin: 10px 0 0 0;
-            color: #eee;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border: 1px solid #e9ecef;
+            color: #6c757d;
         }
 
         .stats {
@@ -84,58 +95,69 @@
         .stat-number {
             font-size: 24px;
             font-weight: bold;
-            color: rgb(33, 5, 62);
+            color: #212529;
         }
 
         .stat-label {
-            color: #666;
+            color: #6c757d;
             font-size: 14px;
             margin-top: 5px;
         }
 
-        .profile-actions {
-            margin-top: 20px;
-            display: flex;
-            gap: 10px;
-        }
-
-        .profile-actions .btn {
+        .edit-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
             text-decoration: none;
-            display: inline-block;
         }
 
-        /* Enhanced posts section */
-        .create-post-section { display: none; }
+        .edit-btn:hover {
+            background: #0056b3;
+        }
+
+        /* Posts Section Styles */
+        .create-post-section {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 30px;
+            border: 1px solid #e9ecef;
+        }
 
         .create-post-btn {
             width: 100%;
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            background: linear-gradient(45deg, #007bff, #6f42c1);
             color: white;
             padding: 15px;
             border: none;
-            border-radius: 25px;
+            border-radius: 10px;
             font-weight: bold;
             cursor: pointer;
             font-size: 16px;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(33, 5, 62, 0.3);
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
+            box-shadow: 0 4px 8px rgba(0, 123, 255, 0.2);
         }
 
         .create-post-btn:hover {
-            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(98, 28, 140) 100%);
+            background: linear-gradient(45deg, #0056b3, #5a32a3);
             transform: translateY(-2px);
-            box-shadow: 0 6px 20px rgba(33, 5, 62, 0.4);
+            box-shadow: 0 6px 12px rgba(0, 123, 255, 0.3);
         }
 
         .posts-section {
-            background: transparent !important;
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
+            background: white;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
             margin-bottom: 30px;
+            border: 1px solid #e9ecef;
         }
 
         .posts-header {
@@ -148,35 +170,33 @@
         .posts-title {
             font-size: 24px;
             font-weight: bold;
-            color: rgb(33, 5, 62);
+            color: #212529;
         }
 
         .posts-count {
-            color: #666;
+            color: #6c757d;
             font-size: 14px;
         }
 
         .post-card {
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9) 0%, rgba(233, 236, 239, 0.9) 100%);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(33, 5, 62, 0.1);
-            border-radius: 15px;
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 12px;
             margin-bottom: 20px;
             overflow: hidden;
             transition: all 0.3s ease;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
 
         .post-card:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
         }
 
         .post-header {
             display: flex;
             align-items: center;
             padding: 15px;
-            border-bottom: 1px solid rgba(33, 5, 62, 0.1);
+            border-bottom: 1px solid #e9ecef;
         }
 
         .post-avatar {
@@ -191,7 +211,7 @@
             width: 50px;
             height: 50px;
             border-radius: 50%;
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             align-items: center;
             justify-content: center;
@@ -206,13 +226,13 @@
 
         .post-author {
             font-weight: bold;
-            color: rgb(33, 5, 62);
+            color: #212529;
             margin-bottom: 2px;
         }
 
         .post-time {
             font-size: 12px;
-            color: #666;
+            color: #6c757d;
         }
 
         .post-content {
@@ -229,12 +249,12 @@
             width: 100%;
             max-height: 400px;
             object-fit: cover;
-            border-radius: 12px;
+            border-radius: 8px;
             margin-bottom: 15px;
         }
 
         .post-actions {
-            border-top: 1px solid rgba(33, 5, 62, 0.1);
+            border-top: 1px solid #e9ecef;
             padding: 12px 15px;
             display: flex;
             align-items: center;
@@ -244,20 +264,20 @@
         .post-action-btn {
             background: none;
             border: none;
-            color: #666;
+            color: #6c757d;
             cursor: pointer;
             display: flex;
             align-items: center;
             gap: 5px;
-            padding: 8px 12px;
-            border-radius: 20px;
+            padding: 5px 10px;
+            border-radius: 6px;
             transition: all 0.3s ease;
             font-size: 14px;
         }
 
         .post-action-btn:hover {
-            background: linear-gradient(135deg, rgba(33, 5, 62, 0.05) 0%, rgba(78, 20, 114, 0.05) 100%);
-            color: rgb(33, 5, 62);
+            background: #f8f9fa;
+            color: #495057;
         }
 
         .post-action-btn.liked {
@@ -265,13 +285,13 @@
         }
 
         .post-action-btn.delete-btn:hover {
-            background: linear-gradient(135deg, rgba(220, 53, 69, 0.1) 0%, rgba(232, 62, 140, 0.1) 100%);
+            background: #fee;
             color: #dc3545;
         }
 
         .no-posts {
             text-align: center;
-            color: #666;
+            color: #6c757d;
             padding: 60px 20px;
         }
 
@@ -283,10 +303,10 @@
 
         .no-posts h3 {
             margin-bottom: 8px;
-            color: rgb(33, 5, 62);
+            color: #495057;
         }
 
-        /* Enhanced modal styles */
+        /* Modal Styles */
         .modal {
             display: none;
             position: fixed;
@@ -294,9 +314,9 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background: rgba(33, 5, 62, 0.7);
-            backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, 0.5);
             z-index: 1000;
+            backdrop-filter: blur(2px);
         }
 
         .modal-content {
@@ -304,20 +324,17 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: transparent !important;
-            backdrop-filter: blur(15px);
-            border-radius: 20px;
+            background: white;
+            border-radius: 12px;
             width: 90%;
             max-width: 500px;
             max-height: 90vh;
             overflow-y: auto;
-            box-shadow: 0 20px 50px rgba(33, 5, 62, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.3);
         }
 
         .modal-header {
             padding: 20px;
-            border-bottom: 1px solid rgba(33, 5, 62, 0.1);
+            border-bottom: 1px solid #e9ecef;
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -327,7 +344,6 @@
             font-size: 18px;
             font-weight: bold;
             margin: 0;
-            color: rgb(33, 5, 62);
         }
 
         .modal-close {
@@ -335,7 +351,7 @@
             border: none;
             font-size: 24px;
             cursor: pointer;
-            color: #666;
+            color: #6c757d;
             padding: 0;
             width: 30px;
             height: 30px;
@@ -347,8 +363,8 @@
         }
 
         .modal-close:hover {
-            background: rgba(33, 5, 62, 0.1);
-            color: rgb(33, 5, 62);
+            background: #f8f9fa;
+            color: #495057;
         }
 
         .modal-body {
@@ -364,38 +380,35 @@
         .modal-textarea {
             width: 100%;
             min-height: 120px;
-            border: 2px solid rgba(33, 5, 62, 0.2);
-            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
             padding: 12px;
             resize: vertical;
             font-family: inherit;
             font-size: 14px;
             line-height: 1.5;
             margin-bottom: 15px;
-            transition: all 0.3s ease;
         }
 
         .modal-textarea:focus {
             outline: none;
-            border-color: rgb(33, 5, 62);
-            box-shadow: 0 0 15px rgba(33, 5, 62, 0.2);
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
         }
 
         .image-upload-area {
-            border: 2px dashed rgba(33, 5, 62, 0.3);
-            border-radius: 12px;
+            border: 2px dashed #e9ecef;
+            border-radius: 8px;
             padding: 30px;
             text-align: center;
             cursor: pointer;
             transition: all 0.3s ease;
             margin-bottom: 15px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.5) 0%, rgba(248, 249, 250, 0.5) 100%);
         }
 
         .image-upload-area:hover {
-            border-color: rgb(33, 5, 62);
-            background: linear-gradient(135deg, rgba(33, 5, 62, 0.05) 0%, rgba(78, 20, 114, 0.05) 100%);
-            transform: translateY(-2px);
+            border-color: #007bff;
+            background: #f8f9fa;
         }
 
         .image-upload-area.has-image {
@@ -407,11 +420,11 @@
             font-size: 32px;
             margin-bottom: 8px;
             display: block;
-            color: #666;
+            color: #6c757d;
         }
 
         .upload-text {
-            color: #666;
+            color: #6c757d;
             margin: 0;
         }
 
@@ -424,14 +437,14 @@
             width: 100%;
             max-height: 300px;
             object-fit: cover;
-            border-radius: 12px;
+            border-radius: 8px;
         }
 
         .remove-image-btn {
             position: absolute;
             top: 10px;
             right: 10px;
-            background: linear-gradient(135deg, #dc3545 0%, #e83e8c 100%);
+            background: #dc3545;
             color: white;
             border: none;
             border-radius: 50%;
@@ -443,12 +456,10 @@
             cursor: pointer;
             font-size: 16px;
             transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
         }
 
         .remove-image-btn:hover {
-            background: linear-gradient(135deg, #c82333 0%, #dc3545 100%);
-            transform: scale(1.1);
+            background: #c82333;
         }
 
         .modal-actions {
@@ -461,69 +472,59 @@
             flex: 1;
             padding: 12px;
             border: none;
-            border-radius: 20px;
+            border-radius: 8px;
             cursor: pointer;
             font-weight: 500;
             transition: all 0.3s ease;
             font-size: 14px;
-            color: #fff; /* Ensure visible text */
         }
 
         .modal-btn-cancel {
-            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(98, 28, 140) 100%);
-            color: #fff;
-            border: 1px solid rgba(255, 255, 255, 0.25);
+            background: #f8f9fa;
+            color: #6c757d;
+            border: 1px solid #e9ecef;
         }
 
         .modal-btn-cancel:hover {
-            filter: brightness(1.1);
+            background: #e9ecef;
         }
 
         .modal-btn-post {
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
-            color: #fff;
-            box-shadow: 0 2px 8px rgba(33, 5, 62, 0.3);
+            background: #007bff;
+            color: white;
         }
 
         .modal-btn-post:hover {
-            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(98, 28, 140) 100%);
-            transform: translateY(-1px);
+            background: #0056b3;
         }
 
         .modal-btn-post:disabled {
             background: #6c757d;
-            color: #fff;
             cursor: not-allowed;
-            transform: none;
         }
 
-        /* Likes modal override */
-        #likesModal .modal-content { max-width: 420px; }
-        .likes-list { list-style: none; padding: 0; margin: 0; }
-        .likes-list li { padding: 8px 12px; border-bottom: 1px solid rgba(33,5,62,0.1); display: flex; align-items: center; gap: 10px; }
-        .likes-list li:last-child { border-bottom: none; }
-        .likes-avatar { width: 28px; height: 28px; border-radius: 50%; object-fit: cover; background: linear-gradient(135deg, rgb(33,5,62) 0%, rgb(78,20,114) 100%); color:#fff; display:flex; align-items:center; justify-content:center; font-size:12px; }
-
-        /* Enhanced date requests section */
         .date-requests {
-            background: transparent !important;
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
+            background: white;
+            border-radius: 12px;
             padding: 30px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
             margin-bottom: 30px;
         }
 
         .section-title {
             font-size: 24px;
             font-weight: bold;
-            color: rgb(33, 5, 62);
+            color: #212529;
             margin-bottom: 20px;
             display: flex;
             align-items: center;
             gap: 10px;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+        }
+
+        .section-title::before {
+            content: '';
+            font-size: 20px;
         }
 
         .request-list {
@@ -531,21 +532,19 @@
         }
 
         .request-item {
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9) 0%, rgba(233, 236, 239, 0.9) 100%);
-            backdrop-filter: blur(5px);
+            background: #f8f9fa;
             border-radius: 15px;
             padding: 20px;
             margin-bottom: 15px;
-            border-left: 4px solid rgb(33, 5, 62);
+            border-left: 4px solid #667eea;
             transition: all 0.3s ease;
             position: relative;
             overflow: hidden;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
         }
 
         .request-item:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
         }
 
         .request-header {
@@ -557,24 +556,17 @@
 
         .request-from {
             font-weight: bold;
-            color: rgb(33, 5, 62);
+            color: #2c3e50;
             font-size: 16px;
         }
 
         .status-badge {
-            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-            color: #333;
-            padding: 6px 12px;
+            background: linear-gradient(135deg, #ffeaa7, #fab1a0);
+            color: #2d3436;
+            padding: 5px 12px;
             border-radius: 20px;
             font-size: 12px;
             font-weight: bold;
-            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.3);
-        }
-
-        .status-badge.confirmed {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
-            color: white;
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
         }
 
         .request-form {
@@ -597,10 +589,22 @@
             display: block;
             margin-bottom: 5px;
             font-weight: 500;
-            color: rgb(33, 5, 62);
+            color: #495057;
         }
 
-        /* Form inputs use global styles automatically */
+        .form-group input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+            font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #007bff;
+        }
 
         .action-buttons {
             display: flex;
@@ -609,14 +613,45 @@
             flex-wrap: wrap;
         }
 
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+            font-size: 14px;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-accept {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-accept:hover {
+            background: #218838;
+        }
+
+        .btn-reject {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-reject:hover {
+            background: #c82333;
+        }
+
         .no-requests {
             text-align: center;
             color: #666;
             font-style: italic;
             padding: 40px;
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.5) 0%, rgba(233, 236, 239, 0.5) 100%);
+            background: #f8f9fa;
             border-radius: 15px;
-            border: 2px dashed rgba(33, 5, 62, 0.2);
+            border: 2px dashed #ddd;
         }
 
         .no-requests::before {
@@ -626,21 +661,18 @@
             margin-bottom: 10px;
         }
 
-        /* Enhanced location display styles */
+        /* Location display styles */
         .location-info {
-            background: linear-gradient(135deg, rgba(232, 245, 232, 0.9) 0%, rgba(200, 230, 201, 0.9) 100%);
-            backdrop-filter: blur(5px);
-            padding: 12px;
-            border-radius: 12px;
+            background: #e8f5e8;
+            padding: 10px;
+            border-radius: 8px;
             margin: 10px 0;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-            box-shadow: 0 2px 8px rgba(40, 167, 69, 0.1);
+            border: 1px solid #c3e6cb;
         }
 
         .location-info.no-location {
-            background: linear-gradient(135deg, rgba(255, 243, 205, 0.9) 0%, rgba(255, 234, 167, 0.9) 100%);
-            border-color: rgba(255, 152, 0, 0.3);
-            box-shadow: 0 2px 8px rgba(255, 193, 7, 0.1);
+            background: #fff3cd;
+            border-color: #ffeaa7;
         }
 
         .location-info p {
@@ -649,12 +681,11 @@
 
         .location-info .location-name {
             font-weight: bold;
-            color: #2e7d32;
+            color: #155724;
         }
 
-        .location-info.no-location p,
-        .location-info.no-location .location-name {
-            color: #ef6c00;
+        .location-info.no-location p {
+            color: #856404;
         }
 
         .location-info .location-details {
@@ -667,37 +698,63 @@
             color: #666;
         }
 
-        /* Enhanced permission info styles */
-        .location-permission-info {
-            background: linear-gradient(135deg, rgba(227, 242, 253, 0.9) 0%, rgba(187, 222, 251, 0.9) 100%);
-            backdrop-filter: blur(5px);
-            padding: 10px 15px;
-            border-radius: 8px;
-            border-left: 3px solid #2196f3;
-            margin: 10px 0;
+        /* Button variants for different actions */
+        .btn-map {
+            background: #007bff;
+            color: white;
+        }
+
+        .btn-map:hover {
+            background: #0056b3;
+        }
+
+        .btn-location {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-location:hover {
+            background: #218838;
+        }
+
+        .btn-change-location {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .btn-change-location:hover {
+            background: #e0a800;
+        }
+
+        .btn-remove {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-remove:hover {
+            background: #c82333;
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #545b62;
+        }
+
+        .permission-note {
             font-size: 0.9em;
-            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.1);
+            color: #666;
+            font-style: italic;
+            margin-top: 5px;
         }
 
-        .location-permission-info.sender-info {
-            background: linear-gradient(135deg, rgba(232, 245, 232, 0.9) 0%, rgba(200, 230, 201, 0.9) 100%);
-            border-left-color: #4caf50;
-            color: #2e7d32;
-            box-shadow: 0 2px 8px rgba(76, 175, 80, 0.1);
-        }
-
-        .location-permission-info.receiver-info {
-            background: linear-gradient(135deg, rgba(255, 243, 224, 0.9) 0%, rgba(255, 224, 178, 0.9) 100%);
-            border-left-color: #ff9800;
-            color: #ef6c00;
-            box-shadow: 0 2px 8px rgba(255, 152, 0, 0.1);
-        }
-
-        .location-permission-info.can-change {
-            background: linear-gradient(135deg, rgba(243, 229, 245, 0.9) 0%, rgba(225, 190, 231, 0.9) 100%);
-            border-left-color: #9c27b0;
-            color: #7b1fa2;
-            box-shadow: 0 2px 8px rgba(156, 39, 176, 0.1);
+        .location-help-text {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 5px;
         }
 
         .location-management {
@@ -709,7 +766,34 @@
             padding: 8px 15px;
         }
 
-        /* Responsive design enhancements */
+        /* UPDATED: Enhanced styles for new permission system */
+        .location-permission-info {
+            background: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 6px;
+            border-left: 3px solid #2196f3;
+            margin: 8px 0;
+            font-size: 0.85em;
+        }
+
+        .location-permission-info.sender-info {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+            color: #2e7d32;
+        }
+
+        .location-permission-info.receiver-info {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+            color: #ef6c00;
+        }
+
+        .location-permission-info.can-change {
+            background: #f3e5f5;
+            border-left-color: #9c27b0;
+            color: #7b1fa2;
+        }
+
         @media (max-width: 768px) {
             .profile-content {
                 flex-direction: column;
@@ -718,16 +802,6 @@
 
             .stats {
                 justify-content: center;
-            }
-
-            .profile-actions {
-                flex-direction: column;
-                align-items: center;
-            }
-
-            .profile-actions .btn {
-                width: 100%;
-                max-width: 200px;
             }
 
             .form-row {
@@ -755,25 +829,8 @@
     </style>
 </head>
 <body>
-    <!-- Enhanced Header with Global Theme -->
-    <header>
-        <h1>EasyDate Profile</h1>
-        <div class="menu">
-            <button type="button">☰ Menu</button>
-            <div class="dropdown-content">
-                <a href="{% url 'home' %}">🏠 Home</a>
-                <a href="{% url 'map_view' %}">🗺️ Map</a>
-                <a href="{% url 'events' %}">📅 Events</a>
-                <a href="{% url 'profile' %}">👤 Profile</a>
-                <a href="{% url 'search_user' %}">👥 Friends</a>
-                <a href="{% url 'logout' %}">🚪 Logout</a>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content Container -->
     <div class="container">
-        <!-- Enhanced Profile Header -->
+        <!-- Profile Header -->
         <div class="profile-header">
             <div class="profile-content">
                 <div class="profile-picture">
@@ -796,22 +853,26 @@
                             <div class="stat-label">friends</div>
                         </div>
                     </div>
-                    <!-- Enhanced Navigation Links -->
-                    <div class="profile-actions">
-                        <a href="{% url 'edit_profile' %}" class="btn">✏️ Edit Profile</a>
-                        <a href="{% url 'old_dates' %}" class="btn btn-secondary">📚 Date History</a>
-                        <button id="createPostBtn" class="btn">📝 Create New Post</button>
+                    <!-- Navigation Links -->
+                    <div class="profile-actions" style="margin-top: 20px; display: flex; gap: 10px;">
+                        <a href="{% url 'edit_profile' %}" class="edit-btn" style="text-decoration: none; display: inline-block;">Edit Profile</a>
+                        <a href="{% url 'old_dates' %}" class="edit-btn" style="text-decoration: none; display: inline-block; background: #6c757d;">View Date History</a>
                     </div>
                 </div>
             </div>
         </div>
 
-        <!-- Create post button moved next to Date History in profile-actions -->
+        <!-- Create Post Section -->
+        <div class="create-post-section">
+            <button id="createPostBtn" class="create-post-btn">
+                📝 Create New Post
+            </button>
+        </div>
 
-        <!-- Enhanced Posts Section -->
+        <!-- Posts Section -->
         <div class="posts-section">
             <div class="posts-header">
-                <h3 class="posts-title">📝 Posts</h3>
+                <h3 class="posts-title">Posts</h3>
                 <span class="posts-count">{{ post_count|default:0 }} total</span>
             </div>
 
@@ -847,9 +908,12 @@
                                 <span>❤️</span>
                                 <span class="like-count">{{ post.likes }}</span>
                             </button>
-                            <button class="post-action-btn view-likes-btn" data-post-id="{{ post.id }}">
-                                <span>👀</span>
-                                <span>See Likes</span>
+                            <button class="post-action-btn">
+                                <span>💬</span>
+                                <span>0</span>
+                            </button>
+                            <button class="post-action-btn">
+                                <span>📤</span>
                             </button>
                             <!-- Delete button (only for post owner) -->
                             <button class="post-action-btn delete-btn" data-post-id="{{ post.id }}" style="margin-left: auto; color: #dc3545;">
@@ -869,7 +933,7 @@
             </div>
         </div>
 
-        <!-- Enhanced Upcoming Dates Section -->
+        <!-- Upcoming Dates Section with Enhanced Location Management -->
         {% if upcoming_dates %}
         <div class="date-requests">
             <h2 class="section-title">📅 Your Upcoming Dates</h2>
@@ -878,7 +942,7 @@
                     <li class="request-item" style="border-left-color: #28a745;">
                         <div class="request-header">
                             <div class="request-from">Date with: {{ date_item.partner }}</div>
-                            <div class="status-badge confirmed">✅ Confirmed</div>
+                            <div class="status-badge" style="background: linear-gradient(135deg, #d4edda, #c3e6cb); color: #155724;">Confirmed</div>
                         </div>
                         
                         <div style="margin-bottom: 15px;">
@@ -900,7 +964,7 @@
                                 </div>
                             {% endif %}
 
-                            <!-- Enhanced permission info -->
+                            <!-- UPDATED: Enhanced permission info with clearer messaging -->
                             {% if date_item.is_sender %}
                                 <div class="location-permission-info sender-info">
                                     💡 You can {% if date_item.date_location %}change the{% else %}set the{% endif %} meeting location for this date.
@@ -920,8 +984,8 @@
                         
                         <div class="action-buttons">
                             {% if date_item.can_set_location %}
-                                <!-- Location selection button -->
-                                <a href="{% url 'select_date_location' date_item.request_id %}" class="btn {% if date_item.date_location %}btn-secondary{% else %}btn-success{% endif %}">
+                                <!-- Location selection button - shows based on updated permission logic -->
+                                <a href="{% url 'select_date_location' date_item.request_id %}" class="btn {% if date_item.date_location %}btn-change-location{% else %}btn-location{% endif %}">
                                     {% if date_item.date_location %}
                                         {% if date_item.is_sender %}
                                             📍 Change Location
@@ -934,8 +998,8 @@
                                 </a>
                                 
                                 {% if date_item.date_location %}
-                                    <!-- Remove location button -->
-                                    <button onclick="removeLocationFromProfile('{{ date_item.request_id }}')" class="btn btn-danger">
+                                    <!-- Remove location button - available for both sender and receiver -->
+                                    <button onclick="removeLocationFromProfile('{{ date_item.request_id }}')" class="btn btn-remove">
                                         🗑️ Remove Location
                                     </button>
                                 {% endif %}
@@ -947,7 +1011,7 @@
         </div>
         {% endif %}
 
-        <!-- Enhanced Pending Date Requests (Sent by You) -->
+        <!-- Pending Date Requests (Sent by You) -->
         {% if sent_from %}
         <div class="date-requests">
             <h2 class="section-title">📨 Pending Date Requests (Sent by You)</h2>
@@ -956,7 +1020,7 @@
                     <li class="request-item" style="border-left-color: #ffc107;">
                         <div class="request-header">
                             <div class="request-from">Sent to: {{ request.username }}</div>
-                            <div class="status-badge">⏳ Pending</div>
+                            <div class="status-badge" style="background: linear-gradient(135deg, #fff3cd, #ffeaa7);">Pending</div>
                         </div>
                         
                         <div style="margin-bottom: 15px;">
@@ -977,7 +1041,7 @@
                                 </div>
                             {% endif %}
 
-                            <!-- Enhanced permission info for sent requests -->
+                            <!-- UPDATED: Enhanced permission info for sent requests -->
                             <div class="location-permission-info sender-info">
                                 💡 You can {% if request.date_location %}change the{% else %}set a{% endif %} proposed meeting location. {{ request.username }} can modify it after accepting.
                             </div>
@@ -985,12 +1049,12 @@
                         
                         <div class="action-buttons">
                             <!-- Location selection button for pending requests -->
-                            <a href="{% url 'select_date_location' request.request_id %}" class="btn {% if request.date_location %}btn-secondary{% else %}btn-success{% endif %}">
+                            <a href="{% url 'select_date_location' request.request_id %}" class="btn {% if request.date_location %}btn-change-location{% else %}btn-location{% endif %}">
                                 📍 {% if request.date_location %}Change{% else %}Set{% endif %} Location
                             </a>
                             
                             {% if request.date_location %}
-                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-danger">
+                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
                                     🗑️ Remove Location
                                 </button>
                             {% endif %}
@@ -1001,7 +1065,7 @@
         </div>
         {% endif %}
 
-        <!-- Enhanced Date Requests Section (Received) -->
+        <!-- Date Requests Section (Received) - Enhanced with Location Management -->
         <div class="date-requests">
             <h2 class="section-title">📬 Your Date Requests (Received)</h2>
             {% if received_from %}
@@ -1010,7 +1074,7 @@
                         <li class="request-item">
                             <div class="request-header">
                                 <div class="request-from">From: {{ request.username }}</div>
-                                <div class="status-badge">⏳ Pending</div>
+                                <div class="status-badge">Pending</div>
                             </div>
                             
                             <!-- Enhanced location info and management options -->
@@ -1028,7 +1092,7 @@
                                         <p class="location-meta">Selected by: {{ request.date_location.selected_by }}</p>
                                     </div>
                                     
-                                    <!-- Enhanced location management for receivers -->
+                                    <!-- UPDATED: Enhanced location management for receivers with clearer messaging -->
                                     <div class="location-permission-info can-change">
                                         🔄 You can change this location when you accept the date request if you prefer somewhere else.
                                     </div>
@@ -1037,10 +1101,10 @@
                                     {% if request.can_set_location %}
                                         <div class="location-management">
                                             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                                                <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-secondary">
+                                                <a href="{% url 'select_date_location' request.request_id %}" class="btn btn-change-location">
                                                     🔄 Change Location
                                                 </a>
-                                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-danger">
+                                                <button onclick="removeLocationFromProfile('{{ request.request_id }}')" class="btn btn-remove">
                                                     🗑️ Remove Location
                                                 </button>
                                             </div>
@@ -1051,7 +1115,7 @@
                                         <p>📍 No location proposed yet</p>
                                     </div>
                                     
-                                    <!-- Enhanced messaging for no location scenario -->
+                                    <!-- UPDATED: Enhanced messaging for no location scenario -->
                                     <div class="location-permission-info receiver-info">
                                         ⏳ {{ request.username }} can set a meeting location. Once set, you can change it if needed.
                                     </div>
@@ -1074,8 +1138,8 @@
                                 </div>
                                 
                                 <div class="action-buttons">
-                                    <button type="submit" name="action" value="accept" class="btn btn-success">✅ Accept</button>
-                                    <button type="submit" name="action" value="reject" class="btn btn-danger">❌ Reject</button>
+                                    <button type="submit" name="action" value="accept" class="btn btn-accept">Accept</button>
+                                    <button type="submit" name="action" value="reject" class="btn btn-reject">Reject</button>
                                 </div>
                             </form>
                         </li>
@@ -1089,7 +1153,7 @@
         </div>
     </div>
 
-    <!-- Enhanced Create Post Modal -->
+    <!-- Create Post Modal -->
     <div id="createPostModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
@@ -1134,19 +1198,6 @@
                         <button type="submit" id="submitPost" class="modal-btn modal-btn-post" disabled>Post</button>
                     </div>
                 </form>
-            </div>
-        </div>
-    </div>
-
-    <!-- Likes Modal -->
-    <div id="likesModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Post Likes</h3>
-                <button id="closeLikesModal" class="modal-close">&times;</button>
-            </div>
-            <div class="modal-body">
-                <ul id="likesList" class="likes-list"></ul>
             </div>
         </div>
     </div>
@@ -1303,57 +1354,6 @@
         });
     });
 
-    // View likes functionality (friends who liked)
-    document.querySelectorAll('.view-likes-btn').forEach(btn => {
-        btn.addEventListener('click', async function() {
-            const postId = this.dataset.postId;
-            try {
-                const response = await fetch(`/post_likes/${postId}/`);
-                const data = await response.json();
-                const list = document.getElementById('likesList');
-                list.innerHTML = '';
-
-                if (data.success && data.likes && data.likes.length) {
-                    data.likes.forEach(u => {
-                        const li = document.createElement('li');
-                        const avatar = document.createElement('div');
-                        avatar.className = 'likes-avatar';
-                        if (u.profile_picture) {
-                            const img = document.createElement('img');
-                            img.src = u.profile_picture;
-                            img.alt = u.username;
-                            img.className = 'likes-avatar';
-                            li.appendChild(img);
-                        } else {
-                            avatar.textContent = (u.username || 'U').charAt(0).toUpperCase();
-                            li.appendChild(avatar);
-                        }
-                        const span = document.createElement('span');
-                        span.textContent = u.username + (u.is_friend ? ' (friend)' : '');
-                        li.appendChild(span);
-                        list.appendChild(li);
-                    });
-                } else {
-                    const li = document.createElement('li');
-                    li.textContent = 'No likes yet';
-                    list.appendChild(li);
-                }
-
-                document.getElementById('likesModal').style.display = 'block';
-            } catch (e) {
-                alert('Failed to load likes');
-            }
-        });
-    });
-
-    document.getElementById('closeLikesModal').addEventListener('click', function(){
-        document.getElementById('likesModal').style.display = 'none';
-    });
-
-    document.getElementById('likesModal').addEventListener('click', function(e){
-        if (e.target === this) this.style.display = 'none';
-    });
-
     // Delete functionality
     document.querySelectorAll('.delete-btn').forEach(btn => {
         btn.addEventListener('click', function() {
@@ -1458,9 +1458,6 @@
             alert('Failed to remove date location. Please try again.');
         }
     }
-
-    // Make function globally available
-    window.removeLocationFromProfile = removeLocationFromProfile;
     </script>
 </body>
 </html>

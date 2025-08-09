@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Respond to Date Request</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'MainApp/friends.css' %}">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+</head>
+<body>
+
+    <h1>Respond to Date Request</h1>
+
+    <!-- Display Date and Time -->
+    <section class="date-request-details">
+        <h2>Date Request from {{ date_request.sender.username }}</h2>
+        <p>Requested Date: {{ date_request.date }}</p>
+        <p>Requested Time: {{ date_request.time }}</p>
+
+        <!-- Form to allow changing the time -->
+        <form method="POST" action="{% url 'accept_request' %}">
+            {% csrf_token %}
+            <input type="hidden" name="date_request_id" value="{{ date_request.id }}">
+            
+            <div class="form-group">
+                <label for="new_time">New Time (if you want to change):</label>
+                <input type="time" id="new_time" name="new_time" class="form-control" value="{{ date_request.time|date:"H:i" }}" required>
+            </div>
+
+            <div class="form-group">
+                <button type="submit" class="btn btn-success">Accept Date Request</button>
+            </div>
+        </form>
+
+        <!-- Reject button -->
+        <form action="{% url 'reject_request' %}" method="POST">
+            {% csrf_token %}
+            <input type="hidden" name="date_request_id" value="{{ date_request.id }}">
+            <button type="submit" class="btn btn-danger">Reject Date Request</button>
+        </form>
+    </section>
+
+    <!-- jQuery and Bootstrap JS for Modal functionality -->
+    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/4.5.2/js/bootstrap.min.js"></script>
+
+</body>
+</html>

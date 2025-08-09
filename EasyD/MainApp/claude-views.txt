@@ -3117,39 +3117,6 @@ def toggle_like_post(request):
     
     return JsonResponse({'error': 'Invalid request method'}, status=405)
 
-# Return list of users who liked a post, mark friends
-@csrf_exempt
-def get_post_likes(request, post_id):
-    if not request.session.get('user_id'):
-        return JsonResponse({'success': False, 'message': 'Not authenticated'}, status=401)
-
-    try:
-        userinfo(request)
-        current_username = name
-
-        # User's friends set
-        friend_doc = Friendlist.find_one({"username": current_username})
-        friends_set = set(friend_doc.get('friends', [])) if friend_doc else set()
-
-        from bson import ObjectId
-        post = Posts.find_one({"_id": ObjectId(post_id)})
-        if not post:
-            return JsonResponse({'success': False, 'message': 'Post not found'}, status=404)
-
-        liked_by = post.get('liked_by', [])
-        likes = []
-        for uname in liked_by:
-            prof = Profiles.find_one({"username": uname})
-            likes.append({
-                'username': uname,
-                'profile_picture': prof.get('profile_picture') if prof else None,
-                'is_friend': uname in friends_set
-            })
-
-        return JsonResponse({'success': True, 'likes': likes})
-    except Exception as e:
-        return JsonResponse({'success': False, 'message': f'Failed to get likes: {str(e)}'}, status=500)
-
 # Add this function to your views.py
 
 @csrf_exempt

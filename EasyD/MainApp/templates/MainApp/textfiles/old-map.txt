@@ -4,323 +4,178 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{% if date_info %}Date Map - {{ date_info.date }}{% else %}Search Places and Rate{% endif %}</title>
-    {% load static %}
-    
-    <link rel="stylesheet" href="{% static 'MainApp/Menu.css' %}">
-    <link rel="stylesheet" href="{% static 'MainApp/profile.css' %}">
-    <link rel="stylesheet" href="{% static 'MainApp/global-styles.css' %}">
-    
-    <!-- Map-specific styles -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    
+    <link
+      rel="stylesheet"
+      href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    />
     <style>
-        /* Map-specific styles that extend the global theme */
-        #map { 
-            height: 600px; 
-            width: 100%; 
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        /* Page container should be wide and aligned with the map */
-        .map-container { width: 96% !important; max-width: 1400px !important; margin: 0 auto 10px auto !important; }
-        .map-container h1 { margin: 0 0 6px 0 !important; }
-        /* Unified controls toolbar */
-        .controls-toolbar {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            padding: 16px;
-            margin: 16px 0 10px 0;
-            background: rgba(255, 255, 255, 0.1) !important;
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-        }
-        .controls-toolbar .row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
-        .controls-toolbar .field-group { display: flex; flex-direction: column; gap: 6px; }
-        .controls-toolbar .field-group.inline { flex: 0 1 240px; max-width: 300px; }
-        .controls-toolbar .field-group.grow { flex: 1 1 420px; }
-        .controls-toolbar label { font-weight: 600; color: rgb(33, 5, 62); }
-        .controls-toolbar select,
-        .controls-toolbar input { min-height: 40px; color: #3a0c58 !important; }
-        .controls-toolbar select option { color: #3a0c58; }
-        .controls-toolbar input::placeholder { color: #6e3a9e; opacity: 0.9; }
-        /* Locate Me button: slightly narrower and centered text */
-        #locate-btn { 
-            width: auto; 
-            min-width: 140px; 
-            max-width: 200px; 
-            display: inline-flex !important; 
-            align-items: center; 
-            justify-content: center; 
-            padding: 10px 18px !important;
-        }
-        
+        /* Keep your existing CSS exactly as is */
+        #map { height: 600px; width: 100%; }
+        #place-details { margin-top: 20px; }
+        .place-item { cursor: pointer; padding: 5px; border: 1px solid #ddd; margin-bottom: 5px; }
+        .place-item:hover { background-color: #f9f9f9; }
+        select, input, button { margin: 10px 0; padding: 5px; }
+        #search-results { border: 1px solid #ccc; max-height: 150px; overflow-y: auto; margin-top: 5px; }
+        .search-result { padding: 5px; cursor: pointer; }
+        .search-result:hover { background-color: #e0e0e0; }
         .search-container {
             display: flex;
             flex-direction: column;
-            gap: 15px;
-            margin: 20px 0;
-            padding: 20px;
-            background: transparent !important;
-            backdrop-filter: blur(10px);
-            border-radius: 15px;
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            gap: 10px;
+            margin: 10px 0;
         }
+        #error-message { color: red; margin-top: 10px; }
+        #location-status { color: green; margin-top: 5px; font-size: 12px; }
         
-        .search-row {
-            display: flex;
-            gap: 15px;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-        
-        .search-row label {
-            min-width: 120px;
-            font-weight: 600;
-            color: rgb(33, 5, 62);
-        }
-        
-        .search-row select,
-        .search-row input {
-            flex: 1;
-            min-width: 150px;
-        }
-        
-        #search-results { 
-            border: 2px solid rgba(33, 5, 62, 0.2);
-            border-radius: 12px;
-            max-height: 150px; 
-            overflow-y: auto; 
-            margin-top: 5px;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(5px);
-        }
-        
-        .search-result { 
-            padding: 12px 16px; 
-            cursor: pointer;
-            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
-            transition: all 0.3s ease;
-        }
-        
-        .search-result:last-child {
-            border-bottom: none;
-        }
-        
-        .search-result:hover { 
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 100%);
-            color: white;
-            transform: translateX(5px);
-        }
-        
-        #place-details { 
-            margin-top: 20px;
-            max-height: 400px;
-            overflow-y: auto;
-        }
-        
-        .place-item { 
-            cursor: pointer; 
-            padding: 15px; 
-            border: 1px solid rgba(33, 5, 62, 0.2);
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
-            backdrop-filter: blur(10px);
-            border-radius: 12px;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-        }
-        
-        .place-item:hover { 
-            background: linear-gradient(135deg, rgba(33, 5, 62, 0.1) 0%, rgba(78, 20, 114, 0.1) 100%);
-            transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
-        }
-        
-        #error-message { 
-            display: none; /* Hide unless there is content */
-            color: #dc3545; 
-            margin: 12px 0;
-            padding: 12px;
-            background: rgba(248, 215, 218, 0.95);
-            border-radius: 8px;
-            border: 1px solid #f5c6cb;
-        }
-        
-        #location-status { 
-            display: none; /* Hide unless we set text */
-            color: #28a745; 
-            margin: 8px 0; 
-            font-size: 14px;
-            padding: 8px;
-            background: rgba(212, 237, 218, 0.95);
-            border-radius: 8px;
-            border: 1px solid #c3e6cb;
-        }
-        
-        /* Date context styles - enhanced with global theme */
+        /* Date context styles */
         .date-info {
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(58, 12, 88) 50%, rgb(78, 20, 114) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 20px;
-            border-radius: 15px;
+            padding: 15px;
+            border-radius: 10px;
             margin-bottom: 20px;
             text-align: center;
-            box-shadow: 0 8px 25px rgba(33, 5, 62, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            backdrop-filter: blur(10px);
         }
         
         .date-info h2 {
-            margin: 0 0 15px 0;
+            margin: 0 0 10px 0;
             font-size: 1.5em;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
         }
         
         .date-info p {
-            margin: 8px 0;
+            margin: 5px 0;
             font-size: 1.1em;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
         
-        /* Enhanced location selection instructions */
-        .location-selection-instructions {
-            background: linear-gradient(135deg, rgba(227, 242, 253, 0.95) 0%, rgba(187, 222, 251, 0.95) 100%);
-            backdrop-filter: blur(10px);
-            padding: 20px;
-            border-radius: 15px;
-            margin: 15px 0;
-            border: 1px solid rgba(33, 150, 243, 0.3);
-            box-shadow: 0 4px 15px rgba(33, 150, 243, 0.1);
+        .back-btn {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-right: 10px;
         }
         
-        .location-selection-instructions h4 {
-            margin: 0 0 12px 0;
-            color: #1976d2;
-            font-size: 1.2em;
+        .back-btn:hover {
+            background: #0056b3;
+        }
+
+        /* Color legend */
+        .color-legend {
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 12px;
         }
         
-        .location-selection-instructions p {
-            margin: 8px 0;
-            color: #333;
-            line-height: 1.5;
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
         }
         
-        .location-selection-instructions.sender-mode {
-            background: linear-gradient(135deg, rgba(232, 245, 232, 0.95) 0%, rgba(200, 230, 201, 0.95) 100%);
-            border-color: rgba(76, 175, 80, 0.3);
-            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.1);
+        .legend-color {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 1px solid #ccc;
         }
-        
-        .location-selection-instructions.sender-mode h4 {
-            color: #2e7d32;
-        }
-        
-        .location-selection-instructions.receiver-mode {
-            background: linear-gradient(135deg, rgba(255, 243, 224, 0.95) 0%, rgba(255, 224, 178, 0.95) 100%);
-            border-color: rgba(255, 152, 0, 0.3);
-            box-shadow: 0 4px 15px rgba(255, 152, 0, 0.1);
-        }
-        
-        .location-selection-instructions.receiver-mode h4 {
-            color: #ef6c00;
-        }
-        
-        /* Route controls - enhanced */
+
+        /* NEW: Route control styles */
         .route-controls {
             position: fixed;
-            top: 120px; /* Adjusted for header */
-            right: 15px;background: transparent !important;
-            
-            backdrop-filter: blur(15px);
-            padding: 15px;
-            border-radius: 15px;
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            top: 10px;
+            right: 10px;
+            background: white;
+            padding: 10px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
             z-index: 1000;
-            max-width: 280px;
+            max-width: 250px;
         }
 
         .route-controls h4 {
-            margin: 0 0 12px 0;
-            font-size: 16px;
-            color: rgb(33, 5, 62);
+            margin: 0 0 10px 0;
+            font-size: 14px;
         }
 
         .route-controls button {
-            margin: 3px;
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 12px;
+            margin: 2px;
+        }
+
+        .route-controls button:hover {
+            background: #c82333;
         }
 
         /* Enhanced popup styles */
         .leaflet-popup-content {
-            margin: 12px 15px;
-            line-height: 1.5;
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        }
-
-        .popup-buttons,
-        .place-buttons {
-            display: flex;
-            gap: 8px;
-            margin-top: 12px;
-            flex-wrap: wrap;
-        }
-
-        .popup-btn {
-            padding: 8px 12px;
-            border: none;
-            border-radius: 20px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: 500;
-            transition: all 0.3s ease;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+            margin: 8px 12px;
+            line-height: 1.4;
         }
 
         .popup-directions-btn {
-            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+            background: #28a745;
             color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+            width: 100%;
         }
 
         .popup-directions-btn:hover {
-            background: linear-gradient(135deg, #20c997 0%, #17a2b8 100%);
-            transform: translateY(-1px);
+            background: #218838;
         }
 
         .popup-directions-btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
-            transform: none;
         }
 
-        .popup-reviews-btn {
-            background: linear-gradient(135deg, #ffc107 0%, #fd7e14 100%);
-            color: #212529;
+        .route-controls button.restore-btn {
+            background: #28a745;
         }
 
-        .popup-reviews-btn:hover {
-            background: linear-gradient(135deg, #fd7e14 0%, #dc3545 100%);
-            color: white;
-            transform: translateY(-1px);
+        .route-controls button.restore-btn:hover {
+            background: #218838;
         }
 
-        .popup-location-btn {
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
-            color: white;
+        /* Route legend */
+        .route-legend {
+            background: white;
+            padding: 8px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            margin-top: 10px;
+            font-size: 11px;
         }
 
-        .popup-location-btn:hover {
-            background: linear-gradient(135deg, rgb(58, 12, 88) 0%, rgb(98, 28, 140) 100%);
-            transform: translateY(-1px);
+        .route-legend-item {
+            display: flex;
+            align-items: center;
+            margin: 3px 0;
         }
 
-        /* Reviews Modal - enhanced with global theme */
+        .route-legend-line {
+            width: 20px;
+            height: 3px;
+            margin-right: 8px;
+            border-radius: 1px;
+        }
+        /* Reviews Modal Styles */
         .reviews-modal {
             display: none;
             position: fixed;
@@ -329,22 +184,20 @@
             top: 0;
             width: 100%;
             height: 100%;
-            background-color: rgba(33, 5, 62, 0.7);
-            backdrop-filter: blur(8px);
+            background-color: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(5px);
         }
 
         .reviews-modal-content {
-            background: transparent !important;
-            backdrop-filter: blur(15px);
+            background-color: white;
             margin: 5% auto;
             padding: 0;
-            border-radius: 20px;
+            border-radius: 12px;
             width: 90%;
             max-width: 600px;
             max-height: 80vh;
             overflow: hidden;
-            box-shadow: 0 20px 50px rgba(33, 5, 62, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.3);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             animation: modalSlideIn 0.3s ease-out;
         }
 
@@ -360,7 +213,7 @@
         }
 
         .reviews-header {
-            background: linear-gradient(135deg, rgb(33, 5, 62) 0%, rgb(78, 20, 114) 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             padding: 20px;
             display: flex;
@@ -372,7 +225,6 @@
             margin: 0;
             font-size: 1.3em;
             font-weight: 600;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
 
         .reviews-close {
@@ -380,7 +232,6 @@
             font-weight: bold;
             cursor: pointer;
             transition: color 0.3s ease;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.3);
         }
 
         .reviews-close:hover {
@@ -393,13 +244,12 @@
             overflow-y: auto;
         }
 
-        /* Enhanced place summary */
+        /* Place Summary Styles */
         .place-summary {
-            background: linear-gradient(135deg, rgba(248, 249, 250, 0.9) 0%, rgba(233, 236, 239, 0.9) 100%);
-            padding: 20px;
-            border-radius: 12px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
             margin-bottom: 20px;
-            border: 1px solid rgba(33, 5, 62, 0.1);
         }
 
         .rating-summary {
@@ -415,87 +265,127 @@
 
         .rating-text {
             font-size: 1.1em;
-            font-weight: 600;
-            color: rgb(33, 5, 62);
         }
 
-        /* Enhanced review items */
+        .place-info {
+            margin: 8px 0;
+            font-size: 0.95em;
+            color: #666;
+        }
+
+        .place-info strong {
+            color: #333;
+        }
+
+        .place-info a {
+            color: #007bff;
+            text-decoration: none;
+        }
+
+        .place-info a:hover {
+            text-decoration: underline;
+        }
+
+        /* Star Rating Styles */
+        .star {
+            color: #ffc107;
+            font-size: inherit;
+            margin-right: 2px;
+        }
+
+        .star.full {
+            color: #ffc107;
+        }
+
+        .star.half {
+            color: #ffc107;
+            opacity: 0.5;
+        }
+
+        .star.empty {
+            color: #e0e0e0;
+        }
+
+        /* Reviews Section Styles */
+        .reviews-section h4 {
+            margin: 20px 0 15px 0;
+            color: #333;
+            font-size: 1.1em;
+            border-bottom: 2px solid #e0e0e0;
+            padding-bottom: 8px;
+        }
+
         .review-item {
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(248, 249, 250, 0.9) 100%);
-            border: 1px solid rgba(33, 5, 62, 0.1);
-            border-radius: 12px;
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
             padding: 15px;
             margin-bottom: 15px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-            transition: all 0.3s ease;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+            transition: transform 0.2s ease;
         }
 
         .review-item:hover {
             transform: translateY(-2px);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.12);
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
         }
 
-        /* User role indicator */
-        .user-role-indicator {
-            display: inline-block;
-            padding: 6px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: bold;
-            margin-left: 10px;
-            text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+        .review-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
         }
 
-        .user-role-indicator.sender {
-            background: linear-gradient(135deg, #e8f5e8 0%, #c8e6c9 100%);
-            color: #2e7d32;
-            border: 1px solid rgba(76, 175, 80, 0.3);
-        }
-
-        .user-role-indicator.receiver {
-            background: linear-gradient(135deg, #fff3e0 0%, #ffcc02 100%);
-            color: #ef6c00;
-            border: 1px solid rgba(255, 152, 0, 0.3);
-        }
-
-        /* Map wrapper for overlayed legend */
-        .map-wrapper { position: relative; }
-        /* Color legend overlay (top-right small white box) */
-        .color-legend {
-            position: absolute;
-            bottom: 12px;
-            right: 12px;
-            background: rgba(255, 255, 255, 0.97) !important;
-            color: #333 !important;
-            padding: 12px 14px;
-            border-radius: 10px;
-            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
-            border: 1px solid rgba(0,0,0,0.08);
-            font-size: 12px;
-            min-width: 170px;
-            z-index: 900;
-        }
-        .color-legend, .color-legend * { color: #333 !important; text-shadow: none !important; }
-        
-        .legend-item {
+        .review-author {
             display: flex;
             align-items: center;
-            margin: 6px 0;
-        }
-        
-        .legend-color {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            margin-right: 10px;
-            border: 1px solid rgba(0, 0, 0, 0.1);
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+            gap: 10px;
         }
 
-        /* Enhanced loading and error states */
-        .reviews-loading,
-        .reviews-error,
-        .no-reviews {
+        .author-photo {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+        }
+
+        .author-photo-placeholder {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background-color: #e0e0e0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+        }
+
+        .author-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .review-rating {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 5px;
+        }
+
+        .review-time {
+            font-size: 0.85em;
+            color: #666;
+        }
+
+        .review-text {
+            color: #555;
+            line-height: 1.5;
+            font-size: 0.95em;
+        }
+
+        /* Loading Styles */
+        .reviews-loading {
             text-align: center;
             padding: 40px 20px;
             color: #666;
@@ -503,7 +393,7 @@
 
         .loading-spinner {
             border: 4px solid #f3f3f3;
-            border-top: 4px solid rgb(33, 5, 62);
+            border-top: 4px solid #667eea;
             border-radius: 50%;
             width: 40px;
             height: 40px;
@@ -516,32 +406,190 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Responsive enhancements */
+        /* Error Styles */
+        .reviews-error {
+            text-align: center;
+            padding: 40px 20px;
+            color: #666;
+        }
+
+        .error-message {
+            color: #dc3545;
+            font-size: 0.9em;
+            margin-top: 10px;
+        }
+
+        .no-reviews {
+            text-align: center;
+            padding: 30px 20px;
+            color: #666;
+        }
+
+        /* Button Styles Updates */
+        .popup-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .place-buttons {
+            display: flex;
+            gap: 8px;
+            margin-top: 8px;
+        }
+
+        .popup-btn {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: background-color 0.3s ease;
+        }
+
+        .popup-directions-btn {
+            background: #28a745;
+            color: white;
+        }
+
+        .popup-directions-btn:hover {
+            background: #218838;
+        }
+
+        .popup-directions-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .popup-reviews-btn {
+            background: #ffc107;
+            color: #212529;
+        }
+
+        .popup-reviews-btn:hover {
+            background: #e0a800;
+        }
+
+        /* UPDATED: Location Selection Styles */
+        .location-selection-instructions {
+            background: #e3f2fd;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 10px 0;
+            border-left: 4px solid #2196f3;
+        }
+
+        .location-selection-instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1976d2;
+        }
+
+        .location-selection-instructions p {
+            margin: 5px 0;
+            color: #333;
+        }
+
+        /* UPDATED: Enhanced instruction styles for different user roles */
+        .location-selection-instructions.sender-mode {
+            background: #e8f5e8;
+            border-left-color: #4caf50;
+        }
+
+        .location-selection-instructions.sender-mode h4 {
+            color: #2e7d32;
+        }
+
+        .location-selection-instructions.receiver-mode {
+            background: #fff3e0;
+            border-left-color: #ff9800;
+        }
+
+        .location-selection-instructions.receiver-mode h4 {
+            color: #ef6c00;
+        }
+
+        .popup-location-btn {
+            background: #9c27b0;
+            color: white;
+        }
+
+        .popup-location-btn:hover {
+            background: #7b1fa2;
+        }
+
+        .selected-location-marker {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0% {
+                transform: scale(1);
+            }
+            50% {
+                transform: scale(1.1);
+            }
+            100% {
+                transform: scale(1);
+            }
+        }
+
+        /* UPDATED: Role-based styling */
+        .user-role-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+
+        .user-role-indicator.sender {
+            background: #e8f5e8;
+            color: #2e7d32;
+        }
+
+        .user-role-indicator.receiver {
+            background: #fff3e0;
+            color: #ef6c00;
+        }
+
+        /* Responsive Design */
         @media (max-width: 768px) {
-            .map-container { width: 98% !important; }
-            .search-toolbar { gap: 10px; }
-            .search-toolbar select { min-width: 140px; }
-            .search-row {
+            .reviews-modal-content {
+                width: 95%;
+                margin: 10% auto;
+                max-height: 85vh;
+            }
+            
+            .reviews-header {
+                padding: 15px;
+            }
+            
+            .reviews-header h3 {
+                font-size: 1.1em;
+            }
+            
+            .reviews-body {
+                padding: 15px;
+            }
+            
+            .rating-summary {
                 flex-direction: column;
+                align-items: flex-start;
                 gap: 10px;
             }
             
-            .search-row label {
-                min-width: auto;
-            }
-            
-            .route-controls {
-                position: relative;
-                top: auto;
-                right: auto;
-                margin: 15px 0;
-                max-width: 100%;
+            .review-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 10px;
             }
             
             .popup-buttons,
             .place-buttons {
                 flex-direction: column;
-                gap: 8px;
+                gap: 5px;
             }
             
             .popup-btn {
@@ -549,163 +597,86 @@
             }
 
             .location-selection-instructions {
-                margin: 10px;
-                padding: 15px;
-            }
-            
-            .date-info {
-                margin: 10px;
-                padding: 15px;
+                margin: 5px;
+                padding: 10px;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Enhanced Header with Global Theme -->
-    <header>
-        <h1>EasyDate Map</h1>
-        <div class="menu">
-            <button type="button">☰ Menu</button>
-            <div class="dropdown-content">
-                <a href="{% url 'home' %}">🏠 Home</a>
-                <a href="{% url 'search_user' %}">🔍 Search Users</a>
-                <a href="{% url 'profile' %}">👤 My Profile</a>
-                <a href="{% url 'logout' %}">🚪 Logout</a>
-            </div>
-        </div>
-    </header>
-
-    <!-- Main Content Container -->
-    <div class="container map-container">
-        {% if date_info %}
-        <!-- Enhanced Date Context Header with Role Information -->
-        <div class="date-info">
-            <h2>Date with {{ date_info.partner }}
-                {% if location_selection_mode %}
-                    <span class="user-role-indicator {% if date_info.current_location %}receiver{% else %}sender{% endif %}">
-                        {% if date_info.current_location %}Changing Location{% else %}Setting Location{% endif %}
-                    </span>
-                {% endif %}
-            </h2>
-            <p><strong>Date:</strong> {{ date_info.date }}</p>
-            <p><strong>Time:</strong> {{ date_info.time }}</p>
-            {% if date_info.current_location %}
-                <p><strong>📍 Meeting at:</strong> {{ date_info.current_location.name }}</p>
-                <p>Routes shown from both locations to your date spot!</p>
-            {% elif location_selection_mode %}
-                {% if date_info.current_location %}
-                    <p>🔄 Choose a different meeting location from the places below</p>
-                {% else %}
-                    <p>📍 Select a meeting location from the places below</p>
-                {% endif %}
-            {% else %}
-                <p>Map shows both your locations and the midpoint</p>
+    {% if date_info %}
+    <!-- UPDATED: Enhanced Date Context Header with Role Information -->
+    <div class="date-info">
+        <h2>Date with {{ date_info.partner }}
+            {% if location_selection_mode %}
+                <span class="user-role-indicator {% if date_info.current_location %}receiver{% else %}sender{% endif %}">
+                    {% if date_info.current_location %}Changing Location{% else %}Setting Location{% endif %}
+                </span>
             {% endif %}
-        </div>
-        
-        <button class="btn btn-secondary" onclick="window.history.back()">← Back to {% if location_selection_mode %}Profile{% else %}Schedule{% endif %}</button>
+        </h2>
+        <p><strong>Date:</strong> {{ date_info.date }}</p>
+        <p><strong>Time:</strong> {{ date_info.time }}</p>
+        {% if date_info.current_location %}
+            <p><strong>📍 Meeting at:</strong> {{ date_info.current_location.name }}</p>
+            <p>Routes shown from both locations to your date spot!</p>
+        {% elif location_selection_mode %}
+            {% if date_info.current_location %}
+                <p>🔄 Choose a different meeting location from the places below</p>
+            {% else %}
+                <p>📍 Select a meeting location from the places below</p>
+            {% endif %}
         {% else %}
-        <div class="card" style="margin-bottom:10px;">
-            <h1>Search Places and Rate</h1>
-        </div>
+            <p>Map shows both your locations and the midpoint</p>
         {% endif %}
-
-        <!-- Unified controls toolbar (Locate + manual location + dropdowns) -->
-        <div class="controls-toolbar">
-            <!-- Row 1: Locate Me above manual location -->
-            <div class="row">
-                <div class="field-group inline">
-                    <label>&nbsp;</label>
-                    <button id="locate-btn" class="btn">📍 Locate Me</button>
-                    <div id="location-status"></div>
-                </div>
-            </div>
-            <!-- Row 2: Manual location full width -->
-            <div class="row">
-                <div class="field-group grow" style="flex:1 1 100%;">
-                    <label for="manual-location">Set Location Manually:</label>
-                    <input type="text" id="manual-location" placeholder="Enter location" />
-                    <div id="search-results"></div>
-                </div>
-            </div>
-            <!-- Row 3: Tag, Ambiance, Sort, Search on one line -->
-            <div class="row">
-                <div class="field-group inline">
-                    <label for="tag">Search by Tag:</label>
-                    <select id="tag">
-                        <option value="restaurant">Restaurant</option>
-                        <option value="cafe">Cafe</option>
-                        <option value="bar">Bar</option>
-                        <option value="club">Club</option>
-                        <option value="malls">Malls</option>
-                    </select>
-                </div>
-                <div class="field-group inline">
-                    <label for="ambiance">Select Ambiance:</label>
-                    <select id="ambiance">
-                        <option value="any">Any</option>
-                        <option value="chill">Chill</option>
-                        <option value="lively">Lively</option>
-                        <option value="romantic">Romantic</option>
-                        <option value="fun">Fun</option>
-                    </select>
-                </div>
-                <div class="field-group inline">
-                    <label for="sort">Sort by:</label>
-                    <select id="sort">
-                        <option value="distance">Distance</option>
-                        <option value="reviews">Reviews</option>
-                    </select>
-                </div>
-                <div class="field-group inline">
-                    <label>&nbsp;</label>
-                    <button id="search-btn" class="btn">🔍 Search Places</button>
-                </div>
-            </div>
-        </div>
-        
-        <div id="error-message"></div>
-        
-        <!-- Map Container with overlay legend -->
-        <div class="map-wrapper">
-            <div id="map"></div>
-            <!-- Enhanced Color Legend (overlay, small white box) -->
-            <div class="color-legend">
-                <strong>Place Types</strong><br>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #FF6B35;"></div>
-                    <span>Restaurants & Fast Food</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #FFBF00;"></div>
-                    <span>Cafes & Bakeries</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #8E44AD;"></div>
-                    <span>Bars & Pubs</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #E91E63;"></div>
-                    <span>Clubs & Nightlife</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color" style="background-color: #607D8B;"></div>
-                    <span>Malls & Shopping</span>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Place Details -->
-        <div id="place-details"></div>
     </div>
-
-    <!-- Route Controls -->
+    
+    <button class="back-btn" onclick="window.history.back()">← Back to {% if location_selection_mode %}Profile{% else %}Schedule{% endif %}</button>
+    {% else %}
+    <h1>Search Places and Rate</h1>
+    {% endif %}
+    
+    <!-- NEW: Route Controls -->
     <div class="route-controls" id="route-controls" style="display: none;">
         <h4>Active Routes</h4>
         <div id="route-list"></div>
-        <button class="btn btn-danger" onclick="clearAllRoutes()">Clear All Routes</button>
-        <button class="btn btn-success restore-btn" onclick="restoreMidpointRoute()" id="restore-midpoint-btn" style="display: none;">Restore Midpoint Route</button>
+        <button onclick="clearAllRoutes()">Clear All Routes</button>
+        <button class="restore-btn" onclick="restoreMidpointRoute()" id="restore-midpoint-btn" style="display: none;">Restore Midpoint Route</button>
     </div>
+    
+    <button id="locate-btn">Locate Me</button>
+    <div id="location-status"></div>
+    
+    <div class="search-container">
+        <label for="manual-location">Set Location Manually:</label>
+        <input type="text" id="manual-location" placeholder="Enter location" />
+        <div id="search-results"></div>
+    </div>
+    <label for="tag">Search by Tag:</label>
+    <select id="tag">
+        <option value="restaurant">Restaurant</option>
+        <option value="cafe">Cafe</option>
+        <option value="bar">Bar</option>
+        <option value="club">Club</option>
+        <option value="malls">malls</option>
+    </select>
+    <label for="ambiance">Select Ambiance:</label>
+    <select id="ambiance">
+        <option value="any">Any</option>
+        <option value="chill">Chill</option>
+        <option value="lively">Lively</option>
+        <option value="romantic">Romantic</option>
+        <option value="fun">Fun</option>
+    </select>
+    <label for="sort">Sort by:</label>
+    <select id="sort">
+        <option value="distance">Distance</option>
+        <option value="reviews">Reviews</option>
+    </select>
+    <button id="search-btn">Search</button>
+    
+    <div id="error-message"></div>
+    <div id="map"></div>
+    <div id="place-details"></div>
 
     <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <script>
@@ -970,7 +941,7 @@
                 }
                 
                 instructionsDiv.innerHTML = instructionHTML;
-                document.querySelector('.container').insertBefore(instructionsDiv, document.querySelector('.card'));
+                document.body.insertBefore(instructionsDiv, document.getElementById('map'));
                 
                 // Show current location if exists
                 if (dateInfo.current_location) {
@@ -1661,45 +1632,45 @@
                 return R * c;
             }
 
-            async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
-                let query;
-                
-                // Special handling for malls - simplified and faster
-                if (tag === 'malls') {
-                query = `
-                    [out:json][timeout:20];
-                    (
-                      way["shop"="mall"](around:1500,${lat},${lon});
-                    );
-                    out center;
-                `;} 
-                else {
-                    // Default amenity search for other tags
-                    query = `
-                        [out:json][timeout:25];
-                        (
-                          node["amenity"="${tag}"](around:2000,${lat},${lon});
-                          way["amenity"="${tag}"](around:2000,${lat},${lon});
-                        );
-                        out center;
-                    `;
-                }
-                
-                const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
-                try {
-                    console.log('Fetching places from:', url);
-                    const response = await fetch(url);
-                    const data = await response.json();
-                    console.log('Received data:', data);
-                    return data.elements || [];
-                } catch (error) {
-                    console.error('Error fetching places:', error);
-                    displayError("Failed to fetch nearby places.");
-                    return [];
-                }
-            }            
+async function fetchNearbyPlaces(lat, lon, tag = 'restaurant') {
+    let query;
+    
+    // Special handling for malls - simplified and faster
+    if (tag === 'malls') {
+    query = `
+        [out:json][timeout:20];
+        (
+          way["shop"="mall"](around:1500,${lat},${lon});
+        );
+        out center;
+    `;} 
+    else {
+        // Default amenity search for other tags
+        query = `
+            [out:json][timeout:25];
+            (
+              node["amenity"="${tag}"](around:2000,${lat},${lon});
+              way["amenity"="${tag}"](around:2000,${lat},${lon});
+            );
+            out center;
+        `;
+    }
+    
+    const url = 'https://overpass-api.de/api/interpreter?data=' + encodeURIComponent(query);
+    try {
+        console.log('Fetching places from:', url);
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log('Received data:', data);
+        return data.elements || [];
+    } catch (error) {
+        console.error('Error fetching places:', error);
+        displayError("Failed to fetch nearby places.");
+        return [];
+    }
+}            
 
-            async function fetchPreferredPlaces(lat, lon, partnerName) {
+async function fetchPreferredPlaces(lat, lon, partnerName) {
                 try {
                     const url = `/get_preferred_places/?lat=${lat}&lon=${lon}&partner=${encodeURIComponent(partnerName)}`;
                     console.log('Fetching preferred places from:', url);
@@ -1736,7 +1707,7 @@
                 
                 if (places.length === 0) {
                     if (placeDetails) {
-                        placeDetails.innerHTML = '<div class="card"><p>No places found nearby. Try a different search radius or location.</p></div>';
+                        placeDetails.innerHTML = '<p>No places found nearby. Try a different search radius or location.</p>';
                     }
                     return;
                 }
@@ -1834,10 +1805,6 @@
                     
                     // UPDATED: Enhanced place details list with improved location selection button
                     if (placeDetails) {
-                        if (index === 0) {
-                            placeDetails.innerHTML = '<div class="card"><h3>Found Places</h3></div>';
-                        }
-                        
                         const div = document.createElement('div');
                         div.className = 'place-item';
                         
@@ -1915,11 +1882,7 @@
                 const errorMessage = document.getElementById('error-message');
                 if (errorMessage) {
                     errorMessage.textContent = message;
-                    errorMessage.style.display = message ? 'block' : 'none';
-                    setTimeout(() => {
-                        errorMessage.textContent = '';
-                        errorMessage.style.display = 'none';
-                    }, 5000);
+                    setTimeout(() => (errorMessage.textContent = ''), 5000);
                 }
             }
 
@@ -1927,11 +1890,7 @@
                 const locationStatus = document.getElementById('location-status');
                 if (locationStatus) {
                     locationStatus.textContent = message;
-                    locationStatus.style.display = message ? 'block' : 'none';
-                    setTimeout(() => {
-                        locationStatus.textContent = '';
-                        locationStatus.style.display = 'none';
-                    }, 3000);
+                    setTimeout(() => (locationStatus.textContent = ''), 3000);
                 }
             }
 
@@ -2266,10 +2225,36 @@
                         }
                     });
                 }
+
+                // Create color legend
+                const colorLegend = document.createElement('div');
+                colorLegend.className = 'color-legend';
+                colorLegend.innerHTML = `
+                    <strong>Place Types:</strong><br>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FF6B35;"></div>
+                        <span>Restaurants & Fast Food</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #FFBF00;"></div>
+                        <span>Cafes & Bakeries</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #8E44AD;"></div>
+                        <span>Bars & Pubs</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #E91E63;"></div>
+                        <span>Clubs & Nightlife</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #607D8B;"></div>
+                        <span>MALLS</span>
+                    </div>
+                `;
+                document.body.appendChild(colorLegend);
             }
         });
     </script>
-
-    <!-- Legend moved into overlay inside map-wrapper -->
 </body>
 </html>

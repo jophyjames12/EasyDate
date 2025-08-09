@@ -15,7 +15,8 @@ import os
 from django.contrib.messages import constants as messages
 from decouple import config
 
-OOGLE_PLACES_API_KEY = config('GOOGLE_PLACES_API_KEY', default='')
+GOOGLE_CLIENT_ID = config('GOOGLE_CLIENT_ID', default='633306351645-t7fp851eg57ta2r0jhelc87qnlb02b3j.apps.googleusercontent.com')
+GOOGLE_PLACES_API_KEY = config('GOOGLE_PLACES_API_KEY', default='')
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -154,3 +155,35 @@ EMAIL_USE_TLS = True
 EMAIL_HOST_USER = config('EMAIL_HOST_USER')
 
 DEFAULT_FROM_EMAIL = EMAIL_HOST_USER
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'INFO',
+        },
+        'MainApp': {  # Replace with your app name
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    },
+}
+
+# CORS settings (if you're having CORS issues)
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOWED_ORIGINS = [
+    "https://accounts.google.com",
+    "https://www.google.com",
+]
+
+# Session settings
+SESSION_COOKIE_AGE = 86400  # 24 hours
+SESSION_SAVE_EVERY_REQUEST = True
