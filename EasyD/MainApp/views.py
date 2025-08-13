@@ -524,6 +524,119 @@ def resend_otp(request):
 
     return redirect('signup')
 
+
+def forgot_password_view(request):
+    """Three-step password reset via email OTP: request -> verify -> reset."""
+    # Step 1: Request OTP by email
+    if request.method == 'GET':
+        return render(request, 'MainApp/forgot_password.html')
+
+    step = request.POST.get('step', 'request_otp')
+
+    # Step 1 handler: user submits email
+    if step == 'request_otp':
+        email = request.POST.get('email', '').strip().lower()
+        if not email:
+            messages.error(request, 'Please enter your email address.')
+            return render(request, 'MainApp/forgot_password.html')
+
+        user = users_collection.find_one({"email": email})
+        if not user:
+            messages.error(request, 'No account found with that email.')
+            return render(request, 'MainApp/forgot_password.html')
+
+        otp = generate_otp()
+        request.session['password_reset'] = {
+            'email': email,
+            'otp': otp,
+            'otp_created_at': datetime.now().isoformat(),
+            'otp_verified': False,
+        }
+
+        if send_otp_email(request, email, otp):
+            messages.success(request, f"Verification code sent to {email}")
+            return render(request, 'MainApp/forgot_password.html', { 'show_otp_form': True, 'email': email })
+        else:
+            messages.error(request, "Failed to send verification email. Please try again.")
+            return render(request, 'MainApp/forgot_password.html')
+
+    # Step 2 handler: verify OTP
+    if step == 'verify_otp':
+        entered_otp = request.POST.get('otp', '').strip()
+        password_reset = request.session.get('password_reset')
+
+        if not password_reset:
+            messages.error(request, 'Session expired. Please start again.')
+            return redirect('forgot_password')
+
+        otp_created_at = datetime.fromisoformat(password_reset['otp_created_at'])
+        if datetime.now() - otp_created_at > timedelta(minutes=10):
+            messages.error(request, 'OTP has expired. Please request a new one.')
+            del request.session['password_reset']
+            return redirect('forgot_password')
+
+        if entered_otp != password_reset['otp']:
+            messages.error(request, 'Invalid OTP. Please try again.')
+            return render(request, 'MainApp/forgot_password.html', { 'show_otp_form': True, 'email': password_reset['email'] })
+
+        password_reset['otp_verified'] = True
+        request.session['password_reset'] = password_reset
+        messages.success(request, 'OTP verified. You can now reset your password.')
+        return render(request, 'MainApp/forgot_password.html', { 'show_reset_form': True, 'email': password_reset['email'] })
+
+    # Step 3 handler: reset password
+    if step == 'reset_password':
+        password_reset = request.session.get('password_reset')
+        if not password_reset or not password_reset.get('otp_verified'):
+            messages.error(request, 'Unauthorized action. Please verify OTP first.')
+            return redirect('forgot_password')
+
+        new_password = request.POST.get('password', '')
+        confirm_password = request.POST.get('confirm_password', '')
+        if not new_password or not confirm_password:
+            messages.error(request, 'Please enter and confirm your new password.')
+            return render(request, 'MainApp/forgot_password.html', { 'show_reset_form': True, 'email': password_reset['email'] })
+
+        if new_password != confirm_password:
+            messages.error(request, 'Passwords do not match.')
+            return render(request, 'MainApp/forgot_password.html', { 'show_reset_form': True, 'email': password_reset['email'] })
+
+        hashed_password = pbkdf2_sha256.hash(new_password)
+        users_collection.update_one({"email": password_reset['email']}, {"$set": {"password": hashed_password}})
+
+        # Cleanup
+        if 'password_reset' in request.session:
+            del request.session['password_reset']
+
+        messages.success(request, 'Your password has been updated. Please log in.')
+        return redirect('login')
+
+    # Fallback
+    return redirect('forgot_password')
+
+
+def resend_reset_otp(request):
+    """Resend OTP for password reset flow."""
+    if request.method != 'POST':
+        return redirect('forgot_password')
+
+    password_reset = request.session.get('password_reset')
+    if not password_reset:
+        messages.error(request, 'Session expired. Please start again.')
+        return redirect('forgot_password')
+
+    otp = generate_otp()
+    password_reset['otp'] = otp
+    password_reset['otp_created_at'] = datetime.now().isoformat()
+    request.session['password_reset'] = password_reset
+
+    if send_otp_email(request, password_reset['email'], otp):
+        messages.success(request, 'A new verification code has been sent.')
+    else:
+        messages.error(request, 'Failed to send verification email. Please try again.')
+
+    return render(request, 'MainApp/forgot_password.html', { 'show_otp_form': True, 'email': password_reset['email'] })
+
 def logout_view(request):
     if 'user_id' in request.session:
         # Remove user ID from session to log the user out

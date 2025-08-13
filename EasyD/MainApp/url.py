@@ -9,6 +9,9 @@ urlpatterns=[
     path('login/', views.login_view, name='login'),
     path("area/",views.area_view, name='area' ),
     path('signup/', views.signup_view, name='signup'),
+    path('forgot-password/', views.forgot_password_view, name='forgot_password'),
+    path('forgotpassword/', views.forgot_password_view),  # alias
+    path('resend-reset-otp/', views.resend_reset_otp, name='resend_reset_otp'),
     path('logout/', views.logout_view, name='logout'),
     path('area/logout/', views.logout_view, name='logout'),
     path("home/",views.home,name="home"),
